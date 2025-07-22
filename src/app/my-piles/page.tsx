@@ -1670,15 +1670,15 @@ export default function MyPilesPage() {
               )}
             </div>
           ) : (
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md overflow-hidden max-w-[95vw] mx-auto">
-              {/* Table with scrolling and hidden scrollbars */}
-              <div className="overflow-x-auto" style={{ scrollbarWidth: 'thin', msOverflowStyle: 'auto' }}>
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md overflow-hidden">
+              {/* Compact table without horizontal scrolling */}
+              <div className="overflow-x-auto">
                 <div className="min-w-full inline-block align-middle">
-                  <div className="relative max-h-[60vh] overflow-y-auto" style={{ scrollbarWidth: 'thin', msOverflowStyle: 'auto' }}>
-                    <table className="min-w-full divide-y divide-slate-200 border-collapse table-fixed">
+                  <div className="relative max-h-[60vh] overflow-y-auto">
+                    <table className="min-w-full divide-y divide-slate-200 border-collapse">
                       <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0 z-10">
                         <tr className="border-b border-slate-200 dark:border-slate-700">
-                          <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider w-12">
+                          <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide w-8">
                             {canEdit && (
                               <Checkbox 
                                 checked={filteredPiles
@@ -1689,23 +1689,23 @@ export default function MyPilesPage() {
                               />
                             )}
                           </th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Pile ID</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Zone</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Block</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Machine</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Design Embedment</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Embedment</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Duration</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Start Z</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">End Z</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Gain/30s</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Pile Color</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Start Date</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Start Time</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Stop Time</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Notes</th>
-                          <th className="px-6 py-4 text-left text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-4 text-right text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider w-24">Actions</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide w-20">ID</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide w-16">Zone</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide w-12">Block</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide w-12 hidden md:table-cell">Mach</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide w-16">Design</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide w-16">Embed</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide w-16 hidden lg:table-cell">Duration</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide w-12 hidden xl:table-cell">Start Z</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide w-12 hidden xl:table-cell">End Z</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide w-12">Gain</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide w-16 hidden lg:table-cell">Color</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide w-20">Date</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide w-16 hidden md:table-cell">Start</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide w-16 hidden lg:table-cell">Stop</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide w-12">Notes</th>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide w-16">Status</th>
+                          <th className="px-2 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide w-12">Act</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white dark:bg-slate-800/90 divide-y divide-slate-200 dark:divide-slate-700">
@@ -1720,7 +1720,7 @@ export default function MyPilesPage() {
                               transform: "translateZ(0)", // Force hardware acceleration for smoother animations
                             }}
                           >
-                            <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                            <td className="px-2 py-1.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                               {canEdit && (
                                 <Checkbox 
                                   checked={selectedPiles.has(pile.id)}
@@ -1729,23 +1729,20 @@ export default function MyPilesPage() {
                                 />
                               )}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-base text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
-                              <span className="group-hover:text-blue-600 transition-colors duration-200">
+                            <td className="px-2 py-1.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
+                              <span className="group-hover:text-blue-600 transition-colors duration-200 block truncate max-w-[80px]" title={String(pile.pile_id || pile.pile_number)}>
                                 {pile.pile_id && duplicatePileIds.has(pile.pile_id) && showDuplicatesOnly ? (
                                   <div className="flex items-center">
                                     <span 
-                                      className="flex gap-1 items-center px-2 py-0.5 rounded border transition-all duration-300 hover:shadow-md relative group"
+                                      className="flex gap-1 items-center px-1 py-0.5 rounded border transition-all duration-300 hover:shadow-md relative group text-xs"
                                       style={{
                                         backgroundColor: duplicateColors[pile.pile_id]?.bg as string || 'rgba(251, 191, 36, 0.1)',
                                         borderColor: duplicateColors[pile.pile_id]?.border as string || 'rgba(251, 191, 36, 0.3)',
                                         color: duplicateColors[pile.pile_id]?.text as string || 'rgb(180, 83, 9)'
                                       }}
                                     >
-                                      <div className="absolute -left-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Link2 size={14} className="text-amber-700 animate-pulse" />
-                                      </div>
-                                      <AlertTriangle size={14} className="text-amber-700" />
-                                      {pile.pile_id || pile.pile_number}
+                                      <AlertTriangle size={10} className="text-amber-700" />
+                                      <span className="truncate">{pile.pile_id || pile.pile_number}</span>
                                     </span>
                                   </div>
                                 ) : (
@@ -1753,19 +1750,27 @@ export default function MyPilesPage() {
                                 )}
                               </span>
                             </td>
-                            <td className="px-6 py-5 whitespace-nowrap text-base text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
-                              {pile.zone || "N/A"}
+                            <td className="px-2 py-1.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
+                              <span className="truncate block max-w-[60px]" title={pile.zone || "N/A"}>
+                                {pile.zone || "N/A"}
+                              </span>
                             </td>
-                            <td className="px-6 py-5 whitespace-nowrap text-base text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
-                              {pile.block || "N/A"}
+                            <td className="px-2 py-1.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
+                              <span className="truncate block max-w-[48px]" title={pile.block || "N/A"}>
+                                {pile.block || "N/A"}
+                              </span>
                             </td>
-                            <td className="px-6 py-5 whitespace-nowrap text-base text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
-                              {pile.machine || "N/A"}
+                            <td className="px-2 py-1.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 hidden md:table-cell">
+                              <span className="truncate block max-w-[48px]" title={pile.machine || "N/A"}>
+                                {pile.machine || "N/A"}
+                              </span>
                             </td>
-                            <td className="px-6 py-5 whitespace-nowrap text-base text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
-                              {pile.design_embedment ? `${pile.design_embedment} ft` : "N/A"}
+                            <td className="px-2 py-1.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
+                              <span className="truncate block max-w-[60px]" title={pile.design_embedment ? `${String(pile.design_embedment)} ft` : "N/A"}>
+                                {pile.design_embedment ? `${pile.design_embedment}` : "N/A"}
+                              </span>
                             </td>
-                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${
+                            <td className={`px-2 py-1.5 whitespace-nowrap text-xs ${
                               pile.embedment && pile.design_embedment && 
                               Number(pile.embedment) < (Number(pile.design_embedment) - embedmentTolerance) 
                                 ? 'relative' 
@@ -1774,79 +1779,97 @@ export default function MyPilesPage() {
                               {pile.embedment && pile.design_embedment && 
                                Number(pile.embedment) < (Number(pile.design_embedment) - embedmentTolerance) ? (
                                 <div className="group">
-                                  <div className="flex items-center gap-1.5 px-2 py-0.5 bg-orange-50 border border-orange-200 text-orange-700 rounded">
-                                    <AlertTriangle size={14} className="text-orange-500" />
-                                    <span>{pile.embedment || "N/A"}</span>
+                                  <div className="flex items-center gap-1 px-1 py-0.5 bg-orange-50 border border-orange-200 text-orange-700 rounded text-xs">
+                                    <AlertTriangle size={10} className="text-orange-500" />
+                                    <span className="truncate">{pile.embedment || "N/A"}</span>
                                   </div>
                                   <div className="absolute z-10 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity bg-slate-800 text-white text-xs rounded py-1 px-2 -mt-1 left-16 w-48">
                                     Embedment below tolerance ({embedmentTolerance}ft) of design value.
                                   </div>
                                 </div>
                               ) : (
-                                <span>{pile.embedment || "N/A"}</span>
+                                <span className="truncate block max-w-[60px]" title={pile.embedment ? String(pile.embedment) : "N/A"}>{pile.embedment || "N/A"}</span>
                               )}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
-                              {pile.duration || "N/A"}
+                            <td className="px-2 py-1.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 hidden lg:table-cell">
+                              <span className="truncate block max-w-[60px]" title={pile.duration || "N/A"}>{pile.duration || "N/A"}</span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
-                              {pile.start_z || "N/A"}
+                            <td className="px-2 py-1.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 hidden xl:table-cell">
+                              <span className="truncate block max-w-[48px]" title={pile.start_z ? String(pile.start_z) : "N/A"}>{pile.start_z || "N/A"}</span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
-                              {pile.end_z || "N/A"}
+                            <td className="px-2 py-1.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 hidden xl:table-cell">
+                              <span className="truncate block max-w-[48px]" title={pile.end_z ? String(pile.end_z) : "N/A"}>{pile.end_z || "N/A"}</span>
                             </td>
-                            <td className={`px-6 py-4 whitespace-nowrap text-sm ${Number(pile.gain_per_30_seconds) < gainThreshold ? 'relative' : ''}`}>
+                            <td className={`px-2 py-1.5 whitespace-nowrap text-xs ${Number(pile.gain_per_30_seconds) < gainThreshold ? 'relative' : ''}`}>
                               {Number(pile.gain_per_30_seconds) < gainThreshold ? (
                                 <div className="group">
-                                  <div className="flex items-center gap-1.5 px-2 py-0.5 bg-red-50 border border-red-200 text-red-700 rounded">
-                                    <AlertTriangle size={14} className="text-red-500" />
-                                    <span>{pile.gain_per_30_seconds || "N/A"}</span>
+                                  <div className="flex items-center gap-1 px-1 py-0.5 bg-red-50 border border-red-200 text-red-700 rounded text-xs">
+                                    <AlertTriangle size={10} className="text-red-500" />
+                                    <span className="truncate">{pile.gain_per_30_seconds || "N/A"}</span>
                                   </div>
                                   <div className="absolute z-10 invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity bg-slate-800 text-white text-xs rounded py-1 px-2 -mt-1 left-16 w-48">
                                     Low gain rate (less than {gainThreshold}). May indicate driving issues.
                                   </div>
                                 </div>
                               ) : (
-                                <span>{pile.gain_per_30_seconds || "N/A"}</span>
+                                <span className="truncate block max-w-[48px]" title={pile.gain_per_30_seconds ? String(pile.gain_per_30_seconds) : "N/A"}>{pile.gain_per_30_seconds || "N/A"}</span>
                               )}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
-                              {pile.pile_color || "N/A"}
+                            <td className="px-2 py-1.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 hidden lg:table-cell">
+                              <span className="truncate block max-w-[60px]" title={pile.pile_color || "N/A"}>{pile.pile_color || "N/A"}</span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
-                              {pile.start_date ? formatDate(pile.start_date) : "N/A"}
+                            <td className="px-2 py-1.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
+                              <span className="truncate block max-w-[80px]" title={pile.start_date ? formatDate(pile.start_date) : "N/A"}>
+                                {pile.start_date ? formatDate(pile.start_date) : "N/A"}
+                              </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
-                              {formatTimeToStandard(pile.start_time)}
+                            <td className="px-2 py-1.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 hidden md:table-cell">
+                              <span className="truncate block max-w-[60px]" title={formatTimeToStandard(pile.start_time)}>
+                                {formatTimeToStandard(pile.start_time)}
+                              </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
-                              {formatTimeToStandard(pile.stop_time)}
+                            <td className="px-2 py-1.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 hidden lg:table-cell">
+                              <span className="truncate block max-w-[60px]" title={formatTimeToStandard(pile.stop_time)}>
+                                {formatTimeToStandard(pile.stop_time)}
+                              </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300">
+                            <td className="px-2 py-1.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-300">
                               {pile.notes && (
                                 <Button 
                                   variant="outline" 
                                   size="sm" 
-                                  className="h-6 px-2 text-xs font-medium bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 transition-all duration-200 hover:shadow-sm flex items-center gap-1.5"
+                                  className="h-5 px-1 text-xs font-medium bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 transition-all duration-200 hover:shadow-sm flex items-center gap-1"
                                   onClick={(e) => openNotesModal(pile, e)}
                                 >
-                                  <FileText size={12} className="text-blue-600" />
-                                  Note
+                                  <FileText size={10} className="text-blue-600" />
                                 </Button>
                               )}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              {getStatusBadge(getPileStatus(pile))}
+                            <td className="px-2 py-1.5 whitespace-nowrap">
+                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${
+                                getPileStatus(pile) === 'accepted' ? 'bg-green-100 text-green-800' :
+                                getPileStatus(pile) === 'refusal' ? 'bg-red-100 text-red-800' :
+                                'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {getPileStatus(pile) === 'accepted' && <Check size={8} />}
+                                {getPileStatus(pile) === 'refusal' && <AlertTriangle size={8} />}
+                                {getPileStatus(pile) === 'pending' && <Clock size={8} />}
+                                <span className="hidden sm:inline">
+                                  {getPileStatus(pile) === 'accepted' && 'OK'}
+                                  {getPileStatus(pile) === 'refusal' && 'REF'}
+                                  {getPileStatus(pile) === 'pending' && 'PEN'}
+                                </span>
+                              </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium w-24" onClick={(e) => e.stopPropagation()}>
+                            <td className="px-2 py-1.5 whitespace-nowrap text-right text-xs font-medium" onClick={(e) => e.stopPropagation()}>
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
-                                className="text-slate-700 hover:text-blue-700 h-8 w-8 p-0 flex items-center justify-center"
+                                className="text-slate-700 hover:text-blue-700 h-6 w-6 p-0 flex items-center justify-center"
                                 onClick={(e) => openActionsModal(pile, e)}
                                 disabled={!canEdit}
                               >
-                                <MoreHorizontal size={16} />
+                                <MoreHorizontal size={12} />
                               </Button>
                             </td>
                           </tr>
