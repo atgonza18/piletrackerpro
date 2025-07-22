@@ -99,6 +99,8 @@ export default function MyPilesPage() {
   const [duplicatePileIds, setDuplicatePileIds] = useState<Set<string>>(new Set());
   const [isDeleteDuplicatesDialogOpen, setIsDeleteDuplicatesDialogOpen] = useState(false);
   const [isDeletingDuplicates, setIsDeletingDuplicates] = useState(false);
+  const [isDeleteLowerDuplicatesDialogOpen, setIsDeleteLowerDuplicatesDialogOpen] = useState(false);
+  const [isDeletingLowerDuplicates, setIsDeletingLowerDuplicates] = useState(false);
   const [selectedPiles, setSelectedPiles] = useState<Set<string>>(new Set());
   const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
   
@@ -1035,6 +1037,105 @@ export default function MyPilesPage() {
     }
   };
 
+  // Function to delete duplicate piles keeping only the one with highest embedment
+  const handleDeleteLowerDuplicates = async () => {
+    if (!projectData) return;
+    
+    try {
+      setIsDeletingLowerDuplicates(true);
+      
+      // Get all piles with duplicates
+      const pilesWithDuplicates = piles.filter(pile => 
+        pile.pile_id && duplicatePileIds.has(pile.pile_id)
+      );
+      
+      if (pilesWithDuplicates.length === 0) {
+        toast.info("No duplicate piles found");
+        setIsDeleteLowerDuplicatesDialogOpen(false);
+        return;
+      }
+      
+      // Group piles by pile_id
+      const pilesByPileId = pilesWithDuplicates.reduce((acc, pile) => {
+        if (!pile.pile_id) return acc;
+        if (!acc[pile.pile_id]) {
+          acc[pile.pile_id] = [];
+        }
+        acc[pile.pile_id].push(pile);
+        return acc;
+      }, {} as Record<string, PileData[]>);
+      
+      // For each pile_id group, keep the one with highest embedment and mark others for deletion
+      const pilesToDelete: PileData[] = [];
+      let keptCount = 0;
+      
+      Object.entries(pilesByPileId).forEach(([pileId, pileGroup]) => {
+        if (pileGroup.length <= 1) return; // Skip if not actually duplicates
+        
+        // Sort by embedment value (highest first), handling null/undefined values
+        const sortedPiles = pileGroup.sort((a, b) => {
+          const aEmbedment = a.embedment ?? -Infinity; // Treat null/undefined as lowest value
+          const bEmbedment = b.embedment ?? -Infinity;
+          return bEmbedment - aEmbedment; // Descending order (highest first)
+        });
+        
+        // Keep the first one (highest embedment), mark others for deletion
+        const toKeep = sortedPiles[0];
+        const toDelete = sortedPiles.slice(1);
+        
+        pilesToDelete.push(...toDelete);
+        keptCount++;
+        
+        console.log(`Pile ID ${pileId}: Keeping pile with embedment ${toKeep.embedment}, deleting ${toDelete.length} lower duplicates`);
+      });
+      
+      if (pilesToDelete.length === 0) {
+        toast.info("No duplicate piles with different embedment values found");
+        setIsDeleteLowerDuplicatesDialogOpen(false);
+        return;
+      }
+      
+      // Delete the duplicate piles with lower embedment
+      const { error } = await supabase
+        .from('piles')
+        .delete()
+        .in('id', pilesToDelete.map(pile => pile.id));
+        
+      if (error) throw error;
+      
+      // Update local state
+      setPiles(prevPiles => 
+        prevPiles.filter(pile => !pilesToDelete.some(toDelete => toDelete.id === pile.id))
+      );
+      setFilteredPiles(prevPiles => 
+        prevPiles.filter(pile => !pilesToDelete.some(toDelete => toDelete.id === pile.id))
+      );
+      
+      // Update counts
+      setTotalPiles(prev => prev - pilesToDelete.length);
+      
+      // Update status counts
+      pilesToDelete.forEach(pile => {
+        const status = getPileStatus(pile);
+        if (status === 'accepted') {
+          setAcceptedPiles(prev => prev - 1);
+        } else if (status === 'refusal') {
+          setRefusalPiles(prev => prev - 1);
+        } else {
+          setPendingPiles(prev => prev - 1);
+        }
+      });
+      
+      toast.success(`Successfully deleted ${pilesToDelete.length} duplicate piles with lower embedment values. Kept ${keptCount} piles with highest embedment.`);
+      setIsDeleteLowerDuplicatesDialogOpen(false);
+    } catch (error) {
+      console.error("Error deleting lower duplicate piles:", error);
+      toast.error("Failed to delete duplicate piles");
+    } finally {
+      setIsDeletingLowerDuplicates(false);
+    }
+  };
+
   const handleBulkDelete = async () => {
     if (selectedPiles.size === 0) return;
     
@@ -1553,18 +1654,30 @@ export default function MyPilesPage() {
                     />
                     <Label className="text-sm font-medium">Show Duplicates</Label>
                     {showDuplicatesOnly && duplicatePileIds.size > 0 && (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => setIsDeleteDuplicatesDialogOpen(true)}
-                        className="ml-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-1.5 border border-red-400/20"
-                      >
-                        <Trash2 size={14} className="mr-1" />
-                        <span className="font-medium">Delete Duplicates</span>
-                        <span className="ml-1 px-1.5 py-0.5 bg-red-400/20 rounded-full text-xs font-medium">
-                          {duplicatePileIds.size}
-                        </span>
-                      </Button>
+                      <div className="flex items-center gap-2 ml-2">
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => setIsDeleteDuplicatesDialogOpen(true)}
+                          className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-1.5 border border-red-400/20"
+                        >
+                          <Trash2 size={14} className="mr-1" />
+                          <span className="font-medium">Delete Duplicates</span>
+                          <span className="ml-1 px-1.5 py-0.5 bg-red-400/20 rounded-full text-xs font-medium">
+                            {duplicatePileIds.size}
+                          </span>
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => setIsDeleteLowerDuplicatesDialogOpen(true)}
+                          className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-1.5 border border-orange-400/20"
+                          title="Keep only the pile with the highest embedment value for each duplicate group"
+                        >
+                          <AlertTriangle size={14} className="mr-1" />
+                          <span className="font-medium">Delete Lower Duplicates</span>
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -2521,6 +2634,62 @@ export default function MyPilesPage() {
                 <>
                   <Trash2 size={16} className="mr-2" />
                   Delete Duplicates
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Delete Lower Duplicates Dialog */}
+      <Dialog open={isDeleteLowerDuplicatesDialogOpen} onOpenChange={setIsDeleteLowerDuplicatesDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-xl shadow-xl border-none overflow-hidden">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="flex items-center text-xl">
+              <AlertTriangle size={18} className="text-orange-600 mr-2" />
+              Delete Lower Duplicate Piles
+            </DialogTitle>
+            <div className="text-slate-500 text-sm">
+              This will keep only the pile with the <strong>highest embedment value</strong> for each duplicate Pile ID and delete all others with lower embedment values. This action cannot be undone.
+            </div>
+          </DialogHeader>
+          <div className="mt-4 space-y-3">
+            <div className="p-4 bg-orange-50 rounded-md border border-orange-200 text-orange-800">
+              <h4 className="font-medium mb-2 flex items-center">
+                <AlertTriangle size={14} className="mr-1.5" />
+                How it works:
+              </h4>
+              <ul className="text-sm space-y-1 list-disc list-inside">
+                <li>Groups all duplicate piles by their Pile ID</li>
+                <li>For each group, identifies the pile with the highest embedment value</li>
+                <li>Deletes all other piles in that group with lower embedment values</li>
+                <li>Piles with null/missing embedment values are considered lowest priority</li>
+              </ul>
+            </div>
+            <div className="p-3 bg-slate-100 rounded-md text-sm text-slate-600">
+              <strong>Example:</strong> If you have 3 piles with ID "C3.057.12" and embedments of 12.5, 13.2, and 11.8, 
+              only the pile with embedment 13.2 will be kept.
+            </div>
+          </div>
+          <DialogFooter className="mt-6 gap-3">
+            <Button variant="outline" onClick={() => setIsDeleteLowerDuplicatesDialogOpen(false)} className="transition-all duration-200 hover:bg-slate-100">
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteLowerDuplicates} 
+              className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 transition-all duration-200"
+              disabled={isDeletingLowerDuplicates}
+            >
+              {isDeletingLowerDuplicates ? (
+                <>
+                  <Loader2 size={16} className="mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <AlertTriangle size={16} className="mr-2" />
+                  Delete Lower Duplicates
                 </>
               )}
             </Button>
