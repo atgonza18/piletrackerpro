@@ -298,7 +298,7 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="flex min-h-screen h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-blue-50">
+    <div className="flex h-screen w-screen bg-gradient-to-br from-slate-50 via-slate-50 to-blue-50">
       {/* Left panel with logo - hidden on mobile */}
       <div className="hidden lg:flex lg:w-1/2 bg-blue-600 text-white p-12 flex-col justify-between relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-700 opacity-90"></div>
@@ -317,7 +317,7 @@ export default function AuthPage() {
       </div>
       
       {/* Right panel with auth forms */}
-      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-4 sm:p-8 lg:p-12">
+      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-4 sm:p-8 lg:p-12 min-h-screen">
         <div className="lg:hidden mb-10 flex flex-col items-center">
           <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white font-bold text-2xl mb-3 shadow-lg">
             PT
@@ -335,7 +335,7 @@ export default function AuthPage() {
                 ${activeTab === "login" 
                   ? "text-blue-600" 
                   : "text-slate-500 hover:text-slate-800"
-                }`}
+              }`}
               type="button"
             >
               Log In
@@ -349,7 +349,7 @@ export default function AuthPage() {
                 ${activeTab === "register" 
                   ? "text-blue-600" 
                   : "text-slate-500 hover:text-slate-800"
-                }`}
+              }`}
               type="button"
             >
               Sign Up

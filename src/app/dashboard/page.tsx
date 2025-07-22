@@ -123,21 +123,21 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden">
+    <div className="h-screen w-screen bg-slate-50 dark:bg-slate-900 overflow-hidden">
       {/* Sidebar - Hidden on mobile */}
-      <div className="fixed inset-y-0 left-0 w-56 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 hidden lg:flex flex-col z-10">
+      <div className="fixed inset-y-0 left-0 w-60 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 hidden lg:flex flex-col z-10">
         <div className="p-3 border-b border-slate-100 dark:border-slate-700">
           <div className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-xs">
+            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-xs">
               PT
             </div>
-            <h1 className="text-base font-bold text-slate-900 dark:text-white truncate">
+            <h1 className="text-lg font-bold text-slate-900 dark:text-white truncate">
               {projectData?.project_name || "PileTrackerPro"}
             </h1>
           </div>
         </div>
         
-        <nav className="p-2 flex-1">
+        <nav className="p-3 flex-1">
           <div className="space-y-1">
             {[
               { name: 'Dashboard', icon: BarChart3, href: '/dashboard', active: true },
@@ -148,19 +148,19 @@ export default function DashboardPage() {
               <button
                 key={item.name}
                 onClick={() => item.href && handleNavigation(item.href)}
-                className={`flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-lg transition-colors ${
+                className={`flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg transition-colors ${
                   item.active 
                     ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium' 
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'
                 }`}
               >
-                <item.icon size={14} />
+                <item.icon size={16} />
                 {item.name}
               </button>
             ))}
           </div>
           
-          <div className="mt-4 pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1">
+          <div className="mt-6 pt-3 border-t border-slate-200 dark:border-slate-700 space-y-1">
             {[
               { name: 'Settings', icon: Settings, href: '/settings', active: false },
               { name: 'Account', icon: User, href: '/settings', active: false },
@@ -168,30 +168,30 @@ export default function DashboardPage() {
               <button
                 key={item.name}
                 onClick={() => item.href && handleNavigation(item.href)}
-                className={`flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-lg transition-colors ${
+                className={`flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg transition-colors ${
                   item.active 
                     ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium' 
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'
                 }`}
               >
-                <item.icon size={14} />
+                <item.icon size={16} />
                 {item.name}
               </button>
             ))}
             
             {/* Dark mode toggle */}
-            <div className="flex items-center justify-between px-2 py-1.5">
-              <span className="text-xs text-slate-600 dark:text-slate-300">Theme</span>
+            <div className="flex items-center justify-between px-3 py-2">
+              <span className="text-sm text-slate-600 dark:text-slate-300">Theme</span>
               <ThemeToggle />
             </div>
           </div>
           
-          <div className="mt-auto pt-2">
+          <div className="mt-auto pt-3">
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-lg transition-colors text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg transition-colors text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
             >
-              <LogOut size={14} />
+              <LogOut size={16} />
               Log Out
             </button>
           </div>
@@ -199,34 +199,34 @@ export default function DashboardPage() {
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-56 h-full">
+      <div className="lg:pl-60 h-screen flex flex-col">
         {/* Mobile header */}
-        <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-2 flex items-center justify-between lg:hidden">
+        <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-3 flex items-center justify-between lg:hidden flex-shrink-0">
           <div className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-xs">
+            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-xs">
               PT
             </div>
-            <h1 className="text-base font-bold text-slate-900 dark:text-white truncate max-w-[200px]">
+            <h1 className="text-lg font-bold text-slate-900 dark:text-white truncate max-w-[200px]">
               {projectData?.project_name || "PileTrackerPro"}
             </h1>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             <ThemeToggle />
             <Button
               variant="ghost"
               size="sm"
-              className="relative h-7 w-7 p-0"
+              className="relative"
               onClick={() => handleNavigation('/notifications')}
             >
-              <Bell className="h-3 w-3" />
+              <Bell className="h-4 w-4" />
               {notifications > 0 && (
-                <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500"></span>
+                <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500"></span>
               )}
             </Button>
             <Button
               variant="outline"
               size="sm"
-              className="rounded-full overflow-hidden border-slate-200 dark:border-slate-700 h-7 w-7 p-0"
+              className="rounded-full overflow-hidden border-slate-200 dark:border-slate-700 h-8 w-8 p-0"
               onClick={() => handleNavigation('/settings')}
             >
               <div className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 h-full w-full flex items-center justify-center text-xs font-medium">
@@ -237,138 +237,140 @@ export default function DashboardPage() {
         </header>
 
         {/* Dashboard content */}
-        <main className="p-3 h-full max-h-[calc(100vh-60px)] lg:max-h-screen overflow-y-auto">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
-              <div>
-                <h1 className="text-lg font-bold text-slate-900 dark:text-white">Welcome back, {userName}</h1>
-                <p className="text-slate-500 dark:text-slate-400 mt-0.5 text-xs">Here&apos;s an overview of your pile tracking project</p>
+        <main className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900">
+          <div className="p-4 md:p-5 lg:p-6 h-full">
+            <div className="max-w-7xl mx-auto h-full">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+                <div>
+                  <h1 className="text-xl font-bold text-slate-900 dark:text-white">Welcome back, {userName}</h1>
+                  <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">Here&apos;s an overview of your pile tracking project</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="hidden md:flex items-center gap-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
+                  >
+                    <Bell className="h-4 w-4" />
+                    Notifications
+                    {notifications > 0 && (
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs font-medium">
+                        {notifications}
+                      </span>
+                    )}
+                  </Button>
+                  <Button 
+                    size="sm"
+                    className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+                    onClick={() => handleNavigation('/my-piles')}
+                  >
+                    <List className="h-4 w-4" />
+                    View Piles
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="hidden md:flex items-center gap-1 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 h-7 text-xs"
-                >
-                  <Bell className="h-3 w-3" />
-                  Notifications
-                  {notifications > 0 && (
-                    <span className="flex h-3 w-3 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs font-medium">
-                      {notifications}
-                    </span>
-                  )}
-                </Button>
-                <Button 
-                  size="sm"
-                  className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 h-7 text-xs"
-                  onClick={() => handleNavigation('/my-piles')}
-                >
-                  <List className="h-3 w-3" />
-                  View Piles
-                </Button>
-              </div>
-            </div>
 
-            {/* Stats cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
-              <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
-                <CardHeader className="pb-1 p-3">
-                  <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">Project Name</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 pt-0">
-                  <div className="text-sm font-bold text-slate-900 dark:text-white">{projectData?.project_name || "Loading..."}</div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{projectData?.project_location || ""}</p>
-                </CardContent>
-              </Card>
-              
-              <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
-                <CardHeader className="pb-1 p-3">
-                  <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Piles</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 pt-0">
-                  <div className="text-sm font-bold text-slate-900 dark:text-white">{totalPiles} / {projectData?.total_project_piles || "..."}</div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    {completedPilesPercent}% of planned piles
-                  </p>
-                </CardContent>
-              </Card>
-              
-              <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
-                <CardHeader className="pb-1 p-3">
-                  <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">Embedment Issues</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 pt-0">
-                  <div className="text-sm font-bold text-amber-500">{pendingPiles}</div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Piles with shallow embedment
-                  </p>
-                </CardContent>
-              </Card>
-              
-              <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
-                <CardHeader className="pb-1 p-3">
-                  <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">Geotechnical Company</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 pt-0">
-                  <div className="text-sm font-bold text-slate-900 dark:text-white">{projectData?.geotech_company || "Loading..."}</div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    {projectData?.role || ""}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Content panels */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-              <div className="lg:col-span-2">
+              {/* Stats cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
-                  <CardHeader className="p-3">
-                    <CardTitle className="text-sm">Recent Activity</CardTitle>
-                    <CardDescription className="text-xs">Latest updates to your piles</CardDescription>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Project Name</CardTitle>
                   </CardHeader>
-                  <CardContent className="p-3 pt-0">
-                    <div className="space-y-2">
-                      <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-700/40">
-                        <div className="text-slate-900 dark:text-white font-medium text-xs">No recent activity</div>
-                        <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
-                          When you make changes to your piles, they&apos;ll appear here.
-                        </p>
+                  <CardContent>
+                    <div className="text-lg font-bold text-slate-900 dark:text-white">{projectData?.project_name || "Loading..."}</div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{projectData?.project_location || ""}</p>
+                  </CardContent>
+                </Card>
+                
+                <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Piles</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-lg font-bold text-slate-900 dark:text-white">{totalPiles} / {projectData?.total_project_piles || "..."}</div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      {completedPilesPercent}% of planned piles
+                    </p>
+                  </CardContent>
+                </Card>
+                
+                <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Embedment Issues</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-lg font-bold text-amber-500">{pendingPiles}</div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Piles with shallow embedment
+                    </p>
+                  </CardContent>
+                </Card>
+                
+                <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Geotechnical Company</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-lg font-bold text-slate-900 dark:text-white">{projectData?.geotech_company || "Loading..."}</div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      {projectData?.role || ""}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Content panels */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-6">
+                <div className="lg:col-span-2">
+                  <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+                    <CardHeader>
+                      <CardTitle className="text-base">Recent Activity</CardTitle>
+                      <CardDescription className="text-sm">Latest updates to your piles</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-700/40">
+                          <div className="text-slate-900 dark:text-white font-medium">No recent activity</div>
+                          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+                            When you make changes to your piles, they&apos;ll appear here.
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-              
-              <div>
-                <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
-                  <CardHeader className="p-3">
-                    <CardTitle className="text-sm">Quick Actions</CardTitle>
-                    <CardDescription className="text-xs">Common tasks you can perform</CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-3 pt-0">
-                    <div className="space-y-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-start text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 h-7 text-xs"
-                        onClick={() => handleNavigation('/my-piles')}
-                      >
-                        <List className="mr-1 h-3 w-3" />
-                        View All Piles
-                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+                
+                <div>
+                  <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+                    <CardHeader>
+                      <CardTitle className="text-base">Quick Actions</CardTitle>
+                      <CardDescription className="text-sm">Common tasks you can perform</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-start text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                          onClick={() => handleNavigation('/my-piles')}
+                        >
+                          <List className="mr-2 h-4 w-4" />
+                          View All Piles
+                        </Button>
 
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-start text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 h-7 text-xs"
-                        onClick={() => handleNavigation('/settings')}
-                      >
-                        <Settings className="mr-1 h-3 w-3" />
-                        Project Settings
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-start text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                          onClick={() => handleNavigation('/settings')}
+                        >
+                          <Settings className="mr-2 h-4 w-4" />
+                          Project Settings
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             </div>
           </div>
