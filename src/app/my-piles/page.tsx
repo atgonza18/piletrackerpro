@@ -1178,7 +1178,10 @@ export default function MyPilesPage() {
     }
   };
 
-  const { canEdit } = useAccountType();
+  const accountTypeData = useAccountType();
+  const { canEdit } = accountTypeData;
+  
+  console.log("🔴 MyPiles: useAccountType() returned:", accountTypeData);
   
   // Debug: Check what's in the database for this user
   const [debugInfo, setDebugInfo] = useState<any>(null);

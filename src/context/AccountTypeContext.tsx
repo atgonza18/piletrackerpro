@@ -19,10 +19,12 @@ const AccountTypeContext = createContext<AccountTypeContextType>({
   accountType: "epc",
   isOwner: false,
   isEPC: true,
-  canEdit: true,
+  canEdit: true, // Default - should be overridden by provider
   currentProjectId: null,
   currentProjectName: null,
 });
+
+console.log("🟡 AccountTypeContext: Default context created with canEdit: true");
 
 export function AccountTypeProvider({ children }: { children: React.ReactNode }) {
   const { user, userProject } = useAuth();
@@ -92,8 +94,12 @@ export function AccountTypeProvider({ children }: { children: React.ReactNode })
 
   const canEdit = accountType === "epc";
   
-  console.log("AccountTypeProvider: Final state - accountType:", accountType, "canEdit:", canEdit);
-  console.log("AccountTypeProvider: DEBUG - user metadata account_type:", user?.user_metadata?.account_type);
+  console.log("🚨 AccountTypeProvider: FINAL VALUES:");
+  console.log("🚨 accountType:", accountType);
+  console.log("🚨 canEdit:", canEdit);
+  console.log("🚨 user metadata account_type:", user?.user_metadata?.account_type);
+  console.log("🚨 accountType === 'epc':", accountType === "epc");
+  console.log("🚨 accountType === 'owner':", accountType === "owner");
 
   const value = {
     accountType,
@@ -103,6 +109,8 @@ export function AccountTypeProvider({ children }: { children: React.ReactNode })
     currentProjectId: userProject?.id || null,
     currentProjectName: userProject?.project_name || null,
   };
+  
+  console.log("🚨 Final context value:", value);
 
   return (
     <AccountTypeContext.Provider value={value}>
@@ -113,6 +121,7 @@ export function AccountTypeProvider({ children }: { children: React.ReactNode })
 
 export const useAccountType = () => {
   const context = useContext(AccountTypeContext);
+  console.log("🔵 useAccountType: Retrieved context:", context);
   if (context === undefined) {
     throw new Error("useAccountType must be used within an AccountTypeProvider");
   }
