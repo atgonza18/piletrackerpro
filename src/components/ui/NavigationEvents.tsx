@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 
-export function NavigationEvents() {
+function NavigationEventsInner() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
@@ -37,4 +37,12 @@ export function NavigationEvents() {
   }, [pathname, searchParams]);
 
   return null;
+}
+
+export function NavigationEvents() {
+  return (
+    <Suspense fallback={null}>
+      <NavigationEventsInner />
+    </Suspense>
+  );
 } 
