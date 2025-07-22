@@ -1,0 +1,40 @@
+  {/* Register Form */}
+  {activeTab === "register" && (
+    <form onSubmit={(e) => {
+      e.preventDefault();
+      
+      // Validate form
+      const errors: { [key: string]: string } = {};
+      
+      if (!email) {
+        errors.email = "Email is required";
+      }
+      
+      if (!password) {
+        errors.password = "Password is required";
+      }
+      
+      if (password.length < 8) {
+        errors.password = "Password must be at least 8 characters";
+      }
+      
+      if (password !== confirmPassword) {
+        errors.confirmPassword = "Passwords do not match";
+      }
+      
+      if (!agreeToTerms) {
+        errors.terms = "You must agree to the terms";
+      }
+      
+      if (accountType === "owner" && !selectedProjectId) {
+        errors.project = "Please select a project";
+      }
+      
+      if (Object.keys(errors).length > 0) {
+        setFormErrors(errors);
+        return;
+      }
+      
+      // All validation passed, proceed with sign up
+      handleSignUp(e);
+    }} className="space-y-6"> 
