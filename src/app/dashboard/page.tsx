@@ -28,7 +28,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [notifications] = useState(3);
   const { user, signOut } = useAuth();
-  const { isOwner, currentProjectId, currentProjectName } = useAccountType();
+  const { isOwner, canEdit, currentProjectId, currentProjectName } = useAccountType();
   const [userInitials, setUserInitials] = useState("JD");
   const [userName, setUserName] = useState("John");
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
@@ -377,7 +377,7 @@ export default function DashboardPage() {
           </div>
           
           <div className="mt-4 pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1">
-            {[
+            {canEdit && [
               { name: 'Settings', icon: Settings, href: '/settings', active: false },
               { name: 'Account', icon: User, href: '/settings', active: false },
             ].map((item) => (
@@ -439,16 +439,18 @@ export default function DashboardPage() {
                 <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500"></span>
               )}
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-full overflow-hidden border-slate-200 dark:border-slate-700 h-7 w-7 p-0"
-              onClick={() => handleNavigation('/settings')}
-            >
-              <div className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 h-full w-full flex items-center justify-center text-xs font-medium">
-                {userInitials}
-              </div>
-            </Button>
+{canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full overflow-hidden border-slate-200 dark:border-slate-700 h-7 w-7 p-0"
+                onClick={() => handleNavigation('/settings')}
+              >
+                <div className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 h-full w-full flex items-center justify-center text-xs font-medium">
+                  {userInitials}
+                </div>
+              </Button>
+            )}
           </div>
         </header>
 
@@ -573,15 +575,17 @@ export default function DashboardPage() {
                         View All Piles
                       </Button>
 
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-start text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 h-7 text-xs"
-                        onClick={() => handleNavigation('/settings')}
-                      >
-                        <Settings className="mr-1 h-3 w-3" />
-                        Project Settings
-                      </Button>
+                      {canEdit && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-start text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 h-7 text-xs"
+                          onClick={() => handleNavigation('/settings')}
+                        >
+                          <Settings className="mr-1 h-3 w-3" />
+                          Project Settings
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

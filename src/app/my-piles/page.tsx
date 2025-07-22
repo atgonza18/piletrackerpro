@@ -1223,7 +1223,7 @@ export default function MyPilesPage() {
           </div>
           
           <div className="mt-8 pt-4 border-t border-slate-200 dark:border-slate-700 space-y-1">
-            {[
+            {canEdit && [
               { name: 'Settings', icon: Settings, href: '/settings', active: false },
               { name: 'Account', icon: User, href: '#', active: false },
             ].map((item) => (

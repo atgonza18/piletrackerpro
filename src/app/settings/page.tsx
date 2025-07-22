@@ -61,6 +61,13 @@ export default function ProjectSettingsPage() {
         return;
       }
 
+      // Check if user has edit permissions
+      if (!canEdit) {
+        toast.error("You don't have permission to access project settings as an Owner's Representative");
+        router.push("/dashboard");
+        return;
+      }
+
       try {
         setIsLoading(true);
 
