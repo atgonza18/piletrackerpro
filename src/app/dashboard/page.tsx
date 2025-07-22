@@ -71,6 +71,44 @@ export default function DashboardPage() {
               if (project.embedment_tolerance !== undefined && project.embedment_tolerance !== null) {
                 setEmbedmentTolerance(project.embedment_tolerance);
               }
+
+              // Load piles data to calculate statistics
+              const { data: pilesData, error: pilesError } = await supabase
+                .from('piles')
+                .select('*')
+                .eq('project_id', project.id);
+
+              if (pilesError) {
+                console.error("Error fetching piles data:", pilesError);
+                toast.error("Failed to load pile statistics");
+              } else if (pilesData) {
+                setTotalPiles(pilesData.length);
+
+                // Calculate pile status statistics
+                const tolerance = project.embedment_tolerance || 1;
+                let embedmentIssues = 0;
+
+                pilesData.forEach((pile: any) => {
+                  if (pile.embedment && pile.design_embedment) {
+                    if (Number(pile.embedment) < (Number(pile.design_embedment) - tolerance)) {
+                      embedmentIssues++;
+                    }
+                  }
+                });
+
+                setPendingPiles(embedmentIssues);
+                
+                // Calculate completion percentage based on actual piles vs planned piles
+                const completionPercent = project.total_project_piles > 0 
+                  ? Math.round((pilesData.length / project.total_project_piles) * 100) 
+                  : 0;
+                setCompletedPilesPercent(completionPercent);
+              } else {
+                // No piles data found, set to 0
+                setTotalPiles(0);
+                setPendingPiles(0);
+                setCompletedPilesPercent(0);
+              }
             }
           }
 
@@ -117,6 +155,64 @@ export default function DashboardPage() {
     // Use Next.js router for client-side navigation
     router.push(path as any);
   };
+
+  const refreshDashboardData = async () => {
+    if (!user || !projectData) return;
+
+    try {
+      // Load piles data to calculate statistics
+      const { data: pilesData, error: pilesError } = await supabase
+        .from('piles')
+        .select('*')
+        .eq('project_id', projectData.id);
+
+      if (pilesError) {
+        console.error("Error fetching piles data:", pilesError);
+        toast.error("Failed to load pile statistics");
+      } else if (pilesData) {
+        setTotalPiles(pilesData.length);
+
+        // Calculate pile status statistics
+        const tolerance = embedmentTolerance;
+        let embedmentIssues = 0;
+
+        pilesData.forEach((pile: any) => {
+          if (pile.embedment && pile.design_embedment) {
+            if (Number(pile.embedment) < (Number(pile.design_embedment) - tolerance)) {
+              embedmentIssues++;
+            }
+          }
+        });
+
+        setPendingPiles(embedmentIssues);
+        
+        // Calculate completion percentage based on actual piles vs planned piles
+        const completionPercent = projectData.total_project_piles > 0 
+          ? Math.round((pilesData.length / projectData.total_project_piles) * 100) 
+          : 0;
+        setCompletedPilesPercent(completionPercent);
+      } else {
+        // No piles data found, set to 0
+        setTotalPiles(0);
+        setPendingPiles(0);
+        setCompletedPilesPercent(0);
+      }
+    } catch (error) {
+      console.error("Error refreshing dashboard data:", error);
+    }
+  };
+
+  // Refresh data when component becomes visible (user navigates back)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && projectData) {
+        refreshDashboardData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [projectData, user, embedmentTolerance]);
 
   if (!user) {
     return null; // Don't render anything if user isn't logged in
