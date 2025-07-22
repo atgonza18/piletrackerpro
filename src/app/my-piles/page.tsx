@@ -419,6 +419,13 @@ export default function MyPilesPage() {
                 setAcceptedPiles(accepted);
                 setRefusalPiles(refusals);
                 setPendingPiles(pending);
+                
+                console.log("My-Piles Initial Statistics:");
+                console.log("Total piles:", allPilesData.length);
+                console.log("Accepted piles:", accepted);
+                console.log("Refusal piles:", refusals);
+                console.log("Pending piles:", pending);
+                console.log("Embedment tolerance used:", project.embedment_tolerance || 1);
               }
             }
           }
@@ -572,24 +579,36 @@ export default function MyPilesPage() {
 
   // Update statistics based on filtered piles
   useEffect(() => {
-    // Count piles by status within the filtered set
-    const accepted = filteredPiles.filter(pile => 
-      getPileStatus(pile) === 'accepted'
-    ).length;
+    // Only update stats if filters are actually active, otherwise keep total stats
+    const hasActiveFilters = statusFilter !== "all" || blockFilter !== "all" || 
+                            showDuplicatesOnly || searchQuery || startDate || endDate;
     
-    const refusals = filteredPiles.filter(pile => 
-      getPileStatus(pile) === 'refusal'
-    ).length;
-    
-    const pending = filteredPiles.filter(pile => 
-      getPileStatus(pile) === 'pending'
-    ).length;
-    
-    // Update the stats with filtered counts
-    setAcceptedPiles(accepted);
-    setRefusalPiles(refusals);
-    setPendingPiles(pending);
-  }, [filteredPiles]);
+    if (hasActiveFilters) {
+      // Count piles by status within the filtered set
+      const accepted = filteredPiles.filter(pile => 
+        getPileStatus(pile) === 'accepted'
+      ).length;
+      
+      const refusals = filteredPiles.filter(pile => 
+        getPileStatus(pile) === 'refusal'
+      ).length;
+      
+      const pending = filteredPiles.filter(pile => 
+        getPileStatus(pile) === 'pending'
+      ).length;
+      
+      // Update the stats with filtered counts
+      setAcceptedPiles(accepted);
+      setRefusalPiles(refusals);
+      setPendingPiles(pending);
+      
+      console.log("My-Piles Filtered Statistics:");
+      console.log("Total filtered piles:", filteredPiles.length);
+      console.log("Filtered refusal piles:", refusals);
+    } else {
+      console.log("My-Piles: No active filters, keeping total statistics");
+    }
+  }, [filteredPiles, statusFilter, blockFilter, showDuplicatesOnly, searchQuery, startDate, endDate]);
 
   const handleLogout = async () => {
     try {
@@ -746,6 +765,12 @@ export default function MyPilesPage() {
         setAcceptedPiles(accepted);
         setRefusalPiles(refusals);
         setPendingPiles(pending);
+        
+        console.log("My-Piles Refresh Statistics:");
+        console.log("Total piles:", allPilesData.length);
+        console.log("Accepted piles:", accepted);
+        console.log("Refusal piles:", refusals);
+        console.log("Pending piles:", pending);
       }
     } catch (error) {
       console.error("Error refreshing pile data:", error);

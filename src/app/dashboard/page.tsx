@@ -108,6 +108,12 @@ export default function DashboardPage() {
                 // Set embedment issues to refusal count (piles with shallow embedment)
                 setPendingPiles(refusals);
                 
+                // Debug logging to compare with my-piles page
+                console.log("Dashboard Statistics:");
+                console.log("Total piles:", pilesData.length);
+                console.log("Refusal piles (embedment issues):", refusals);
+                console.log("Embedment tolerance used:", tolerance);
+                
                 // Calculate completion percentage based on actual piles vs planned piles
                 const completionPercent = project.total_project_piles > 0 
                   ? Math.round((pilesData.length / project.total_project_piles) * 100) 
