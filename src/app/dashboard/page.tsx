@@ -114,8 +114,8 @@ export default function DashboardPage() {
   };
 
   const handleNavigation = (path: string) => {
-    // Use window.location.href instead of router.push to avoid type issues
-    window.location.href = path;
+    // Use Next.js router for client-side navigation
+    router.push(path as any);
   };
 
   if (!user) {

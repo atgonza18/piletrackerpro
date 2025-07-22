@@ -153,7 +153,7 @@ export default function AuthPage() {
         console.log("New user, redirecting to project setup");
         // Set a flag in localStorage to indicate this user needs project setup
         localStorage.setItem('needs_project_setup', 'true');
-        window.location.href = "/project-setup";
+        router.push("/project-setup");
       } else {
         // Existing user, redirect to dashboard
         console.log("Existing user, redirecting to dashboard");

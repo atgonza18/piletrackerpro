@@ -46,12 +46,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (error) {
         console.error('Error refreshing session:', error);
-        // If we can't refresh the token, sign the user out
         const authError = error as AuthError;
         if (authError.message && (authError.message.includes('Refresh Token') || authError.message.includes('token'))) {
           console.log('Invalid refresh token detected, signing out user');
           await handleSignOut();
-          router.push('/auth');
+          if (pathname !== '/auth') {
+            router.push('/auth');
+          }
         }
         return;
       }
@@ -65,22 +66,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (err) {
       console.error('Unexpected error refreshing session:', err);
-      // If there's an unexpected error, sign the user out as a precaution
       await handleSignOut();
     }
   };
 
   useEffect(() => {
-    // Initialize auth and handle session persistence
     let mounted = true;
+    let redirectTimeout: NodeJS.Timeout;
 
     const initializeAuth = async () => {
       try {
-        // Get the current session
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error("Error getting session:", error);
+          if (mounted) setIsLoading(false);
           return;
         }
 
@@ -88,25 +88,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.log("Found existing session for:", session.user.email);
           setUser(session.user);
 
-          // Check if we need to redirect from auth page
+          // Only redirect from auth page if user is on auth page
           if (pathname === '/auth') {
-            const { data } = await supabase
-              .from('user_projects')
-              .select('id')
-              .eq('user_id', session.user.id)
-              .maybeSingle();
+            redirectTimeout = setTimeout(async () => {
+              try {
+                const { data } = await supabase
+                  .from('user_projects')
+                  .select('id')
+                  .eq('user_id', session.user.id)
+                  .maybeSingle();
 
-            if (data) {
-              router.push('/dashboard');
-            } else {
-              router.push('/project-setup');
-            }
+                if (data) {
+                  router.push('/dashboard');
+                } else {
+                  router.push('/project-setup');
+                }
+              } catch (err) {
+                console.error('Error checking user projects:', err);
+              }
+            }, 100);
           }
         } else if (!session && mounted) {
-          // Only redirect to auth if we're not on a public path
-          const publicPaths = ['/auth', '/auth/forgot-password', '/auth/reset-password'];
-          if (!publicPaths.includes(pathname)) {
-            router.push('/auth');
+          // Only redirect to auth if we're on a protected route
+          const publicPaths = ['/auth', '/auth/forgot-password', '/auth/reset-password', '/'];
+          const isProtectedRoute = !publicPaths.includes(pathname) && 
+                                 !pathname.startsWith('/auth/') && 
+                                 pathname !== '/';
+          
+          if (isProtectedRoute) {
+            redirectTimeout = setTimeout(() => {
+              router.push('/auth');
+            }, 100);
           }
         }
       } catch (error) {
@@ -129,28 +141,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         setUser(session.user);
         
-        // Only handle redirects for specific auth events
-        if (event === 'SIGNED_IN') {
-          const { data } = await supabase
-            .from('user_projects')
-            .select('id')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
+        // Only handle redirects for sign in events and if we're on auth page
+        if (event === 'SIGNED_IN' && pathname === '/auth') {
+          try {
+            const { data } = await supabase
+              .from('user_projects')
+              .select('id')
+              .eq('user_id', session.user.id)
+              .maybeSingle();
 
-          if (data) {
-            router.push('/dashboard');
-          } else {
-            router.push('/project-setup');
+            redirectTimeout = setTimeout(() => {
+              if (data) {
+                router.push('/dashboard');
+              } else {
+                router.push('/project-setup');
+              }
+            }, 100);
+          } catch (err) {
+            console.error('Error checking user projects on sign in:', err);
           }
         }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
-        router.push('/auth');
+        setUserProject(null);
+        // Only redirect to auth if not already there
+        if (pathname !== '/auth') {
+          redirectTimeout = setTimeout(() => {
+            router.push('/auth');
+          }, 100);
+        }
       }
     });
 
     return () => {
       mounted = false;
+      if (redirectTimeout) {
+        clearTimeout(redirectTimeout);
+      }
       subscription.unsubscribe();
     };
   }, [router, pathname]);
