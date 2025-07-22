@@ -27,13 +27,21 @@ const AccountTypeContext = createContext<AccountTypeContextType>({
 console.log("🟡 AccountTypeContext: Default context created with canEdit: true");
 
 export function AccountTypeProvider({ children }: { children: React.ReactNode }) {
+  console.log("🔵 AccountTypeProvider: Component rendering/re-rendering");
+  
   const { user, userProject } = useAuth();
   const [accountType, setAccountType] = useState<AccountType>("epc");
+  
+  console.log("🔵 AccountTypeProvider: useAuth returned - user:", !!user, "userProject:", !!userProject);
 
   useEffect(() => {
+    console.log("🟢 AccountTypeProvider useEffect TRIGGERED!");
+    console.log("🟢 user exists:", !!user);
+    console.log("🟢 user object:", user);
+    
     const determineAccountType = async () => {
       if (!user) {
-        console.log("AccountTypeProvider: No user, defaulting to EPC");
+        console.log("❌ AccountTypeProvider: No user, defaulting to EPC");
         setAccountType("epc");
         return;
       }

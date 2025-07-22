@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { AccountTypeProvider } from "@/context/AccountTypeContext";
 import { Toaster } from "sonner";
 import { LoadingIndicator } from "@/components/ui/LoadingIndicator";
 import { NavigationEvents } from "@/components/ui/NavigationEvents";
@@ -33,12 +34,14 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased h-full w-full`}
       >
         <AuthProvider>
-          <ThemeProvider>
-            <LoadingIndicator />
-            <NavigationEvents />
-            {children}
-            <Toaster position="top-right" richColors />
-          </ThemeProvider>
+          <AccountTypeProvider>
+            <ThemeProvider>
+              <LoadingIndicator />
+              <NavigationEvents />
+              {children}
+              <Toaster position="top-right" richColors />
+            </ThemeProvider>
+          </AccountTypeProvider>
         </AuthProvider>
       </body>
     </html>
