@@ -41,14 +41,17 @@ export function AccountTypeProvider({ children }: { children: React.ReactNode })
       console.log("AccountTypeProvider: user metadata:", user?.user_metadata);
       console.log("AccountTypeProvider: account_type from metadata:", user?.user_metadata?.account_type);
       
-      // First try to get account type from user metadata
+      // First try to get account type from user metadata - this is the primary source
       if (user?.user_metadata?.account_type) {
         console.log("AccountTypeProvider: Setting account type from metadata:", user.user_metadata.account_type);
-        setAccountType(user.user_metadata.account_type as AccountType);
+        const newAccountType = user.user_metadata.account_type as AccountType;
+        console.log("AccountTypeProvider: About to set accountType to:", newAccountType);
+        setAccountType(newAccountType);
+        console.log("AccountTypeProvider: setAccountType called with:", newAccountType);
         return;
       }
 
-      // Fallback: Check user_projects table for role
+      // Fallback: Check user_projects table for role ONLY if no metadata
       console.log("AccountTypeProvider: No account_type in metadata, checking database...");
       try {
         const { data: userProjectData, error } = await supabase
@@ -79,11 +82,18 @@ export function AccountTypeProvider({ children }: { children: React.ReactNode })
     };
 
     determineAccountType();
-  }, [user, userProject]);
+  }, [user]); // Removed userProject dependency to prevent re-running
+
+  // Debug: Track accountType changes
+  useEffect(() => {
+    console.log("🔄 AccountTypeProvider: accountType changed to:", accountType);
+    console.log("🔄 AccountTypeProvider: canEdit will be:", accountType === "epc");
+  }, [accountType]);
 
   const canEdit = accountType === "epc";
   
   console.log("AccountTypeProvider: Final state - accountType:", accountType, "canEdit:", canEdit);
+  console.log("AccountTypeProvider: DEBUG - user metadata account_type:", user?.user_metadata?.account_type);
 
   const value = {
     accountType,
