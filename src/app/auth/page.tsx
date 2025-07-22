@@ -252,9 +252,6 @@ export default function AuthPage() {
     }
     
     try {
-      console.log("Signup: account_type being stored:", accountType);
-      console.log("Signup: selected project ID:", selectedProjectId);
-      
       const { data: { user }, error } = await supabase.auth.signUp({
         email,
         password,
@@ -271,18 +268,15 @@ export default function AuthPage() {
       if (error) throw error;
 
       if (user) {
-        console.log("Signup: user created with metadata:", user.user_metadata);
-        
         // If it's an owner account, create the user-project association
         if (accountType === "owner" && selectedProjectId) {
-          console.log("Signup: Creating user-project association for owner account");
           const { error: projectError } = await supabase
             .from('user_projects')
             .insert({
               user_id: user.id,
               project_id: selectedProjectId,
-              role: 'owner_rep', // Changed from 'owner' to be more descriptive
-              is_owner: false // Owner's rep is not the project owner
+              role: 'owner_rep',
+              is_owner: false
             });
 
           if (projectError) {
@@ -290,8 +284,6 @@ export default function AuthPage() {
             toast.error("Failed to set up project access");
             return;
           }
-          
-          console.log("Signup: Successfully created user-project association");
         }
 
         toast.success("Sign up successful! Please check your email for verification.");
