@@ -298,7 +298,7 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="flex min-h-screen h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-blue-50 w-full">
+    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-blue-50 w-full">
       {/* Left panel with logo - hidden on mobile */}
       <div className="hidden lg:flex lg:w-1/2 bg-blue-600 text-white p-12 flex-col justify-between relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-700 opacity-90"></div>
@@ -317,7 +317,7 @@ export default function AuthPage() {
       </div>
       
       {/* Right panel with auth forms */}
-      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-4 sm:p-8 lg:p-12">
+      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-4 sm:p-8 lg:p-12 min-h-screen">
         <div className="lg:hidden mb-10 flex flex-col items-center">
           <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white font-bold text-2xl mb-3 shadow-lg">
             PT
@@ -326,7 +326,7 @@ export default function AuthPage() {
           <p className="text-slate-500 text-sm mt-1">Track your piles, organize your life</p>
         </div>
         
-        <Card className="w-full max-w-md border-0 shadow-xl bg-white/90 backdrop-blur-sm overflow-hidden">
+        <Card className="w-full max-w-md border-0 shadow-xl bg-white/90 backdrop-blur-sm">
           {/* Custom Tab Header - Outside the Card Content */}
           <div className="flex border-b border-slate-200">
             <button
@@ -521,7 +521,7 @@ export default function AuthPage() {
               
               // All validation passed, proceed with sign up
               handleSignUp(e);
-            }} className="space-y-6">
+            }} className="space-y-4">
               <CardHeader className="pb-2 pt-6 px-6">
                 <CardTitle className="text-2xl font-bold text-slate-900">Create an account</CardTitle>
                 <CardDescription className="text-slate-500">
@@ -529,7 +529,7 @@ export default function AuthPage() {
                 </CardDescription>
               </CardHeader>
               
-              <CardContent className="space-y-5 px-6">
+              <CardContent className="space-y-4 px-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2.5">
                     <Label htmlFor="firstName" className="text-sm font-medium text-slate-700">First name</Label>
@@ -653,7 +653,7 @@ export default function AuthPage() {
                     defaultValue="epc" 
                     value={accountType}
                     onValueChange={setAccountType}
-                    className="grid grid-cols-2 gap-4"
+                    className="grid grid-cols-2 gap-3"
                   >
                     <div>
                       <RadioGroupItem
@@ -663,7 +663,7 @@ export default function AuthPage() {
                       />
                       <Label
                         htmlFor="epc"
-                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-white p-4 hover:bg-slate-50 [&:has([data-state=checked])]:border-blue-600 [&:has([data-state=checked])]:bg-blue-50"
+                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-white p-3 hover:bg-slate-50 [&:has([data-state=checked])]:border-blue-600 [&:has([data-state=checked])]:bg-blue-50"
                       >
                         <Building2 className="mb-2 h-6 w-6 text-blue-600" />
                         <div className="space-y-1">
@@ -683,7 +683,7 @@ export default function AuthPage() {
                       />
                       <Label
                         htmlFor="owner"
-                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-white p-4 hover:bg-slate-50 [&:has([data-state=checked])]:border-blue-600 [&:has([data-state=checked])]:bg-blue-50"
+                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-white p-3 hover:bg-slate-50 [&:has([data-state=checked])]:border-blue-600 [&:has([data-state=checked])]:bg-blue-50"
                       >
                         <Eye className="mb-2 h-6 w-6 text-blue-600" />
                         <div className="space-y-1">
@@ -708,7 +708,7 @@ export default function AuthPage() {
                   </div>
                 )}
                 
-                <div className="flex items-center pt-2">
+                <div className="flex items-center pt-1">
                   <div className="flex items-center h-5">
                     <input
                       type="checkbox"
