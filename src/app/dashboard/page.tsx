@@ -125,19 +125,19 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       {/* Sidebar - Hidden on mobile */}
-      <div className="fixed inset-y-0 left-0 w-72 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 hidden lg:flex flex-col z-10">
-        <div className="p-6 border-b border-slate-100 dark:border-slate-700">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-sm">
+      <div className="fixed inset-y-0 left-0 w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 hidden lg:flex flex-col z-10">
+        <div className="p-4 border-b border-slate-100 dark:border-slate-700">
+          <div className="flex items-center gap-2">
+            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-xs">
               PT
             </div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white truncate">
+            <h1 className="text-lg font-bold text-slate-900 dark:text-white truncate">
               {projectData?.project_name || "PileTrackerPro"}
             </h1>
           </div>
         </div>
         
-        <nav className="p-4 flex-1">
+        <nav className="p-3 flex-1">
           <div className="space-y-1">
             {[
               { name: 'Dashboard', icon: BarChart3, href: '/dashboard', active: true },
@@ -148,19 +148,19 @@ export default function DashboardPage() {
               <button
                 key={item.name}
                 onClick={() => item.href && handleNavigation(item.href)}
-                className={`flex items-center gap-3 w-full px-3 py-2 text-sm rounded-lg transition-colors ${
+                className={`flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg transition-colors ${
                   item.active 
                     ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium' 
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'
                 }`}
               >
-                <item.icon size={18} />
+                <item.icon size={16} />
                 {item.name}
               </button>
             ))}
           </div>
           
-          <div className="mt-8 pt-4 border-t border-slate-200 dark:border-slate-700 space-y-1">
+          <div className="mt-6 pt-3 border-t border-slate-200 dark:border-slate-700 space-y-1">
             {[
               { name: 'Settings', icon: Settings, href: '/settings', active: false },
               { name: 'Account', icon: User, href: '/settings', active: false },
@@ -168,13 +168,13 @@ export default function DashboardPage() {
               <button
                 key={item.name}
                 onClick={() => item.href && handleNavigation(item.href)}
-                className={`flex items-center gap-3 w-full px-3 py-2 text-sm rounded-lg transition-colors ${
+                className={`flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg transition-colors ${
                   item.active 
                     ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium' 
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'
                 }`}
               >
-                <item.icon size={18} />
+                <item.icon size={16} />
                 {item.name}
               </button>
             ))}
@@ -186,12 +186,12 @@ export default function DashboardPage() {
             </div>
           </div>
           
-          <div className="mt-auto pt-4">
+          <div className="mt-auto pt-3">
             <button
               onClick={handleLogout}
-              className="flex items-center gap-3 w-full px-3 py-2 text-sm rounded-lg transition-colors text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+              className="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg transition-colors text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
             >
-              <LogOut size={18} />
+              <LogOut size={16} />
               Log Out
             </button>
           </div>
@@ -199,14 +199,14 @@ export default function DashboardPage() {
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-72">
+      <div className="lg:pl-64">
         {/* Mobile header */}
-        <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-4 flex items-center justify-between lg:hidden">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-sm">
+        <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-3 flex items-center justify-between lg:hidden">
+          <div className="flex items-center gap-2">
+            <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-xs">
               PT
             </div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white truncate max-w-[200px]">
+            <h1 className="text-lg font-bold text-slate-900 dark:text-white truncate max-w-[200px]">
               {projectData?.project_name || "PileTrackerPro"}
             </h1>
           </div>
@@ -214,19 +214,19 @@ export default function DashboardPage() {
             <ThemeToggle />
             <Button
               variant="ghost"
-              size="icon"
+              size="sm"
               className="relative"
               onClick={() => handleNavigation('/notifications')}
             >
-              <Bell className="h-5 w-5" />
+              <Bell className="h-4 w-4" />
               {notifications > 0 && (
                 <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500"></span>
               )}
             </Button>
             <Button
               variant="outline"
-              size="icon"
-              className="rounded-full overflow-hidden border-slate-200 dark:border-slate-700"
+              size="sm"
+              className="rounded-full overflow-hidden border-slate-200 dark:border-slate-700 h-8 w-8 p-0"
               onClick={() => handleNavigation('/settings')}
             >
               <div className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 h-full w-full flex items-center justify-center text-xs font-medium">
@@ -237,27 +237,29 @@ export default function DashboardPage() {
         </header>
 
         {/* Dashboard content */}
-        <main className="p-4 md:p-6 lg:p-8">
+        <main className="p-4 md:p-5 lg:p-6">
           <div className="max-w-7xl mx-auto">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
               <div>
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Welcome back, {userName}</h1>
-                <p className="text-slate-500 dark:text-slate-400 mt-1">Here&apos;s an overview of your pile tracking project</p>
+                <h1 className="text-xl font-bold text-slate-900 dark:text-white">Welcome back, {userName}</h1>
+                <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">Here&apos;s an overview of your pile tracking project</p>
               </div>
               <div className="flex items-center gap-2">
                 <Button 
                   variant="outline" 
+                  size="sm"
                   className="hidden md:flex items-center gap-2 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300"
                 >
                   <Bell className="h-4 w-4" />
                   Notifications
                   {notifications > 0 && (
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs font-medium">
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs font-medium">
                       {notifications}
                     </span>
                   )}
                 </Button>
                 <Button 
+                  size="sm"
                   className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
                   onClick={() => handleNavigation('/my-piles')}
                 >
@@ -268,23 +270,23 @@ export default function DashboardPage() {
             </div>
 
             {/* Stats cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
               <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Project Name</CardTitle>
+                  <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">Project Name</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-slate-900 dark:text-white">{projectData?.project_name || "Loading..."}</div>
+                  <div className="text-lg font-bold text-slate-900 dark:text-white">{projectData?.project_name || "Loading..."}</div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{projectData?.project_location || ""}</p>
                 </CardContent>
               </Card>
               
               <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Piles</CardTitle>
+                  <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Piles</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-slate-900 dark:text-white">{totalPiles} / {projectData?.total_project_piles || "..."}</div>
+                  <div className="text-lg font-bold text-slate-900 dark:text-white">{totalPiles} / {projectData?.total_project_piles || "..."}</div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     {completedPilesPercent}% of planned piles
                   </p>
@@ -293,10 +295,10 @@ export default function DashboardPage() {
               
               <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Embedment Issues</CardTitle>
+                  <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">Embedment Issues</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-amber-500">{pendingPiles}</div>
+                  <div className="text-lg font-bold text-amber-500">{pendingPiles}</div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     Piles with shallow embedment
                   </p>
@@ -305,10 +307,10 @@ export default function DashboardPage() {
               
               <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Geotechnical Company</CardTitle>
+                  <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">Geotechnical Company</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-slate-900 dark:text-white">{projectData?.geotech_company || "Loading..."}</div>
+                  <div className="text-lg font-bold text-slate-900 dark:text-white">{projectData?.geotech_company || "Loading..."}</div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     {projectData?.role || ""}
                   </p>
@@ -317,19 +319,19 @@ export default function DashboardPage() {
             </div>
 
             {/* Content panels */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className="lg:col-span-2">
                 <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
                   <CardHeader>
-                    <CardTitle>Recent Activity</CardTitle>
-                    <CardDescription>Latest updates to your piles</CardDescription>
+                    <CardTitle className="text-base">Recent Activity</CardTitle>
+                    <CardDescription className="text-sm">Latest updates to your piles</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {/* This would be replaced with actual activity data */}
-                      <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-700/40">
-                        <div className="text-slate-900 dark:text-white font-medium">No recent activity</div>
-                        <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
+                      <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-700/40">
+                        <div className="text-slate-900 dark:text-white font-medium text-sm">No recent activity</div>
+                        <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">
                           When you make changes to your piles, they&apos;ll appear here.
                         </p>
                       </div>
@@ -341,13 +343,14 @@ export default function DashboardPage() {
               <div>
                 <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
                   <CardHeader>
-                    <CardTitle>Quick Actions</CardTitle>
-                    <CardDescription>Common tasks you can perform</CardDescription>
+                    <CardTitle className="text-base">Quick Actions</CardTitle>
+                    <CardDescription className="text-sm">Common tasks you can perform</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2">
                       <Button
                         variant="outline"
+                        size="sm"
                         className="w-full justify-start text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
                         onClick={() => handleNavigation('/my-piles')}
                       >
@@ -357,6 +360,7 @@ export default function DashboardPage() {
 
                       <Button
                         variant="outline"
+                        size="sm"
                         className="w-full justify-start text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
                         onClick={() => handleNavigation('/settings')}
                       >

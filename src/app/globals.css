@@ -124,7 +124,7 @@
   
   body {
     @apply bg-background text-foreground;
-    zoom: 1.1;
+    zoom: 0.9;
   }
 }
 
