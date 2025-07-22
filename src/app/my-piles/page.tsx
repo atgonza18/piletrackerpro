@@ -420,12 +420,7 @@ export default function MyPilesPage() {
                 setRefusalPiles(refusals);
                 setPendingPiles(pending);
                 
-                console.log("My-Piles Initial Statistics:");
-                console.log("Total piles:", allPilesData.length);
-                console.log("Accepted piles:", accepted);
-                console.log("Refusal piles:", refusals);
-                console.log("Pending piles:", pending);
-                console.log("Embedment tolerance used:", project.embedment_tolerance || 1);
+                // Statistics calculated using consistent logic
               }
             }
           }
@@ -601,13 +596,8 @@ export default function MyPilesPage() {
       setAcceptedPiles(accepted);
       setRefusalPiles(refusals);
       setPendingPiles(pending);
-      
-      console.log("My-Piles Filtered Statistics:");
-      console.log("Total filtered piles:", filteredPiles.length);
-      console.log("Filtered refusal piles:", refusals);
-    } else {
-      console.log("My-Piles: No active filters, keeping total statistics");
     }
+    // When no filters are active, keep the total statistics from initial load
   }, [filteredPiles, statusFilter, blockFilter, showDuplicatesOnly, searchQuery, startDate, endDate]);
 
   const handleLogout = async () => {
@@ -766,11 +756,7 @@ export default function MyPilesPage() {
         setRefusalPiles(refusals);
         setPendingPiles(pending);
         
-        console.log("My-Piles Refresh Statistics:");
-        console.log("Total piles:", allPilesData.length);
-        console.log("Accepted piles:", accepted);
-        console.log("Refusal piles:", refusals);
-        console.log("Pending piles:", pending);
+        // Statistics recalculated after refresh
       }
     } catch (error) {
       console.error("Error refreshing pile data:", error);

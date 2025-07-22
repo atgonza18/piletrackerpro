@@ -85,7 +85,6 @@ export default function DashboardPage() {
                 toast.error("Failed to load pile statistics");
               } else {
                 const totalCount = count || 0;
-                console.log("Dashboard: Total piles in database:", totalCount);
                 
                 // Set total count immediately from count query
                 setTotalPiles(totalCount);
@@ -101,8 +100,6 @@ export default function DashboardPage() {
                   const from = page * pageSize;
                   const to = from + pageSize - 1;
                   
-                  console.log(`Dashboard fetching page ${page+1}: rows ${from} to ${to}`);
-                  
                   const { data: paginatedData, error } = await supabase
                     .from('piles')
                     .select('*')
@@ -115,29 +112,23 @@ export default function DashboardPage() {
                   }
                   
                   if (paginatedData && paginatedData.length > 0) {
-                    console.log(`Dashboard received ${paginatedData.length} records for page ${page+1}`);
                     allPilesData = [...allPilesData, ...paginatedData];
                     page++;
                     
                     // If we got fewer records than the page size, we've fetched all data
                     if (paginatedData.length < pageSize) {
-                      console.log("Dashboard: Received fewer records than page size, finished pagination");
                       hasMoreData = false;
                     }
                     
                     // Safety check - if we've fetched all records according to count
                     if (allPilesData.length >= totalCount) {
-                      console.log("Dashboard: Fetched all records according to count, finished pagination");
                       hasMoreData = false;
                     }
                   } else {
                     // No more data
-                    console.log("Dashboard: No more data received, finished pagination");
                     hasMoreData = false;
                   }
                 }
-                
-                console.log(`Dashboard: Fetched a total of ${allPilesData.length} piles out of ${totalCount} total`);
                 
                 if (allPilesData.length > 0) {
 
@@ -165,11 +156,7 @@ export default function DashboardPage() {
                   // Set embedment issues to refusal count (piles with shallow embedment)
                   setPendingPiles(refusals);
                   
-                  // Debug logging to compare with my-piles page
-                  console.log("Dashboard Statistics:");
-                  console.log("Total piles:", allPilesData.length);
-                  console.log("Refusal piles (embedment issues):", refusals);
-                  console.log("Embedment tolerance used:", tolerance);
+                  // Statistics calculated using same logic as my-piles page
                   
                   // Calculate completion percentage based on actual piles vs planned piles
                   const completionPercent = project.total_project_piles > 0 
@@ -249,7 +236,6 @@ export default function DashboardPage() {
       }
 
       const totalCount = count || 0;
-      console.log("Dashboard refresh: Total piles in database:", totalCount);
       
       // Set total count immediately from count query
       setTotalPiles(totalCount);
@@ -265,8 +251,6 @@ export default function DashboardPage() {
         const from = page * pageSize;
         const to = from + pageSize - 1;
         
-        console.log(`Dashboard refresh fetching page ${page+1}: rows ${from} to ${to}`);
-        
         const { data: paginatedData, error } = await supabase
           .from('piles')
           .select('*')
@@ -279,29 +263,23 @@ export default function DashboardPage() {
         }
         
         if (paginatedData && paginatedData.length > 0) {
-          console.log(`Dashboard refresh received ${paginatedData.length} records for page ${page+1}`);
           allPilesData = [...allPilesData, ...paginatedData];
           page++;
           
           // If we got fewer records than the page size, we've fetched all data
           if (paginatedData.length < pageSize) {
-            console.log("Dashboard refresh: Received fewer records than page size, finished pagination");
             hasMoreData = false;
           }
           
           // Safety check - if we've fetched all records according to count
           if (allPilesData.length >= totalCount) {
-            console.log("Dashboard refresh: Fetched all records according to count, finished pagination");
             hasMoreData = false;
           }
         } else {
           // No more data
-          console.log("Dashboard refresh: No more data received, finished pagination");
           hasMoreData = false;
         }
       }
-      
-      console.log(`Dashboard refresh: Fetched a total of ${allPilesData.length} piles out of ${totalCount} total`);
       
       if (allPilesData.length > 0) {
         // Use the same logic as my-piles page to calculate statistics
