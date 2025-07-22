@@ -207,9 +207,29 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
   };
 
   const processAndUploadData = async (csvData: string[][], projectId: string) => {
-    // Skip header row
+    // Get header row and data rows
     const header = csvData[0];
     const rows = csvData.slice(1);
+    
+    // Create intelligent column mapping
+    const columnMapping = createColumnMapping(header);
+    
+    // Validate that we have essential columns
+    if (!columnMapping.pile_id && !columnMapping.block) {
+      throw new Error("CSV must contain either a 'Pile ID' or 'Block' column to identify piles");
+    }
+    
+    // Show mapping feedback to user
+    console.log("📊 Column Mapping:", columnMapping);
+    const mappedColumns = Object.keys(columnMapping).filter(key => columnMapping[key] !== -1);
+    const unmappedColumns = header.filter((_, index) => !Object.values(columnMapping).includes(index));
+    
+    if (mappedColumns.length > 0) {
+      toast.success(`✅ Mapped ${mappedColumns.length} columns: ${mappedColumns.join(', ')}`);
+    }
+    if (unmappedColumns.length > 0) {
+      toast.info(`ℹ️ Ignored ${unmappedColumns.length} unmapped columns: ${unmappedColumns.join(', ')}`);
+    }
     
     // First, get existing pile numbers for this project to avoid duplicates
     const { data: existingPiles } = await supabase
@@ -230,38 +250,46 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     for (let i = 0; i < rows.length; i += batchSize) {
       const batch = rows.slice(i, i + batchSize);
       
-      // Convert CSV data to piles object format based on the table columns
+      // Convert CSV data to piles object format using flexible column mapping
       const pilesData = batch.map(row => {
-        // Parse and format the date correctly
+        // Parse and format the date correctly using mapped column
         let startDate = null;
-        try {
-          // Check if date is in the expected format
-          const dateStr = row[9]?.trim(); // Start Date column (index 9)
-          if (dateStr) {
-            // If it's already in YYYY-MM-DD format, use it as is
-            if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-              startDate = dateStr;
-            } 
-            // If it's in MM/DD/YYYY format, convert it
-            else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateStr)) {
-              const parts = dateStr.split('/');
-              startDate = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
-            }
-            // For other formats, attempt to parse with Date
-            else {
-              const date = new Date(dateStr);
-              if (!isNaN(date.getTime())) {
-                startDate = date.toISOString().split('T')[0];
+        const startDateIndex = columnMapping.start_date;
+        if (startDateIndex !== -1) {
+          try {
+            const dateStr = row[startDateIndex]?.trim();
+            if (dateStr) {
+              // If it's already in YYYY-MM-DD format, use it as is
+              if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                startDate = dateStr;
+              } 
+              // If it's in MM/DD/YYYY format, convert it
+              else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateStr)) {
+                const parts = dateStr.split('/');
+                startDate = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+              }
+              // For other formats, attempt to parse with Date
+              else {
+                const date = new Date(dateStr);
+                if (!isNaN(date.getTime())) {
+                  startDate = date.toISOString().split('T')[0];
+                }
               }
             }
+          } catch (error) {
+            console.error("Error parsing date:", row[startDateIndex], error);
           }
-        } catch (error) {
-          console.error("Error parsing date:", row[9], error);
         }
 
-        // Create a unique pile number from pile_id
-        // Use the pile_id field from the CSV as the pile_number
-        let pileNumber = row[8]?.trim() || `Pile-${Math.floor(Math.random() * 10000)}`; // Pile ID column (index 8)
+        // Create a unique pile number - prefer pile_id, fallback to block + random
+        let pileNumber = '';
+        if (columnMapping.pile_id !== -1 && row[columnMapping.pile_id]?.trim()) {
+          pileNumber = row[columnMapping.pile_id].trim();
+        } else if (columnMapping.block !== -1 && row[columnMapping.block]?.trim()) {
+          pileNumber = `${row[columnMapping.block].trim()}-${Math.floor(Math.random() * 10000)}`;
+        } else {
+          pileNumber = `Pile-${Math.floor(Math.random() * 10000)}`;
+        }
         
         // Check if pile number already exists in database or in current import
         if (existingPileNumbers.has(pileNumber) || seenPileNumbers.has(pileNumber)) {
@@ -272,25 +300,36 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
         // Add to seen pile numbers for this import
         seenPileNumbers.add(pileNumber);
 
-        // Map CSV columns exactly as they appear in the CSV file
-        // "Block,Design Embedment,Duration,Embedment,end z,gain per 30 seconds,Machine,Pile Color,Pile ID,Start Date,Start Time,start z,Stop Time,Zone"
+        // Helper function to safely get column value
+        const getColumnValue = (columnKey: keyof typeof columnMapping): string | null => {
+          const index = columnMapping[columnKey];
+          return index !== -1 ? (row[index]?.trim() || null) : null;
+        };
+
+        // Helper function to safely parse numeric column value
+        const getNumericValue = (columnKey: keyof typeof columnMapping): number | null => {
+          const value = getColumnValue(columnKey);
+          return value ? parseFloat(value) : null;
+        };
+
+        // Map CSV columns using the flexible mapping
         return {
           project_id: projectId,
           pile_number: pileNumber,
-          block: row[0]?.trim() || null,                         // Block (column 0)
-          design_embedment: row[1] ? parseFloat(row[1]) : null,  // Design Embedment (column 1)
-          duration: row[2]?.trim() || null,                      // Duration (column 2)
-          embedment: row[3] ? parseFloat(row[3]) : null,         // Embedment (column 3)
-          end_z: row[4] ? parseFloat(row[4]) : null,             // end z (column 4)
-          gain_per_30_seconds: row[5] ? parseFloat(row[5]) : null, // gain per 30 seconds (column 5)
-          machine: row[6] ? parseFloat(row[6]) : null,           // Machine (column 6)
-          pile_color: row[7]?.trim() || null,                    // Pile Color (column 7)
-          pile_id: row[8]?.trim() || null,                       // Pile ID (column 8)
-          start_date: startDate,                                 // Start Date (column 9)
-          start_time: row[10]?.trim() || null,                   // Start Time (column 10)
-          start_z: row[11] ? parseFloat(row[11]) : null,         // start z (column 11)
-          stop_time: row[12]?.trim() || null,                    // Stop Time (column 12)
-          zone: row[13]?.trim() || null,                         // Zone (column 13)
+          block: getColumnValue('block'),
+          design_embedment: getNumericValue('design_embedment'),
+          duration: getColumnValue('duration'),
+          embedment: getNumericValue('embedment'),
+          end_z: getNumericValue('end_z'),
+          gain_per_30_seconds: getNumericValue('gain_per_30_seconds'),
+          machine: getNumericValue('machine'),
+          pile_color: getColumnValue('pile_color'),
+          pile_id: getColumnValue('pile_id'),
+          start_date: startDate,
+          start_time: getColumnValue('start_time'),
+          start_z: getNumericValue('start_z'),
+          stop_time: getColumnValue('stop_time'),
+          zone: getColumnValue('zone'),
           pile_status: 'pending' // Default status for all imported piles
         };
       });
@@ -311,6 +350,59 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     }
     
     return { data: { count: rows.length }, error: null };
+  };
+
+  // Function to create intelligent column mapping from CSV headers
+  const createColumnMapping = (headers: string[]): Record<string, number> => {
+    // Define mapping patterns for each field (multiple variations)
+    const fieldPatterns = {
+      block: ['block', 'blocks', 'pile block', 'pileblock'],
+      design_embedment: ['design embedment', 'designembedment', 'design_embedment', 'target embedment', 'targetembedment', 'target_embedment'],
+      duration: ['duration', 'time', 'drive time', 'drivetime', 'drive_time', 'total time', 'totaltime', 'total_time'],
+      embedment: ['embedment', 'actual embedment', 'actualembedment', 'actual_embedment', 'final embedment', 'finalembedment', 'final_embedment'],
+      end_z: ['end z', 'endz', 'end_z', 'final z', 'finalz', 'final_z', 'end elevation', 'endelevation', 'end_elevation'],
+      gain_per_30_seconds: ['gain per 30 seconds', 'gainper30seconds', 'gain_per_30_seconds', 'gain per 30', 'gainper30', 'gain_per_30', 'gain/30', 'gain30'],
+      machine: ['machine', 'equipment', 'rig', 'machine id', 'machineid', 'machine_id', 'equipment id', 'equipmentid', 'equipment_id'],
+      pile_color: ['pile color', 'pilecolor', 'pile_color', 'color', 'pile colour', 'pilecolour', 'pile_colour'],
+      pile_id: ['pile id', 'pileid', 'pile_id', 'id', 'pile number', 'pilenumber', 'pile_number', 'pile no', 'pileno', 'pile_no'],
+      start_date: ['start date', 'startdate', 'start_date', 'date', 'installation date', 'installationdate', 'installation_date'],
+      start_time: ['start time', 'starttime', 'start_time', 'begin time', 'begintime', 'begin_time'],
+      start_z: ['start z', 'startz', 'start_z', 'initial z', 'initialz', 'initial_z', 'start elevation', 'startelevation', 'start_elevation'],
+      stop_time: ['stop time', 'stoptime', 'stop_time', 'end time', 'endtime', 'end_time', 'finish time', 'finishtime', 'finish_time'],
+      zone: ['zone', 'zones', 'area', 'section', 'location', 'pile zone', 'pilezone', 'pile_zone']
+    };
+
+    const mapping: Record<string, number> = {};
+    
+    // Initialize all mappings to -1 (not found)
+    Object.keys(fieldPatterns).forEach(field => {
+      mapping[field] = -1;
+    });
+
+    // For each header, try to match it to a field
+    headers.forEach((header, index) => {
+      const normalizedHeader = header.toLowerCase().trim();
+      
+      // Check each field pattern
+      for (const [fieldName, patterns] of Object.entries(fieldPatterns)) {
+        if (mapping[fieldName] === -1) { // Only map if not already mapped
+          // Check if header matches any pattern for this field
+          const matches = patterns.some(pattern => 
+            normalizedHeader === pattern || 
+            normalizedHeader.includes(pattern) ||
+            pattern.includes(normalizedHeader)
+          );
+          
+          if (matches) {
+            mapping[fieldName] = index;
+            console.log(`🔗 Mapped '${header}' (column ${index}) -> ${fieldName}`);
+            break; // Stop checking other patterns for this header
+          }
+        }
+      }
+    });
+
+    return mapping;
   };
 
   return (
@@ -449,35 +541,37 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
             <div className="text-sm text-blue-700">
               <p className="font-medium mb-1">Format Requirements</p>
               <p className="text-blue-600 text-xs leading-relaxed">
-                Your CSV file should include columns in this exact order: Block, Design Embedment, Duration, Embedment, end z, gain per 30 seconds, Machine, Pile Color, Pile ID, Start Date, Start Time, start z, Stop Time, Zone.
+                🎉 <strong>Flexible CSV Upload!</strong> Your CSV columns can now be in any order. The app will automatically detect and map your columns based on their names.
               </p>
               <div className="mt-2 space-y-1">
                 <p className="text-blue-600 text-xs">
-                  <span className="font-medium">Column Requirements:</span>
+                  <span className="font-medium">Supported Column Names (case-insensitive):</span>
                 </p>
-                <ul className="text-blue-600 text-xs list-disc ml-4 space-y-1">
-                  <li>Block: Text field (e.g., "C3", "C4")</li>
-                  <li>Design Embedment: Number (e.g., 10.95)</li>
-                  <li>Duration: Time format (e.g., "0:12:05")</li>
-                  <li>Embedment: Number (e.g., 13.328)</li>
-                  <li>end z: Number in feet (e.g., 717.378)</li>
-                  <li>gain per 30 seconds: Number (e.g., 6.62)</li>
-                  <li>Machine: Number (e.g., 13118)</li>
-                  <li>Pile Color: Text (optional)</li>
-                  <li>Pile ID: Text (e.g., "C3.057.12") - used as unique identifier</li>
-                  <li>Start Date: Date format MM/DD/YYYY (e.g., "4/8/2025")</li>
-                  <li>Start Time: Time format (e.g., "9:55:54")</li>
-                  <li>start z: Number in feet (e.g., 730.706)</li>
-                  <li>Stop Time: Time format (e.g., "10:07:59")</li>
-                  <li>Zone: Text (e.g., "2A2B.INTARRAY")</li>
-                </ul>
+                <div className="grid grid-cols-1 gap-1">
+                  <ul className="text-blue-600 text-xs list-disc ml-4 space-y-1">
+                    <li><strong>Pile Identifier:</strong> "Pile ID", "Pile Number", "ID", "Pile_ID" (at least one required)</li>
+                    <li><strong>Block:</strong> "Block", "Pile Block" (alternative identifier)</li>
+                    <li><strong>Design Embedment:</strong> "Design Embedment", "Target Embedment"</li>
+                    <li><strong>Actual Embedment:</strong> "Embedment", "Actual Embedment", "Final Embedment"</li>
+                    <li><strong>Duration:</strong> "Duration", "Drive Time", "Time" (format: "0:12:05")</li>
+                    <li><strong>Elevations:</strong> "Start Z", "End Z", "Start Elevation", "End Elevation"</li>
+                    <li><strong>Machine:</strong> "Machine", "Equipment", "Rig", "Machine ID"</li>
+                    <li><strong>Dates/Times:</strong> "Start Date" (MM/DD/YYYY), "Start Time", "Stop Time"</li>
+                    <li><strong>Other:</strong> "Zone", "Pile Color", "Gain per 30 seconds"</li>
+                  </ul>
+                </div>
                 <p className="text-blue-600 text-xs mt-2">
-                  <span className="font-medium">Important notes:</span>
+                  <span className="font-medium">🔍 Smart Features:</span>
                 </p>
                 <ul className="text-blue-600 text-xs list-disc ml-4 space-y-1">
-                  <li>All imported piles will have a "pending" status initially</li>
-                  <li>Pile IDs should be unique within a project (duplicates will be automatically renamed)</li>
-                  <li>Make sure dates are in MM/DD/YYYY format</li>
+                  <li>✅ Columns can be in any order</li>
+                  <li>✅ Column names are case-insensitive</li>
+                  <li>✅ Supports spaces, underscores, and variations</li>
+                  <li>✅ Automatically ignores unmapped columns</li>
+                  <li>✅ Shows mapping feedback after upload</li>
+                  <li>⚠️ Must have either "Pile ID" or "Block" column to identify piles</li>
+                  <li>📅 Dates should be in MM/DD/YYYY format</li>
+                  <li>🔢 Numeric fields will be automatically parsed</li>
                 </ul>
               </div>
             </div>
