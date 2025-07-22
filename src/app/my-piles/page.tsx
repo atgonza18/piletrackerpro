@@ -1179,6 +1179,41 @@ export default function MyPilesPage() {
   };
 
   const { canEdit } = useAccountType();
+  
+  // Debug: Check what's in the database for this user
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+  
+  useEffect(() => {
+    const checkDatabase = async () => {
+      if (user) {
+        try {
+          const { data: userProject, error } = await supabase
+            .from('user_projects')
+            .select('*')
+            .eq('user_id', user.id)
+            .single();
+          
+          setDebugInfo({
+            userProject: userProject,
+            error: error?.message,
+            userMetadata: user.user_metadata
+          });
+          
+          console.log("🔍 DEBUG Database Check:", {
+            userProject: userProject,
+            error: error?.message,
+            userMetadata: user.user_metadata,
+            canEdit: canEdit
+          });
+        } catch (err) {
+          console.error("Debug database check failed:", err);
+          setDebugInfo({ error: "Database check failed" });
+        }
+      }
+    };
+    
+    checkDatabase();
+  }, [user, canEdit]);
 
   if (!user) {
     return null; // Don't render anything if user isn't logged in
@@ -1274,6 +1309,24 @@ export default function MyPilesPage() {
                 <p className="text-slate-500 mt-1">
                   {projectData ? `Project: ${projectData.project_name} | ${filteredPiles.length} of ${totalPiles} piles shown` : 'Loading project data...'}
                 </p>
+{/* Debug: Always show account info temporarily */}
+                <div className="mt-2 p-4 bg-yellow-100 border border-yellow-300 rounded-lg text-yellow-800 text-sm">
+                  <p><strong>🔧 DEBUG INFO (temporary):</strong></p>
+                  <p>• Can Edit: <strong>{canEdit ? 'YES (BUG!)' : 'NO (correct)'}</strong></p>
+                  <p>• User ID: {user?.id}</p>
+                  <p>• Email: {user?.email}</p>
+                  <p>• Email Verified: {user?.email_confirmed_at ? 'YES' : 'NO - THIS MIGHT BE THE ISSUE'}</p>
+                  <p>• User Metadata: {JSON.stringify(user?.user_metadata || {})}</p>
+                  {debugInfo && (
+                    <>
+                      <p>• Database Role: {debugInfo.userProject?.role || 'NOT FOUND'}</p>
+                      <p>• Is Owner: {debugInfo.userProject?.is_owner ? 'YES' : 'NO'}</p>
+                      {debugInfo.error && <p>• DB Error: {debugInfo.error}</p>}
+                    </>
+                  )}
+                  <p><strong>Check browser console for more debug info!</strong></p>
+                </div>
+                
                 {!canEdit && (
                   <div className="mt-2 p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-700">
                     <p className="flex items-center gap-2">
