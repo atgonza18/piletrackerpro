@@ -72,58 +72,116 @@ export default function DashboardPage() {
                 setEmbedmentTolerance(project.embedment_tolerance);
               }
 
-              // Load piles data to calculate statistics
-              const { data: pilesData, error: pilesError } = await supabase
+              // Load piles data using the same robust approach as my-piles page
+              
+              // First get the count
+              const { count, error: countError } = await supabase
                 .from('piles')
-                .select('*')
+                .select('*', { count: 'exact', head: true })
                 .eq('project_id', project.id);
 
-              if (pilesError) {
-                console.error("Error fetching piles data:", pilesError);
+              if (countError) {
+                console.error("Error fetching piles count:", countError);
                 toast.error("Failed to load pile statistics");
-              } else if (pilesData) {
-                setTotalPiles(pilesData.length);
-
-                // Use the same logic as my-piles page to calculate statistics
-                const tolerance = project.embedment_tolerance || 1;
-                
-                // Function to determine pile status (same as my-piles page)
-                const getPileStatus = (pile: any) => {
-                  if (!pile.embedment || !pile.design_embedment) return 'pending';
-                  
-                  if (Number(pile.embedment) >= Number(pile.design_embedment)) {
-                    return 'accepted';
-                  } else if (Number(pile.embedment) < (Number(pile.design_embedment) - tolerance)) {
-                    return 'refusal';
-                  } else {
-                    return 'accepted'; // Within tolerance
-                  }
-                };
-
-                // Calculate status counts using the same method as my-piles page
-                const refusals = pilesData.filter((pile: any) => 
-                  getPileStatus(pile) === 'refusal'
-                ).length;
-
-                // Set embedment issues to refusal count (piles with shallow embedment)
-                setPendingPiles(refusals);
-                
-                // Debug logging to compare with my-piles page
-                console.log("Dashboard Statistics:");
-                console.log("Total piles:", pilesData.length);
-                console.log("Refusal piles (embedment issues):", refusals);
-                console.log("Embedment tolerance used:", tolerance);
-                
-                // Calculate completion percentage based on actual piles vs planned piles
-                const completionPercent = project.total_project_piles > 0 
-                  ? Math.round((pilesData.length / project.total_project_piles) * 100) 
-                  : 0;
-                setCompletedPilesPercent(completionPercent);
               } else {
-                // No piles data found, set to 0
-                setTotalPiles(0);
-                setPendingPiles(0);
-                setCompletedPilesPercent(0);
+                const totalCount = count || 0;
+                console.log("Dashboard: Total piles in database:", totalCount);
+                
+                // Set total count immediately from count query
+                setTotalPiles(totalCount);
+                
+                // Now fetch all the data using pagination (same as my-piles page)
+                let allPilesData: any[] = [];
+                const pageSize = 1000;
+                let page = 0;
+                let hasMoreData = true;
+                
+                // Fetch data in chunks to handle large datasets
+                while (hasMoreData) {
+                  const from = page * pageSize;
+                  const to = from + pageSize - 1;
+                  
+                  console.log(`Dashboard fetching page ${page+1}: rows ${from} to ${to}`);
+                  
+                  const { data: paginatedData, error } = await supabase
+                    .from('piles')
+                    .select('*')
+                    .eq('project_id', project.id)
+                    .range(from, to);
+                  
+                  if (error) {
+                    console.error("Error fetching dashboard page", page, error);
+                    throw error;
+                  }
+                  
+                  if (paginatedData && paginatedData.length > 0) {
+                    console.log(`Dashboard received ${paginatedData.length} records for page ${page+1}`);
+                    allPilesData = [...allPilesData, ...paginatedData];
+                    page++;
+                    
+                    // If we got fewer records than the page size, we've fetched all data
+                    if (paginatedData.length < pageSize) {
+                      console.log("Dashboard: Received fewer records than page size, finished pagination");
+                      hasMoreData = false;
+                    }
+                    
+                    // Safety check - if we've fetched all records according to count
+                    if (allPilesData.length >= totalCount) {
+                      console.log("Dashboard: Fetched all records according to count, finished pagination");
+                      hasMoreData = false;
+                    }
+                  } else {
+                    // No more data
+                    console.log("Dashboard: No more data received, finished pagination");
+                    hasMoreData = false;
+                  }
+                }
+                
+                console.log(`Dashboard: Fetched a total of ${allPilesData.length} piles out of ${totalCount} total`);
+                
+                if (allPilesData.length > 0) {
+
+                  // Use the same logic as my-piles page to calculate statistics
+                  const tolerance = project.embedment_tolerance || 1;
+                  
+                  // Function to determine pile status (same as my-piles page)
+                  const getPileStatus = (pile: any) => {
+                    if (!pile.embedment || !pile.design_embedment) return 'pending';
+                    
+                    if (Number(pile.embedment) >= Number(pile.design_embedment)) {
+                      return 'accepted';
+                    } else if (Number(pile.embedment) < (Number(pile.design_embedment) - tolerance)) {
+                      return 'refusal';
+                    } else {
+                      return 'accepted'; // Within tolerance
+                    }
+                  };
+
+                  // Calculate status counts using the same method as my-piles page
+                  const refusals = allPilesData.filter((pile: any) => 
+                    getPileStatus(pile) === 'refusal'
+                  ).length;
+
+                  // Set embedment issues to refusal count (piles with shallow embedment)
+                  setPendingPiles(refusals);
+                  
+                  // Debug logging to compare with my-piles page
+                  console.log("Dashboard Statistics:");
+                  console.log("Total piles:", allPilesData.length);
+                  console.log("Refusal piles (embedment issues):", refusals);
+                  console.log("Embedment tolerance used:", tolerance);
+                  
+                  // Calculate completion percentage based on actual piles vs planned piles
+                  const completionPercent = project.total_project_piles > 0 
+                    ? Math.round((allPilesData.length / project.total_project_piles) * 100) 
+                    : 0;
+                  setCompletedPilesPercent(completionPercent);
+                } else {
+                  // No piles data found, set to 0
+                  setTotalPiles(totalCount);
+                  setPendingPiles(0);
+                  setCompletedPilesPercent(0);
+                }
               }
             }
           }
@@ -176,18 +234,76 @@ export default function DashboardPage() {
     if (!user || !projectData) return;
 
     try {
-      // Load piles data to calculate statistics
-      const { data: pilesData, error: pilesError } = await supabase
+      // Use the same robust data fetching approach as my-piles page
+      
+      // First get the count
+      const { count, error: countError } = await supabase
         .from('piles')
-        .select('*')
+        .select('*', { count: 'exact', head: true })
         .eq('project_id', projectData.id);
 
-      if (pilesError) {
-        console.error("Error fetching piles data:", pilesError);
+      if (countError) {
+        console.error("Error fetching piles count:", countError);
         toast.error("Failed to load pile statistics");
-      } else if (pilesData) {
-        setTotalPiles(pilesData.length);
+        return;
+      }
 
+      const totalCount = count || 0;
+      console.log("Dashboard refresh: Total piles in database:", totalCount);
+      
+      // Set total count immediately from count query
+      setTotalPiles(totalCount);
+      
+      // Now fetch all the data using pagination
+      let allPilesData: any[] = [];
+      const pageSize = 1000;
+      let page = 0;
+      let hasMoreData = true;
+      
+      // Fetch data in chunks to handle large datasets
+      while (hasMoreData) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+        
+        console.log(`Dashboard refresh fetching page ${page+1}: rows ${from} to ${to}`);
+        
+        const { data: paginatedData, error } = await supabase
+          .from('piles')
+          .select('*')
+          .eq('project_id', projectData.id)
+          .range(from, to);
+        
+        if (error) {
+          console.error("Error fetching dashboard refresh page", page, error);
+          throw error;
+        }
+        
+        if (paginatedData && paginatedData.length > 0) {
+          console.log(`Dashboard refresh received ${paginatedData.length} records for page ${page+1}`);
+          allPilesData = [...allPilesData, ...paginatedData];
+          page++;
+          
+          // If we got fewer records than the page size, we've fetched all data
+          if (paginatedData.length < pageSize) {
+            console.log("Dashboard refresh: Received fewer records than page size, finished pagination");
+            hasMoreData = false;
+          }
+          
+          // Safety check - if we've fetched all records according to count
+          if (allPilesData.length >= totalCount) {
+            console.log("Dashboard refresh: Fetched all records according to count, finished pagination");
+            hasMoreData = false;
+          }
+        } else {
+          // No more data
+          console.log("Dashboard refresh: No more data received, finished pagination");
+          hasMoreData = false;
+        }
+      }
+      
+      console.log(`Dashboard refresh: Fetched a total of ${allPilesData.length} piles out of ${totalCount} total`);
+      
+      if (allPilesData.length > 0) {
         // Use the same logic as my-piles page to calculate statistics
         const tolerance = embedmentTolerance;
         
@@ -205,7 +321,7 @@ export default function DashboardPage() {
         };
 
         // Calculate status counts using the same method as my-piles page
-        const refusals = pilesData.filter((pile: any) => 
+        const refusals = allPilesData.filter((pile: any) => 
           getPileStatus(pile) === 'refusal'
         ).length;
 
@@ -214,12 +330,12 @@ export default function DashboardPage() {
         
         // Calculate completion percentage based on actual piles vs planned piles
         const completionPercent = projectData.total_project_piles > 0 
-          ? Math.round((pilesData.length / projectData.total_project_piles) * 100) 
+          ? Math.round((allPilesData.length / projectData.total_project_piles) * 100) 
           : 0;
         setCompletedPilesPercent(completionPercent);
       } else {
         // No piles data found, set to 0
-        setTotalPiles(0);
+        setTotalPiles(totalCount);
         setPendingPiles(0);
         setCompletedPilesPercent(0);
       }
