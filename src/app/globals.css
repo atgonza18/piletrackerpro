@@ -115,8 +115,9 @@
 
 @layer base {
   html {
-    font-size: 100%;
+    font-size: 90%;
     height: 100%;
+    overflow-x: hidden;
   }
   
   * {
@@ -125,9 +126,10 @@
   
   body {
     @apply bg-background text-foreground;
-    zoom: 0.9;
+    zoom: 0.85;
     min-height: 100vh;
     height: 100%;
+    overflow-x: hidden;
   }
 }
 
