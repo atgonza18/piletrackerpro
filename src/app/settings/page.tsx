@@ -218,12 +218,62 @@ export default function ProjectSettingsPage() {
     }
   };
 
-  const handleSaveClick = () => {
+  const handleSaveClick = async () => {
     if (!validateForm()) {
       return;
     }
 
-    // ... rest of the handleSubmit function logic ...
+    if (!user) {
+      toast.error("You must be logged in to update project settings");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      // Check if user has permission to update
+      const { data: userProjectData, error: userProjectError } = await supabase
+        .from('user_projects')
+        .select('is_owner')
+        .eq('user_id', user.id)
+        .eq('project_id', projectId)
+        .single();
+
+      if (userProjectError) {
+        console.error("Error checking user permissions:", userProjectError);
+        toast.error("Failed to verify user permissions");
+        return;
+      }
+
+      // Update project settings
+      const { data: updatedProject, error: updateError } = await supabase
+        .from('projects')
+        .update({
+          project_name: projectName,
+          project_location: projectLocation,
+          role: role,
+          total_project_piles: parseInt(totalProjectPiles),
+          tracker_system: trackerSystem,
+          geotech_company: geotechCompany,
+          embedment_tolerance: parseFloat(embedmentTolerance)
+        })
+        .eq('id', projectId)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error("Error updating project settings:", updateError);
+        toast.error("Failed to update project settings");
+        return;
+      }
+
+      toast.success("Project settings updated successfully!");
+    } catch (error) {
+      console.error("Unexpected error during project settings update:", error);
+      toast.error("An unexpected error occurred. Please try again later.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const loadTeamMembers = async () => {
