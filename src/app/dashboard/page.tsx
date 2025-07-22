@@ -123,7 +123,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="min-h-screen h-screen bg-slate-50 dark:bg-slate-900">
       {/* Sidebar - Hidden on mobile */}
       <div className="fixed inset-y-0 left-0 w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 hidden lg:flex flex-col z-10">
         <div className="p-4 border-b border-slate-100 dark:border-slate-700">
@@ -199,7 +199,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-64">
+      <div className="lg:pl-64 h-full">
         {/* Mobile header */}
         <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-3 flex items-center justify-between lg:hidden">
           <div className="flex items-center gap-2">
@@ -237,8 +237,8 @@ export default function DashboardPage() {
         </header>
 
         {/* Dashboard content */}
-        <main className="p-4 md:p-5 lg:p-6">
-          <div className="max-w-7xl mx-auto">
+        <main className="p-4 md:p-5 lg:p-6 h-full min-h-[calc(100vh-80px)] lg:min-h-screen">
+          <div className="max-w-7xl mx-auto h-full">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
               <div>
                 <h1 className="text-xl font-bold text-slate-900 dark:text-white">Welcome back, {userName}</h1>
@@ -319,7 +319,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Content panels */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pb-6">
               <div className="lg:col-span-2">
                 <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
                   <CardHeader>

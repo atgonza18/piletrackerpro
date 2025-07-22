@@ -298,7 +298,7 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-blue-50">
+    <div className="flex min-h-screen h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-blue-50">
       {/* Left panel with logo - hidden on mobile */}
       <div className="hidden lg:flex lg:w-1/2 bg-blue-600 text-white p-12 flex-col justify-between relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-700 opacity-90"></div>
