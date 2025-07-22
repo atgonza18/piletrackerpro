@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
+import { supabase } from "@/lib/supabase";
 
 type AccountType = "epc" | "owner";
 
@@ -28,23 +29,56 @@ export function AccountTypeProvider({ children }: { children: React.ReactNode })
   const [accountType, setAccountType] = useState<AccountType>("epc");
 
   useEffect(() => {
-    // Debug logging to understand what's happening
-    console.log("AccountTypeProvider: user:", user);
-    console.log("AccountTypeProvider: user metadata:", user?.user_metadata);
-    console.log("AccountTypeProvider: account_type from metadata:", user?.user_metadata?.account_type);
-    
-    if (user?.user_metadata?.account_type) {
-      console.log("AccountTypeProvider: Setting account type to:", user.user_metadata.account_type);
-      setAccountType(user.user_metadata.account_type as AccountType);
-    } else {
-      console.log("AccountTypeProvider: No account_type in metadata, defaulting to 'epc'");
-      // If no account type in metadata, check if we can determine from userProject
-      if (userProject) {
-        console.log("AccountTypeProvider: userProject data:", userProject);
-        // For now, if user has project but no account type, assume EPC
+    const determineAccountType = async () => {
+      if (!user) {
+        console.log("AccountTypeProvider: No user, defaulting to EPC");
         setAccountType("epc");
+        return;
       }
-    }
+
+      // Debug logging to understand what's happening
+      console.log("AccountTypeProvider: user:", user);
+      console.log("AccountTypeProvider: user metadata:", user?.user_metadata);
+      console.log("AccountTypeProvider: account_type from metadata:", user?.user_metadata?.account_type);
+      
+      // First try to get account type from user metadata
+      if (user?.user_metadata?.account_type) {
+        console.log("AccountTypeProvider: Setting account type from metadata:", user.user_metadata.account_type);
+        setAccountType(user.user_metadata.account_type as AccountType);
+        return;
+      }
+
+      // Fallback: Check user_projects table for role
+      console.log("AccountTypeProvider: No account_type in metadata, checking database...");
+      try {
+        const { data: userProjectData, error } = await supabase
+          .from('user_projects')
+          .select('role')
+          .eq('user_id', user.id)
+          .single();
+
+        if (error) {
+          console.error("AccountTypeProvider: Error fetching user project:", error);
+          setAccountType("epc"); // Default to EPC on error
+          return;
+        }
+
+        console.log("AccountTypeProvider: User project data:", userProjectData);
+        
+        if (userProjectData?.role === 'owner_rep') {
+          console.log("AccountTypeProvider: Setting account type to 'owner' based on database role");
+          setAccountType("owner");
+        } else {
+          console.log("AccountTypeProvider: Setting account type to 'epc' based on database role or default");
+          setAccountType("epc");
+        }
+      } catch (error) {
+        console.error("AccountTypeProvider: Error determining account type:", error);
+        setAccountType("epc"); // Default to EPC on error
+      }
+    };
+
+    determineAccountType();
   }, [user, userProject]);
 
   const canEdit = accountType === "epc";
