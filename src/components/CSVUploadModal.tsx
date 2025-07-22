@@ -132,7 +132,13 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
 
       setUploadProgress(100);
       setUploadStatus('success');
-      toast.success(`Successfully uploaded ${data?.count || 0} pile records`);
+      
+      // Enhanced success message with detailed results
+      if (data?.invalidRows && data.invalidRows > 0) {
+        toast.success(`✅ Successfully uploaded ${data.validRows} piles! ⚠️ Skipped ${data.invalidRows} invalid rows out of ${data.totalRows} total.`);
+      } else {
+        toast.success(`✅ Successfully uploaded ${data?.count || 0} pile records! All rows were valid.`);
+      }
       
       // Close the modal after a delay to show success state
       setTimeout(() => {
@@ -238,103 +244,64 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       .eq('project_id', projectId)
       .limit(10000);
     
-    const existingPileNumbers = new Set(existingPiles?.map(p => p.pile_number) || []);
+    const existingPileNumbers = new Set(existingPiles?.map(p => p.pile_number as string).filter(Boolean) || []);
     
     // Track pile numbers we've seen in this import to avoid duplicates within the import itself
-    const seenPileNumbers = new Set();
+    const seenPileNumbers = new Set<string>();
     
-    // Batch the inserts to avoid hitting limits
+    // Validate each row individually and separate valid from invalid rows
+    const validRows: any[] = [];
+    const invalidRows: Array<{ row: string[], rowIndex: number, errors: string[] }> = [];
+    
+    rows.forEach((row, index) => {
+      const validation = validateRow(row, index + 2, columnMapping, existingPileNumbers, seenPileNumbers); // +2 because CSV is 1-indexed and we skip header
+      
+      if (validation.isValid && validation.pileData) {
+        validRows.push(validation.pileData);
+        // Add to seen pile numbers to track duplicates within this import
+        if (validation.pileData.pile_number) {
+          seenPileNumbers.add(validation.pileData.pile_number);
+        }
+      } else {
+        invalidRows.push({
+          row,
+          rowIndex: index + 2,
+          errors: validation.errors
+        });
+      }
+    });
+    
+    // Show validation results
+    if (invalidRows.length > 0) {
+      console.warn(`⚠️ Skipping ${invalidRows.length} invalid rows:`, invalidRows);
+      
+      // Group errors by type for better user feedback
+      const errorSummary = invalidRows.reduce((acc, invalidRow) => {
+        invalidRow.errors.forEach(error => {
+          if (!acc[error]) acc[error] = 0;
+          acc[error]++;
+        });
+        return acc;
+      }, {} as Record<string, number>);
+      
+      const errorMessages = Object.entries(errorSummary)
+        .map(([error, count]) => `${error} (${count} rows)`)
+        .join(', ');
+      
+      toast.warning(`⚠️ Skipped ${invalidRows.length} invalid rows: ${errorMessages}`);
+    }
+    
+    if (validRows.length === 0) {
+      throw new Error("No valid rows found to upload. Please check your data and try again.");
+    }
+    
+    // Batch the inserts to avoid hitting limits - only process valid rows
     const batchSize = 50;
     const batches = [];
     
-    for (let i = 0; i < rows.length; i += batchSize) {
-      const batch = rows.slice(i, i + batchSize);
-      
-      // Convert CSV data to piles object format using flexible column mapping
-      const pilesData = batch.map(row => {
-        // Parse and format the date correctly using mapped column
-        let startDate = null;
-        const startDateIndex = columnMapping.start_date;
-        if (startDateIndex !== -1) {
-          try {
-            const dateStr = row[startDateIndex]?.trim();
-            if (dateStr) {
-              // If it's already in YYYY-MM-DD format, use it as is
-              if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-                startDate = dateStr;
-              } 
-              // If it's in MM/DD/YYYY format, convert it
-              else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateStr)) {
-                const parts = dateStr.split('/');
-                startDate = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
-              }
-              // For other formats, attempt to parse with Date
-              else {
-                const date = new Date(dateStr);
-                if (!isNaN(date.getTime())) {
-                  startDate = date.toISOString().split('T')[0];
-                }
-              }
-            }
-          } catch (error) {
-            console.error("Error parsing date:", row[startDateIndex], error);
-          }
-        }
-
-        // Create a unique pile number - prefer pile_id, fallback to block + random
-        let pileNumber = '';
-        if (columnMapping.pile_id !== -1 && row[columnMapping.pile_id]?.trim()) {
-          pileNumber = row[columnMapping.pile_id].trim();
-        } else if (columnMapping.block !== -1 && row[columnMapping.block]?.trim()) {
-          pileNumber = `${row[columnMapping.block].trim()}-${Math.floor(Math.random() * 10000)}`;
-        } else {
-          pileNumber = `Pile-${Math.floor(Math.random() * 10000)}`;
-        }
-        
-        // Check if pile number already exists in database or in current import
-        if (existingPileNumbers.has(pileNumber) || seenPileNumbers.has(pileNumber)) {
-          // Add a timestamp suffix to make it unique
-          pileNumber = `${pileNumber}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-        }
-        
-        // Add to seen pile numbers for this import
-        seenPileNumbers.add(pileNumber);
-
-        // Helper function to safely get column value
-        const getColumnValue = (columnKey: keyof typeof columnMapping): string | null => {
-          const index = columnMapping[columnKey];
-          return index !== -1 ? (row[index]?.trim() || null) : null;
-        };
-
-        // Helper function to safely parse numeric column value
-        const getNumericValue = (columnKey: keyof typeof columnMapping): number | null => {
-          const value = getColumnValue(columnKey);
-          return value ? parseFloat(value) : null;
-        };
-
-        // Map CSV columns using the flexible mapping
-        return {
-          project_id: projectId,
-          pile_number: pileNumber,
-          block: getColumnValue('block'),
-          design_embedment: getNumericValue('design_embedment'),
-          duration: getColumnValue('duration'),
-          embedment: getNumericValue('embedment'),
-          end_z: getNumericValue('end_z'),
-          gain_per_30_seconds: getNumericValue('gain_per_30_seconds'),
-          machine: getNumericValue('machine'),
-          pile_color: getColumnValue('pile_color'),
-          pile_id: getColumnValue('pile_id'),
-          start_date: startDate,
-          start_time: getColumnValue('start_time'),
-          start_z: getNumericValue('start_z'),
-          stop_time: getColumnValue('stop_time'),
-          zone: getColumnValue('zone'),
-          pile_status: 'pending' // Default status for all imported piles
-        };
-      });
-      
-      batches.push(pilesData);
+    for (let i = 0; i < validRows.length; i += batchSize) {
+      const batch = validRows.slice(i, i + batchSize);
+      batches.push(batch);
     }
     
     // Insert all batches
@@ -349,7 +316,151 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       }
     }
     
-    return { data: { count: rows.length }, error: null };
+    return { 
+      data: { 
+        count: validRows.length,
+        validRows: validRows.length,
+        invalidRows: invalidRows.length,
+        totalRows: rows.length,
+        errorDetails: invalidRows
+      }, 
+      error: null 
+    };
+  };
+
+  // Function to validate a single row and convert it to pile data
+  const validateRow = (row: string[], rowIndex: number, columnMapping: Record<string, number>, existingPileNumbers: Set<string>, seenPileNumbers: Set<string>) => {
+    const errors: string[] = [];
+    
+    // Helper function to safely get column value
+    const getColumnValue = (columnKey: keyof typeof columnMapping): string | null => {
+      const index = columnMapping[columnKey];
+      return index !== -1 ? (row[index]?.trim() || null) : null;
+    };
+
+    // Helper function to safely parse numeric column value
+    const getNumericValue = (columnKey: keyof typeof columnMapping): number | null => {
+      const value = getColumnValue(columnKey);
+      if (!value) return null;
+      
+      const parsed = parseFloat(value);
+      if (isNaN(parsed)) {
+        errors.push(`Invalid numeric value in ${columnKey}: '${value}'`);
+        return null;
+      }
+      return parsed;
+    };
+
+    // Check for required pile identifier
+    const pileIdValue = getColumnValue('pile_id');
+    const blockValue = getColumnValue('block');
+    
+    if (!pileIdValue && !blockValue) {
+      errors.push("Missing required pile identifier (Pile ID or Block)");
+    }
+
+    // Validate numeric fields
+    const designEmbedment = getNumericValue('design_embedment');
+    const embedment = getNumericValue('embedment');
+    const endZ = getNumericValue('end_z');
+    const gainPer30 = getNumericValue('gain_per_30_seconds');
+    const machine = getNumericValue('machine');
+    const startZ = getNumericValue('start_z');
+
+    // Validate and parse date
+    let startDate = null;
+    const startDateIndex = columnMapping.start_date;
+    if (startDateIndex !== -1 && row[startDateIndex]?.trim()) {
+      try {
+        const dateStr = row[startDateIndex].trim();
+        if (dateStr) {
+          // If it's already in YYYY-MM-DD format, use it as is
+          if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+            startDate = dateStr;
+          } 
+          // If it's in MM/DD/YYYY format, convert it
+          else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateStr)) {
+            const parts = dateStr.split('/');
+            const month = parseInt(parts[0]);
+            const day = parseInt(parts[1]);
+            const year = parseInt(parts[2]);
+            
+            // Validate date components
+            if (month < 1 || month > 12) {
+              errors.push(`Invalid month in date: '${dateStr}'`);
+            } else if (day < 1 || day > 31) {
+              errors.push(`Invalid day in date: '${dateStr}'`);
+            } else if (year < 1900 || year > 2100) {
+              errors.push(`Invalid year in date: '${dateStr}'`);
+            } else {
+              startDate = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+            }
+          }
+          // For other formats, attempt to parse with Date
+          else {
+            const date = new Date(dateStr);
+            if (!isNaN(date.getTime())) {
+              startDate = date.toISOString().split('T')[0];
+            } else {
+              errors.push(`Invalid date format: '${dateStr}' (expected MM/DD/YYYY)`);
+            }
+          }
+        }
+      } catch (error) {
+        errors.push(`Error parsing date: '${row[startDateIndex]}'`);
+      }
+    }
+
+    // Create a unique pile number - prefer pile_id, fallback to block + random
+    let pileNumber = '';
+    if (pileIdValue) {
+      pileNumber = pileIdValue;
+    } else if (blockValue) {
+      pileNumber = `${blockValue}-${Math.floor(Math.random() * 10000)}`;
+    } else {
+      pileNumber = `Pile-${Math.floor(Math.random() * 10000)}`;
+    }
+    
+    // Check if pile number already exists in database or in current import
+    if (existingPileNumbers.has(pileNumber)) {
+      errors.push(`Pile number '${pileNumber}' already exists in database`);
+    } else if (seenPileNumbers.has(pileNumber)) {
+      errors.push(`Duplicate pile number '${pileNumber}' in this import`);
+    }
+
+    // Validate duration format if present
+    const duration = getColumnValue('duration');
+    if (duration && !/^\d{1,2}:\d{2}:\d{2}$/.test(duration)) {
+      // Allow it but warn
+      console.warn(`Row ${rowIndex}: Duration format '${duration}' may not be valid (expected H:MM:SS)`);
+    }
+
+    // Create pile data object
+    const pileData = {
+      project_id: projectId,
+      pile_number: pileNumber,
+      block: blockValue,
+      design_embedment: designEmbedment,
+      duration: duration,
+      embedment: embedment,
+      end_z: endZ,
+      gain_per_30_seconds: gainPer30,
+      machine: machine,
+      pile_color: getColumnValue('pile_color'),
+      pile_id: pileIdValue,
+      start_date: startDate,
+      start_time: getColumnValue('start_time'),
+      start_z: startZ,
+      stop_time: getColumnValue('stop_time'),
+      zone: getColumnValue('zone'),
+      pile_status: 'pending' // Default status for all imported piles
+    };
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      pileData: errors.length === 0 ? pileData : null
+    };
   };
 
   // Function to create intelligent column mapping from CSV headers
@@ -568,7 +679,8 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                   <li>✅ Column names are case-insensitive</li>
                   <li>✅ Supports spaces, underscores, and variations</li>
                   <li>✅ Automatically ignores unmapped columns</li>
-                  <li>✅ Shows mapping feedback after upload</li>
+                  <li>✅ <strong>Skips invalid rows</strong> - uploads valid data even if some rows have errors</li>
+                  <li>✅ Shows detailed validation feedback after upload</li>
                   <li>⚠️ Must have either "Pile ID" or "Block" column to identify piles</li>
                   <li>📅 Dates should be in MM/DD/YYYY format</li>
                   <li>🔢 Numeric fields will be automatically parsed</li>
