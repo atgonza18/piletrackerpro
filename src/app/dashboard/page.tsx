@@ -84,19 +84,29 @@ export default function DashboardPage() {
               } else if (pilesData) {
                 setTotalPiles(pilesData.length);
 
-                // Calculate pile status statistics
+                // Use the same logic as my-piles page to calculate statistics
                 const tolerance = project.embedment_tolerance || 1;
-                let embedmentIssues = 0;
-
-                pilesData.forEach((pile: any) => {
-                  if (pile.embedment && pile.design_embedment) {
-                    if (Number(pile.embedment) < (Number(pile.design_embedment) - tolerance)) {
-                      embedmentIssues++;
-                    }
+                
+                // Function to determine pile status (same as my-piles page)
+                const getPileStatus = (pile: any) => {
+                  if (!pile.embedment || !pile.design_embedment) return 'pending';
+                  
+                  if (Number(pile.embedment) >= Number(pile.design_embedment)) {
+                    return 'accepted';
+                  } else if (Number(pile.embedment) < (Number(pile.design_embedment) - tolerance)) {
+                    return 'refusal';
+                  } else {
+                    return 'accepted'; // Within tolerance
                   }
-                });
+                };
 
-                setPendingPiles(embedmentIssues);
+                // Calculate status counts using the same method as my-piles page
+                const refusals = pilesData.filter((pile: any) => 
+                  getPileStatus(pile) === 'refusal'
+                ).length;
+
+                // Set embedment issues to refusal count (piles with shallow embedment)
+                setPendingPiles(refusals);
                 
                 // Calculate completion percentage based on actual piles vs planned piles
                 const completionPercent = project.total_project_piles > 0 
@@ -172,19 +182,29 @@ export default function DashboardPage() {
       } else if (pilesData) {
         setTotalPiles(pilesData.length);
 
-        // Calculate pile status statistics
+        // Use the same logic as my-piles page to calculate statistics
         const tolerance = embedmentTolerance;
-        let embedmentIssues = 0;
-
-        pilesData.forEach((pile: any) => {
-          if (pile.embedment && pile.design_embedment) {
-            if (Number(pile.embedment) < (Number(pile.design_embedment) - tolerance)) {
-              embedmentIssues++;
-            }
+        
+        // Function to determine pile status (same as my-piles page)
+        const getPileStatus = (pile: any) => {
+          if (!pile.embedment || !pile.design_embedment) return 'pending';
+          
+          if (Number(pile.embedment) >= Number(pile.design_embedment)) {
+            return 'accepted';
+          } else if (Number(pile.embedment) < (Number(pile.design_embedment) - tolerance)) {
+            return 'refusal';
+          } else {
+            return 'accepted'; // Within tolerance
           }
-        });
+        };
 
-        setPendingPiles(embedmentIssues);
+        // Calculate status counts using the same method as my-piles page
+        const refusals = pilesData.filter((pile: any) => 
+          getPileStatus(pile) === 'refusal'
+        ).length;
+
+        // Set embedment issues to refusal count (piles with shallow embedment)
+        setPendingPiles(refusals);
         
         // Calculate completion percentage based on actual piles vs planned piles
         const completionPercent = projectData.total_project_piles > 0 
