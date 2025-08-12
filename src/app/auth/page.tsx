@@ -29,6 +29,9 @@ export default function AuthPage() {
   const [emailConfirmationSent, setEmailConfirmationSent] = useState(false);
   const [accountType, setAccountType] = useState("epc"); // "epc" or "owner"
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [invitationToken, setInvitationToken] = useState<string | null>(null);
+  const [invitationData, setInvitationData] = useState<any>(null);
+  const [loadingInvitation, setLoadingInvitation] = useState(false);
   
   const router = useRouter();
   const { signIn, signUp, isLoading, user, refreshUserSession } = useAuth();
@@ -57,18 +60,68 @@ export default function AuthPage() {
     }
   }, [handleRefreshTokenError]);
 
-  // Check for email confirmation redirect
+  // Check for email confirmation redirect and invitation token
   useEffect(() => {
-    // Check if this is a redirect back after email confirmation
     const query = new URLSearchParams(window.location.search);
     const isConfirmation = query.get('confirm') === 'true';
+    const invitationParam = query.get('invitation');
     
     if (isConfirmation) {
       toast.success("Email confirmed successfully! Please log in to continue.");
       // Remove the query parameter to avoid showing the message again on refresh
       window.history.replaceState({}, document.title, window.location.pathname);
     }
+    
+    // Check for invitation token
+    if (invitationParam && !invitationToken) {
+      setInvitationToken(invitationParam);
+      setActiveTab("register"); // Switch to register tab
+      validateInvitation(invitationParam);
+    }
   }, []);
+  
+  // Validate invitation token
+  const validateInvitation = async (token: string) => {
+    setLoadingInvitation(true);
+    try {
+      const { data, error } = await supabase
+        .from('project_invitations')
+        .select(`
+          *,
+          projects:project_id (
+            id,
+            project_name
+          )
+        `)
+        .eq('token', token)
+        .eq('status', 'pending')
+        .single();
+      
+      if (error || !data) {
+        toast.error('Invalid or expired invitation link');
+        setInvitationToken(null);
+        return;
+      }
+      
+      // Check if invitation is expired
+      const expiresAt = new Date(data.expires_at);
+      if (expiresAt < new Date()) {
+        toast.error('This invitation has expired');
+        setInvitationToken(null);
+        return;
+      }
+      
+      setInvitationData(data);
+      setEmail(data.email); // Pre-fill email
+      toast.success(`You've been invited to join ${data.projects.project_name}`);
+    } catch (error) {
+      console.error('Error validating invitation:', error);
+      toast.error('Failed to validate invitation');
+      setInvitationToken(null);
+    } finally {
+      setLoadingInvitation(false);
+    }
+  };
 
   // Redirect if already logged in
   useEffect(() => {
@@ -246,7 +299,8 @@ export default function AuthPage() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (accountType === "owner" && !selectedProjectId) {
+    // If there's no invitation, require project selection
+    if (!invitationToken && !selectedProjectId) {
       toast.error("Please select a project");
       return;
     }
@@ -257,10 +311,11 @@ export default function AuthPage() {
         password,
         options: {
           data: {
-            account_type: accountType,
-            project_id: selectedProjectId,
+            account_type: invitationToken ? 'invited' : accountType,
+            project_id: invitationData?.project_id || selectedProjectId,
             first_name: firstName,
-            last_name: lastName
+            last_name: lastName,
+            invitation_token: invitationToken
           }
         }
       });
@@ -268,15 +323,30 @@ export default function AuthPage() {
       if (error) throw error;
 
       if (user) {
-        // If it's an owner account, create the user-project association
-        if (accountType === "owner" && selectedProjectId) {
+        // Handle invitation acceptance
+        if (invitationToken && invitationData) {
+          const { data: acceptResult, error: acceptError } = await supabase
+            .rpc('accept_project_invitation', {
+              invitation_token: invitationToken,
+              user_id_param: user.id
+            });
+          
+          if (acceptError) {
+            console.error("Error accepting invitation:", acceptError);
+            toast.error("Account created but failed to join project. Please contact support.");
+          } else {
+            toast.success(`Successfully joined ${invitationData.projects.project_name}!`);
+          }
+        } 
+        // If no invitation, create the user-project association
+        else if (selectedProjectId) {
           const { error: projectError } = await supabase
             .from('user_projects')
             .insert({
               user_id: user.id,
               project_id: selectedProjectId,
-              role: 'owner_rep',
-              is_owner: false
+              role: accountType === 'owner' ? 'owner_rep' : 'admin',
+              is_owner: accountType === 'epc'
             });
 
           if (projectError) {
@@ -287,7 +357,13 @@ export default function AuthPage() {
         }
 
         toast.success("Sign up successful! Please check your email for verification.");
-        router.push("/project-setup");
+        
+        // If user was invited, skip project setup since they already have a project
+        if (invitationToken) {
+          router.push("/dashboard");
+        } else {
+          router.push("/project-setup");
+        }
       }
     } catch (error) {
       console.error("Error signing up:", error);
@@ -388,7 +464,7 @@ export default function AuthPage() {
                     id="login-email" 
                     type="email" 
                     placeholder="name@example.com" 
-                    className={`h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400 ${
+                    className={`h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-black placeholder:text-gray-600 ${
                       formErrors.email ? "border-red-500" : ""
                     }`}
                     value={email}
@@ -414,7 +490,7 @@ export default function AuthPage() {
                       id="login-password" 
                       type={showPassword ? "text" : "password"} 
                       placeholder="••••••••" 
-                      className={`h-11 pr-10 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400 ${
+                      className={`h-11 pr-10 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-black placeholder:text-gray-600 ${
                         formErrors.password ? "border-red-500" : ""
                       }`}
                       value={password}
@@ -512,7 +588,7 @@ export default function AuthPage() {
                 errors.terms = "You must agree to the terms";
               }
               
-              if (accountType === "owner" && !selectedProjectId) {
+              if (!invitationToken && !selectedProjectId) {
                 errors.project = "Please select a project";
               }
               
@@ -527,18 +603,39 @@ export default function AuthPage() {
               <CardHeader className="pb-2 pt-6 px-6">
                 <CardTitle className="text-2xl font-bold text-slate-900">Create an account</CardTitle>
                 <CardDescription className="text-slate-500">
-                  Enter your information to create your account
+                  {invitationData ? 
+                    `You've been invited to join ${invitationData.projects.project_name} as ${invitationData.role}` :
+                    "Enter your information to create your account"
+                  }
                 </CardDescription>
               </CardHeader>
               
               <CardContent className="space-y-4 px-6">
+                {/* Show invitation banner if user has valid invitation */}
+                {invitationData && (
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-shrink-0">
+                        <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-medium text-blue-900">Project Invitation</h3>
+                        <p className="text-sm text-blue-700 mt-1">
+                          You'll automatically be added to <strong>{invitationData.projects.project_name}</strong> once you complete signup.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2.5">
                     <Label htmlFor="firstName" className="text-sm font-medium text-slate-700">First name</Label>
                     <Input 
                       id="firstName" 
                       placeholder="John"
-                      className="h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400" 
+                      className="h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-black placeholder:text-gray-600" 
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
                       required 
@@ -549,7 +646,7 @@ export default function AuthPage() {
                     <Input 
                       id="lastName" 
                       placeholder="Doe"
-                      className="h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400" 
+                      className="h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-black placeholder:text-gray-600" 
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
                       required 
@@ -558,16 +655,19 @@ export default function AuthPage() {
                 </div>
                 
                 <div className="space-y-2.5">
-                  <Label htmlFor="register-email" className="text-sm font-medium text-slate-700">Email</Label>
+                  <Label htmlFor="register-email" className="text-sm font-medium text-slate-700">
+                    Email {invitationData && <span className="text-xs text-slate-500">(from invitation)</span>}
+                  </Label>
                   <Input 
                     id="register-email" 
                     type="email" 
                     placeholder="name@example.com" 
-                    className={`h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 ${
+                    className={`h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-black ${
                       formErrors.email ? "border-red-500" : ""
-                    }`}
+                    } ${invitationData ? "bg-slate-50" : ""} text-black placeholder:text-gray-600`}
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => !invitationData && setEmail(e.target.value)}
+                    readOnly={!!invitationData}
                     required 
                   />
                   {formErrors.email && (
@@ -582,7 +682,7 @@ export default function AuthPage() {
                       id="register-password" 
                       type={showPassword ? "text" : "password"} 
                       placeholder="••••••••" 
-                      className={`h-11 pr-10 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400 ${
+                      className={`h-11 pr-10 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-black placeholder:text-gray-600 ${
                         formErrors.password ? "border-red-500" : ""
                       }`}
                       value={password}
@@ -637,7 +737,7 @@ export default function AuthPage() {
                     id="confirmPassword" 
                     type={showPassword ? "text" : "password"} 
                     placeholder="••••••••" 
-                    className={`h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400 ${
+                    className={`h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-black placeholder:text-gray-600 ${
                       formErrors.confirmPassword ? "border-red-500" : ""
                     }`}
                     value={confirmPassword}
@@ -649,6 +749,8 @@ export default function AuthPage() {
                   )}
                 </div>
                 
+                {/* Only show account type selection if not invited */}
+                {!invitationData && (
                 <div className="space-y-3">
                   <Label>Account Type</Label>
                   <RadioGroup 
@@ -665,12 +767,19 @@ export default function AuthPage() {
                       />
                       <Label
                         htmlFor="epc"
-                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-white p-3 hover:bg-slate-50 [&:has([data-state=checked])]:border-blue-600 [&:has([data-state=checked])]:bg-blue-50"
+                        className="relative flex flex-col items-center justify-between rounded-md border-2 border-slate-200 bg-white p-3 cursor-pointer transition-all hover:border-slate-300 hover:bg-slate-50 [&:has([data-state=checked])]:border-blue-600 [&:has([data-state=checked])]:bg-gradient-to-br [&:has([data-state=checked])]:from-blue-50 [&:has([data-state=checked])]:to-indigo-50 [&:has([data-state=checked])]:shadow-md"
                       >
-                        <Building2 className="mb-2 h-6 w-6 text-blue-600" />
-                        <div className="space-y-1">
-                          <h3 className="font-semibold">EPC Account</h3>
-                          <p className="text-sm text-slate-500">
+                        {accountType === "epc" && (
+                          <div className="absolute -top-2 -right-2 bg-blue-600 text-white rounded-full p-1">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                        )}
+                        <Building2 className={`mb-2 h-6 w-6 transition-colors ${accountType === "epc" ? "text-blue-600" : "text-slate-400"}`} />
+                        <div className="space-y-1 text-center">
+                          <h3 className={`font-semibold transition-colors ${accountType === "epc" ? "text-blue-900" : "text-black"}`}>EPC Account</h3>
+                          <p className={`text-sm transition-colors ${accountType === "epc" ? "text-blue-700" : "text-slate-500"}`}>
                             Full access to manage and edit projects
                           </p>
                         </div>
@@ -685,12 +794,19 @@ export default function AuthPage() {
                       />
                       <Label
                         htmlFor="owner"
-                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-white p-3 hover:bg-slate-50 [&:has([data-state=checked])]:border-blue-600 [&:has([data-state=checked])]:bg-blue-50"
+                        className="relative flex flex-col items-center justify-between rounded-md border-2 border-slate-200 bg-white p-3 cursor-pointer transition-all hover:border-slate-300 hover:bg-slate-50 [&:has([data-state=checked])]:border-blue-600 [&:has([data-state=checked])]:bg-gradient-to-br [&:has([data-state=checked])]:from-blue-50 [&:has([data-state=checked])]:to-indigo-50 [&:has([data-state=checked])]:shadow-md"
                       >
-                        <Eye className="mb-2 h-6 w-6 text-blue-600" />
-                        <div className="space-y-1">
-                          <h3 className="font-semibold">Owner's Rep</h3>
-                          <p className="text-sm text-slate-500">
+                        {accountType === "owner" && (
+                          <div className="absolute -top-2 -right-2 bg-blue-600 text-white rounded-full p-1">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                        )}
+                        <Eye className={`mb-2 h-6 w-6 transition-colors ${accountType === "owner" ? "text-blue-600" : "text-slate-400"}`} />
+                        <div className="space-y-1 text-center">
+                          <h3 className={`font-semibold transition-colors ${accountType === "owner" ? "text-blue-900" : "text-black"}`}>Owner's Rep</h3>
+                          <p className={`text-sm transition-colors ${accountType === "owner" ? "text-blue-700" : "text-slate-500"}`}>
                             View-only access to monitor progress
                           </p>
                         </div>
@@ -698,15 +814,24 @@ export default function AuthPage() {
                     </div>
                   </RadioGroup>
                 </div>
+                )}
                 
-                {/* Project Selection - Only show for Owner's Rep accounts */}
-                {accountType === "owner" && (
-                  <div className="space-y-3">
-                    <Label>Select Project</Label>
-                    <ProjectSelector onProjectSelect={setSelectedProjectId} />
+                {/* Project Selection - Show for both account types unless invited */}
+                {!invitationData && (
+                  <div className="space-y-2.5">
+                    <Label className="text-sm font-medium text-slate-700 block">Select Project</Label>
+                    <div className="relative">
+                      <ProjectSelector onProjectSelect={setSelectedProjectId} />
+                    </div>
                     <p className="text-sm text-slate-500">
-                      Choose the project you want to monitor. You'll have view-only access to all data for this project.
+                      {accountType === "owner" 
+                        ? "Choose the project you want to monitor. You'll have view-only access to all data for this project."
+                        : "Choose the project you want to manage. You'll have full access to edit and manage this project."
+                      }
                     </p>
+                    {formErrors.project && (
+                      <p className="text-xs text-red-500 mt-1">{formErrors.project}</p>
+                    )}
                   </div>
                 )}
                 

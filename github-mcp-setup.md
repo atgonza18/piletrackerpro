@@ -37,7 +37,7 @@ If the GitHub MCP tools don't appear after restart:
 
 2. Test the GitHub MCP server container:
    ```powershell
-   docker run --rm -e GITHUB_PERSONAL_ACCESS_TOKEN="your_token_here" ghcr.io/github/github-mcp-server
+   docker run --rm -e GITHUB_PERSONAL_ACCESS_TOKEN="YOUR_GITHUB_TOKEN_HERE" ghcr.io/github/github-mcp-server
    ```
 
 3. Check the Cursor logs for any errors related to MCP 

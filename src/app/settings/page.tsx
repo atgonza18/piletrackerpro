@@ -14,6 +14,7 @@ import { supabase } from "@/lib/supabase";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useAccountType } from "@/context/AccountTypeContext";
+import { sendInvitationEmail, sendInvitationEmailViaAPI } from "@/lib/emailService";
 
 interface ProjectSettings {
   id: string;
@@ -285,33 +286,57 @@ export default function ProjectSettingsPage() {
 
   const loadTeamMembers = async () => {
     try {
-      // First, check if the table exists
-      const { error: tableCheckError } = await supabase
-        .from('team_members')
-        .select('count')
-        .limit(1);
-
-      if (tableCheckError?.code === '42P01') { // Table doesn't exist
-        // Create the table
-        const { error: createTableError } = await supabase.rpc('create_team_members_table');
-        if (createTableError) {
-          console.error('Error creating team_members table:', createTableError);
-          toast.error('Failed to initialize team management');
-          return;
-        }
-      }
-
-      // Now load the team members
-      const { data: members, error } = await supabase
-        .from('team_members')
-        .select('*')
+      // Load existing team members from user_projects
+      const { data: existingMembers, error: membersError } = await supabase
+        .from('user_projects')
+        .select(`
+          *,
+          user:user_id (
+            id,
+            email,
+            user_metadata
+          )
+        `)
         .eq('project_id', projectId);
 
-      if (error) throw error;
-      setTeamMembers(members || []);
+      if (membersError) throw membersError;
+
+      // Load pending invitations
+      const { data: invitations, error: invitationsError } = await supabase
+        .from('project_invitations')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('status', 'pending')
+        .gt('expires_at', new Date().toISOString());
+
+      if (invitationsError && invitationsError.code !== '42P01') {
+        console.error('Error loading invitations:', invitationsError);
+      }
+
+      // Format team members for display
+      const formattedMembers = (existingMembers || []).map(member => ({
+        id: member.id,
+        email: member.user?.email || 'Unknown',
+        role: member.role,
+        created_at: member.created_at,
+        is_owner: member.is_owner,
+        type: 'member'
+      }));
+
+      // Add pending invitations to the list
+      const formattedInvitations = (invitations || []).map(inv => ({
+        id: inv.id,
+        email: inv.email,
+        role: inv.role,
+        created_at: inv.created_at,
+        type: 'invitation',
+        expires_at: inv.expires_at
+      }));
+
+      setTeamMembers([...formattedMembers, ...formattedInvitations]);
     } catch (error) {
       console.error('Error loading team members:', error);
-      toast.error('Failed to load team members');
+      // Don't show error toast for normal operation
     }
   };
 
@@ -321,43 +346,133 @@ export default function ProjectSettingsPage() {
       return;
     }
 
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newUserEmail)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
     setIsInvitingUser(true);
     try {
-      // First, check if user exists in auth
-      const { data: { users }, error: authError } = await supabase.auth.admin.listUsers();
-      if (authError) throw authError;
+      // Check if there's already a pending invitation
+      const { data: existingInvitation, error: inviteCheckError } = await supabase
+        .from('project_invitations')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('email', newUserEmail.toLowerCase())
+        .eq('status', 'pending')
+        .single();
 
-      const existingUser = users?.find(u => u.email === newUserEmail);
-      
-      if (!existingUser) {
-        // Create new user
-        const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
-          email: newUserEmail,
-          email_confirm: true,
-        });
-        if (createError) throw createError;
+      if (existingInvitation) {
+        toast.error('An invitation has already been sent to this email');
+        setIsInvitingUser(false);
+        return;
       }
 
-      // Add user to team members
-      const { error: teamError } = await supabase
-        .from('team_members')
+      // Generate a secure invitation token
+      const generateToken = () => {
+        const array = new Uint8Array(32);
+        window.crypto.getRandomValues(array);
+        return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+      };
+
+      const invitationToken = generateToken();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // Invitation expires in 7 days
+
+      // Create invitation record
+      const { data: invitation, error: inviteError } = await supabase
+        .from('project_invitations')
         .insert([
           {
+            email: newUserEmail.toLowerCase(),
             project_id: projectId,
-            email: newUserEmail,
             role: newUserRole,
+            invited_by: user?.id,
+            token: invitationToken,
+            expires_at: expiresAt.toISOString(),
+            status: 'pending'
           }
-        ]);
+        ])
+        .select()
+        .single();
 
-      if (teamError) throw teamError;
+      if (inviteError) {
+        if (inviteError.code === '23505') { // Unique constraint violation
+          toast.error('An invitation has already been sent to this email for this project');
+        } else {
+          throw inviteError;
+        }
+        setIsInvitingUser(false);
+        return;
+      }
 
-      toast.success('User invited successfully');
+      // Generate invitation link
+      const invitationLink = `${window.location.origin}/auth?invitation=${invitationToken}`;
+
+      // Try to send email using our email service
+      const inviterName = `${user?.user_metadata?.first_name || ''} ${user?.user_metadata?.last_name || ''}`.trim() || user?.email?.split('@')[0] || 'Team Admin';
+      
+      // First try Web3Forms (if configured)
+      let emailSent = false;
+      let emailResult = await sendInvitationEmailViaAPI({
+        to_email: newUserEmail.toLowerCase(),
+        from_name: inviterName,
+        project_name: projectName || 'PileTrackerPro Project',
+        role: newUserRole,
+        invitation_link: invitationLink
+      });
+
+      if (emailResult.success) {
+        emailSent = true;
+      } else {
+        // Try EmailJS as fallback
+        emailResult = await sendInvitationEmail({
+          to_email: newUserEmail.toLowerCase(),
+          from_name: inviterName,
+          project_name: projectName || 'PileTrackerPro Project',
+          role: newUserRole,
+          invitation_link: invitationLink
+        });
+        
+        if (emailResult.success) {
+          emailSent = true;
+        }
+      }
+
+      if (emailSent) {
+        toast.success(
+          <div>
+            <p>✅ Invitation sent successfully!</p>
+            <p className="text-sm mt-1">An email has been sent to {newUserEmail}</p>
+            <p className="text-xs mt-2 opacity-75">They have 7 days to accept the invitation</p>
+          </div>,
+          { duration: 5000 }
+        );
+      } else {
+        // Fall back to copying link if email couldn't be sent
+        await navigator.clipboard.writeText(invitationLink);
+        toast.warning(
+          <div>
+            <p>⚠️ Invitation created but email not sent</p>
+            <p className="text-sm mt-1">Link copied to clipboard - please send it to {newUserEmail}</p>
+            <p className="text-xs mt-2 opacity-75">To enable automatic emails, see EMAIL_SETUP.md</p>
+          </div>,
+          { duration: 8000 }
+        );
+      }
+      
+      console.log('Invitation link:', invitationLink);
+
       setNewUserEmail('');
       setNewUserRole('');
+      
+      // Refresh team members list to show pending invitations
       loadTeamMembers();
     } catch (error) {
       console.error('Error inviting user:', error);
-      toast.error('Failed to invite user');
+      toast.error('Failed to create invitation');
     } finally {
       setIsInvitingUser(false);
     }
@@ -534,15 +649,14 @@ export default function ProjectSettingsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
                         <Label htmlFor="trackerSystem">Tracker System</Label>
-                        <Select value={trackerSystem} onValueChange={setTrackerSystem}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select tracker system" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="carlson">Carlson</SelectItem>
-                            <SelectItem value="other">Other</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <Input 
+                          id="trackerSystem" 
+                          value={trackerSystem}
+                          onChange={(e) => setTrackerSystem(e.target.value)}
+                          placeholder="Enter tracker system"
+                          className={formErrors.trackerSystem ? "border-red-500" : ""}
+                          disabled={!canEdit}
+                        />
                         {formErrors.trackerSystem && (
                           <p className="text-xs text-red-500">{formErrors.trackerSystem}</p>
                         )}
@@ -661,21 +775,33 @@ export default function ProjectSettingsPage() {
                         </div>
                       ) : (
                         <div className="divide-y">
-                          {teamMembers.map((member) => (
+                          {teamMembers.map((member: any) => (
                             <div key={member.id} className="py-4 flex items-center justify-between">
                               <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
-                                  <span className="text-sm font-medium text-slate-600">
+                                <div className={`w-8 h-8 rounded-full ${member.type === 'invitation' ? 'bg-yellow-100' : 'bg-slate-100'} flex items-center justify-center`}>
+                                  <span className={`text-sm font-medium ${member.type === 'invitation' ? 'text-yellow-600' : 'text-slate-600'}`}>
                                     {member.email.charAt(0).toUpperCase()}
                                   </span>
                                 </div>
                                 <div>
-                                  <p className="font-medium text-slate-900">{member.email}</p>
-                                  <p className="text-sm text-slate-500 capitalize">{member.role}</p>
+                                  <p className="font-medium text-slate-900">
+                                    {member.email}
+                                    {member.type === 'invitation' && (
+                                      <span className="ml-2 text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded">Pending Invitation</span>
+                                    )}
+                                  </p>
+                                  <p className="text-sm text-slate-500 capitalize">
+                                    {member.role}
+                                    {member.is_owner && ' (Owner)'}
+                                  </p>
                                 </div>
                               </div>
                               <div className="text-sm text-slate-500">
-                                Joined {new Date(member.created_at).toLocaleDateString()}
+                                {member.type === 'invitation' ? (
+                                  <span>Expires {new Date(member.expires_at).toLocaleDateString()}</span>
+                                ) : (
+                                  <span>Joined {new Date(member.created_at).toLocaleDateString()}</span>
+                                )}
                               </div>
                             </div>
                           ))}

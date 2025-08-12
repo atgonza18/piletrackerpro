@@ -360,6 +360,7 @@ export default function MyPilesPage() {
                   .from('piles')
                   .select('*')
                   .eq('project_id', project.id)
+                  .order('created_at', { ascending: true })
                   .range(from, to);
                 
                 if (error) {
@@ -392,29 +393,47 @@ export default function MyPilesPage() {
               
               console.log(`Refreshed a total of ${allPilesData.length} piles out of ${totalCount} total`);
               
-              if (allPilesData.length > 0) {
-                setPiles(allPilesData);
+              // Deduplicate piles based on ID to prevent React key warnings
+              const uniquePilesMap = new Map();
+              let duplicateCount = 0;
+              for (const pile of allPilesData) {
+                if (uniquePilesMap.has(pile.id)) {
+                  duplicateCount++;
+                  console.warn(`Found duplicate pile with ID: ${pile.id}`);
+                } else {
+                  uniquePilesMap.set(pile.id, pile);
+                }
+              }
+              
+              if (duplicateCount > 0) {
+                console.warn(`Removed ${duplicateCount} duplicate piles from the data`);
+              }
+              
+              const uniquePiles = Array.from(uniquePilesMap.values());
+              
+              if (uniquePiles.length > 0) {
+                setPiles(uniquePiles);
                 // Don't reset filtered piles directly here - let the useEffect do it
                 // to preserve filters like showDuplicatesOnly
                 
                 // Extract unique blocks
                 const blocks = Array.from(new Set(
-                  allPilesData
+                  uniquePiles
                     .map((pile: PileData) => pile.block)
                     .filter(block => block !== null && block !== "") as string[]
                 )).sort();
                 setUniqueBlocks(blocks);
                 
                 // Calculate status counts based on embedment criteria
-                const accepted = allPilesData.filter((pile: PileData) => 
+                const accepted = uniquePiles.filter((pile: PileData) => 
                   getPileStatus(pile) === 'accepted'
                 ).length;
                 
-                const refusals = allPilesData.filter((pile: PileData) => 
+                const refusals = uniquePiles.filter((pile: PileData) => 
                   getPileStatus(pile) === 'refusal'
                 ).length;
                 
-                const pending = allPilesData.filter((pile: PileData) => 
+                const pending = uniquePiles.filter((pile: PileData) => 
                   getPileStatus(pile) === 'pending'
                 ).length;
                 
@@ -566,8 +585,18 @@ export default function MyPilesPage() {
       );
     }
     
-    // Sort and group duplicates
-    filtered = sortAndGroupDuplicates(filtered);
+    // Only sort and group duplicates if showing duplicates or no other filters are active
+    // This prevents the sorting from disrupting block/status filtering
+    if (showDuplicatesOnly) {
+      filtered = sortAndGroupDuplicates(filtered);
+    } else {
+      // For normal filtering, just sort by pile_id to keep consistent ordering
+      filtered = [...filtered].sort((a, b) => {
+        const aId = a.pile_id || '';
+        const bId = b.pile_id || '';
+        return aId.localeCompare(bId);
+      });
+    }
     
     setFilteredPiles(filtered);
     // Reset to first page when filters change
@@ -696,6 +725,7 @@ export default function MyPilesPage() {
           .from('piles')
           .select('*')
           .eq('project_id', projectData.id)
+          .order('created_at', { ascending: true })
           .range(from, to);
         
         if (error) {
@@ -728,29 +758,47 @@ export default function MyPilesPage() {
       
       console.log(`Refreshed a total of ${allPilesData.length} piles out of ${totalCount} total`);
       
-      if (allPilesData.length > 0) {
-        setPiles(allPilesData);
+      // Deduplicate piles based on ID to prevent React key warnings
+      const uniquePilesMap = new Map();
+      let duplicateCount = 0;
+      for (const pile of allPilesData) {
+        if (uniquePilesMap.has(pile.id)) {
+          duplicateCount++;
+          console.warn(`Found duplicate pile with ID: ${pile.id}`);
+        } else {
+          uniquePilesMap.set(pile.id, pile);
+        }
+      }
+      
+      if (duplicateCount > 0) {
+        console.warn(`Removed ${duplicateCount} duplicate piles from the data`);
+      }
+      
+      const uniquePiles = Array.from(uniquePilesMap.values());
+      
+      if (uniquePiles.length > 0) {
+        setPiles(uniquePiles);
         // Don't reset filtered piles directly here - let the useEffect do it
         // to preserve filters like showDuplicatesOnly
         
         // Extract unique blocks
         const blocks = Array.from(new Set(
-          allPilesData
+          uniquePiles
             .map((pile: PileData) => pile.block)
             .filter(block => block !== null && block !== "") as string[]
         )).sort();
         setUniqueBlocks(blocks);
         
         // Calculate status counts based on embedment criteria
-        const accepted = allPilesData.filter((pile: PileData) => 
+        const accepted = uniquePiles.filter((pile: PileData) => 
           getPileStatus(pile) === 'accepted'
         ).length;
         
-        const refusals = allPilesData.filter((pile: PileData) => 
+        const refusals = uniquePiles.filter((pile: PileData) => 
           getPileStatus(pile) === 'refusal'
         ).length;
         
-        const pending = allPilesData.filter((pile: PileData) => 
+        const pending = uniquePiles.filter((pile: PileData) => 
           getPileStatus(pile) === 'pending'
         ).length;
         
