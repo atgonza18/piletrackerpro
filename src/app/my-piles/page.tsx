@@ -343,52 +343,49 @@ export default function MyPilesPage() {
               // Set total count immediately from count query
               setTotalPiles(totalCount);
               
-              // Now fetch all the data
+              // OPTIMIZED: Fetch data in parallel for much faster loading
               let allPilesData: PileData[] = [];
-              const pageSize = 1000; // Reduced page size for more reliable fetching
-              let page = 0;
-              let hasMoreData = true;
+              const pageSize = 1000;
               
-              // Fetch data in chunks to handle large datasets
-              while (hasMoreData) {
-                const from = page * pageSize;
-                const to = from + pageSize - 1;
+              // Calculate how many pages we need
+              const totalPages = Math.ceil(totalCount / pageSize);
+              console.log(`Loading ${totalCount} piles in ${totalPages} parallel requests`);
+              
+              if (totalPages > 0) {
+                // Create array of promises for parallel fetching
+                const fetchPromises = [];
                 
-                console.log(`Refreshing page ${page+1}: rows ${from} to ${to}`);
-                
-                const { data: paginatedData, error } = await supabase
-                  .from('piles')
-                  .select('*')
-                  .eq('project_id', project.id)
-                  .order('created_at', { ascending: true })
-                  .range(from, to);
-                
-                if (error) {
-                  console.error("Error refreshing page", page, error);
-                  throw error;
+                for (let page = 0; page < totalPages; page++) {
+                  const from = page * pageSize;
+                  const to = Math.min(from + pageSize - 1, totalCount - 1);
+                  
+                  // Add each fetch to the promises array
+                  fetchPromises.push(
+                    supabase
+                      .from('piles')
+                      .select('*')
+                      .eq('project_id', project.id)
+                      .order('created_at', { ascending: true })
+                      .range(from, to)
+                  );
                 }
                 
-                if (paginatedData && paginatedData.length > 0) {
-                  console.log(`Received ${paginatedData.length} records for refresh page ${page+1}`);
-                  allPilesData = [...allPilesData, ...paginatedData];
-                  page++;
-                  
-                  // If we got fewer records than the page size, we've fetched all data
-                  if (paginatedData.length < pageSize) {
-                    console.log("Received fewer records than page size, finished refresh pagination");
-                    hasMoreData = false;
+                // Execute all fetches in parallel
+                console.log(`Fetching ${fetchPromises.length} pages in parallel...`);
+                const results = await Promise.allSettled(fetchPromises);
+                
+                // Process results
+                for (let i = 0; i < results.length; i++) {
+                  const result = results[i];
+                  if (result.status === 'fulfilled' && result.value.data) {
+                    allPilesData = [...allPilesData, ...result.value.data];
+                    console.log(`Page ${i + 1}: Loaded ${result.value.data.length} piles`);
+                  } else if (result.status === 'rejected') {
+                    console.error(`Page ${i + 1} failed:`, result.reason);
                   }
-                  
-                  // Safety check - if we've fetched all records according to count
-                  if (allPilesData.length >= totalCount) {
-                    console.log("Fetched all records according to count, finished refresh pagination");
-                    hasMoreData = false;
-                  }
-                } else {
-                  // No more data
-                  console.log("No more data received, finished refresh pagination");
-                  hasMoreData = false;
                 }
+                
+                console.log(`Successfully loaded ${allPilesData.length} of ${totalCount} piles`);
               }
               
               console.log(`Refreshed a total of ${allPilesData.length} piles out of ${totalCount} total`);
@@ -708,52 +705,49 @@ export default function MyPilesPage() {
       // Set total count immediately from count query
       setTotalPiles(totalCount);
       
-      // Now fetch all the data
+      // OPTIMIZED: Fetch all data in parallel for faster refresh
       let allPilesData: PileData[] = [];
-      const pageSize = 1000; // Reduced page size for more reliable fetching
-      let page = 0;
-      let hasMoreData = true;
+      const pageSize = 1000;
       
-      // Fetch data in chunks to handle large datasets
-      while (hasMoreData) {
-        const from = page * pageSize;
-        const to = from + pageSize - 1;
+      // Calculate how many pages we need
+      const totalPages = Math.ceil(totalCount / pageSize);
+      console.log(`Refreshing ${totalCount} piles in ${totalPages} parallel requests`);
+      
+      if (totalPages > 0) {
+        // Create array of promises for parallel fetching
+        const fetchPromises = [];
         
-        console.log(`Refreshing page ${page+1}: rows ${from} to ${to}`);
-        
-        const { data: paginatedData, error } = await supabase
-          .from('piles')
-          .select('*')
-          .eq('project_id', projectData.id)
-          .order('created_at', { ascending: true })
-          .range(from, to);
-        
-        if (error) {
-          console.error("Error refreshing page", page, error);
-          throw error;
+        for (let page = 0; page < totalPages; page++) {
+          const from = page * pageSize;
+          const to = Math.min(from + pageSize - 1, totalCount - 1);
+          
+          // Add each fetch to the promises array
+          fetchPromises.push(
+            supabase
+              .from('piles')
+              .select('*')
+              .eq('project_id', projectData.id)
+              .order('created_at', { ascending: true })
+              .range(from, to)
+          );
         }
         
-        if (paginatedData && paginatedData.length > 0) {
-          console.log(`Received ${paginatedData.length} records for refresh page ${page+1}`);
-          allPilesData = [...allPilesData, ...paginatedData];
-          page++;
-          
-          // If we got fewer records than the page size, we've fetched all data
-          if (paginatedData.length < pageSize) {
-            console.log("Received fewer records than page size, finished refresh pagination");
-            hasMoreData = false;
+        // Execute all fetches in parallel for maximum speed
+        console.log(`Executing ${fetchPromises.length} parallel requests...`);
+        const results = await Promise.allSettled(fetchPromises);
+        
+        // Process results
+        for (let i = 0; i < results.length; i++) {
+          const result = results[i];
+          if (result.status === 'fulfilled' && result.value.data) {
+            allPilesData = [...allPilesData, ...result.value.data];
+            console.log(`Refresh page ${i + 1}: Loaded ${result.value.data.length} piles`);
+          } else if (result.status === 'rejected') {
+            console.error(`Refresh page ${i + 1} failed:`, result.reason);
           }
-          
-          // Safety check - if we've fetched all records according to count
-          if (allPilesData.length >= totalCount) {
-            console.log("Fetched all records according to count, finished refresh pagination");
-            hasMoreData = false;
-          }
-        } else {
-          // No more data
-          console.log("No more data received, finished refresh pagination");
-          hasMoreData = false;
         }
+        
+        console.log(`Refresh complete: loaded ${allPilesData.length} of ${totalCount} piles`);
       }
       
       console.log(`Refreshed a total of ${allPilesData.length} piles out of ${totalCount} total`);

@@ -36,6 +36,7 @@ export default function DashboardPage() {
   const [pendingPiles, setPendingPiles] = useState(0);
   const [completedPilesPercent, setCompletedPilesPercent] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [embedmentTolerance, setEmbedmentTolerance] = useState(1);
 
   useEffect(() => {
@@ -45,9 +46,31 @@ export default function DashboardPage() {
       return;
     }
 
-    // Load user and project data
+    // Load user info immediately (don't wait for pile data)
+    if (user) {
+      const metadata = user.user_metadata;
+      const firstName = metadata?.first_name || "";
+      const lastName = metadata?.last_name || "";
+      
+      // Generate initials
+      let initials = "";
+      if (firstName) initials += firstName[0].toUpperCase();
+      if (lastName) initials += lastName[0].toUpperCase();
+      
+      // If no initials could be generated, use the first character of the email
+      if (!initials && user.email) {
+        initials = user.email[0].toUpperCase();
+      }
+      
+      setUserInitials(initials || "U");
+      setUserName(firstName || user.email?.split("@")[0] || "User");
+    }
+
+    // Load project data
     const loadData = async () => {
       if (user) {
+        console.log('Starting data load...');
+        setStatsLoading(true);
         try {
           // Get the user's project
           const { data: userProjectData } = await supabase
@@ -72,127 +95,96 @@ export default function DashboardPage() {
                 setEmbedmentTolerance(project.embedment_tolerance);
               }
 
-              // Load piles data using the same robust approach as my-piles page
+              // Optimized pile statistics loading using SQL aggregation
+              const tolerance = project.embedment_tolerance || 1;
               
-              // First get the count
-              const { count, error: countError } = await supabase
-                .from('piles')
-                .select('*', { count: 'exact', head: true })
-                .eq('project_id', project.id);
-
-              if (countError) {
-                console.error("Error fetching piles count:", countError);
-                toast.error("Failed to load pile statistics");
-              } else {
-                const totalCount = count || 0;
+              // Use Supabase RPC function for efficient aggregation
+              console.log('Loading pile statistics for project:', project.id);
+              
+              try {
+                const { data: stats, error: statsError } = await supabase
+                  .rpc('get_pile_statistics', {
+                    project_id_param: project.id,
+                    tolerance_param: tolerance
+                  })
+                  .single();
                 
-                // Set total count immediately from count query
-                setTotalPiles(totalCount);
-                
-                // Now fetch all the data using pagination (same as my-piles page)
-                let allPilesData: any[] = [];
-                const pageSize = 1000;
-                let page = 0;
-                let hasMoreData = true;
-                
-                // Fetch data in chunks to handle large datasets
-                while (hasMoreData) {
-                  const from = page * pageSize;
-                  const to = from + pageSize - 1;
+                if (statsError) {
+                  console.error('RPC function error:', statsError);
+                  console.log('Using fallback method for statistics');
                   
-                  const { data: paginatedData, error } = await supabase
+                  // Simplified fallback - just get total count
+                  const { count: totalCount, error: countError } = await supabase
                     .from('piles')
-                    .select('*')
-                    .eq('project_id', project.id)
-                    .range(from, to);
+                    .select('*', { count: 'exact', head: true })
+                    .eq('project_id', project.id);
                   
-                  if (error) {
-                    console.error("Error fetching dashboard page", page, error);
-                    throw error;
-                  }
-                  
-                  if (paginatedData && paginatedData.length > 0) {
-                    allPilesData = [...allPilesData, ...paginatedData];
-                    page++;
-                    
-                    // If we got fewer records than the page size, we've fetched all data
-                    if (paginatedData.length < pageSize) {
-                      hasMoreData = false;
-                    }
-                    
-                    // Safety check - if we've fetched all records according to count
-                    if (allPilesData.length >= totalCount) {
-                      hasMoreData = false;
-                    }
+                  if (countError) {
+                    console.error('Count query error:', countError);
+                    setTotalPiles(0);
+                    setPendingPiles(0);
+                    setCompletedPilesPercent(0);
                   } else {
-                    // No more data
-                    hasMoreData = false;
-                  }
-                }
-                
-                if (allPilesData.length > 0) {
-
-                  // Use the same logic as my-piles page to calculate statistics
-                  const tolerance = project.embedment_tolerance || 1;
-                  
-                  // Function to determine pile status (same as my-piles page)
-                  const getPileStatus = (pile: any) => {
-                    if (!pile.embedment || !pile.design_embedment) return 'pending';
+                    console.log('Total piles count:', totalCount);
+                    setTotalPiles(totalCount || 0);
                     
-                    if (Number(pile.embedment) >= Number(pile.design_embedment)) {
-                      return 'accepted';
-                    } else if (Number(pile.embedment) < (Number(pile.design_embedment) - tolerance)) {
-                      return 'refusal';
-                    } else {
-                      return 'accepted'; // Within tolerance
+                    // For embedment issues in fallback, we'll need to fetch minimal data
+                    // Only get embedment fields, not entire records
+                    const { data: embedmentData, error: embedError } = await supabase
+                      .from('piles')
+                      .select('embedment, design_embedment')
+                      .eq('project_id', project.id)
+                      .not('embedment', 'is', null)
+                      .not('design_embedment', 'is', null);
+                    
+                    if (embedError) {
+                      console.error('Embedment query error:', embedError);
+                      setPendingPiles(0);
+                    } else if (embedmentData) {
+                      // Calculate refusals in JavaScript
+                      const refusals = embedmentData.filter((pile: any) => {
+                        const emb = parseFloat(pile.embedment);
+                        const design = parseFloat(pile.design_embedment);
+                        return !isNaN(emb) && !isNaN(design) && emb < (design - tolerance);
+                      }).length;
+                      
+                      console.log('Calculated refusals:', refusals);
+                      setPendingPiles(refusals);
                     }
-                  };
-
-                  // Calculate status counts using the same method as my-piles page
-                  const refusals = allPilesData.filter((pile: any) => 
-                    getPileStatus(pile) === 'refusal'
-                  ).length;
-
-                  // Set embedment issues to refusal count (piles with shallow embedment)
-                  setPendingPiles(refusals);
+                    
+                    const completionPercent = project.total_project_piles > 0 
+                      ? Math.round(((totalCount || 0) / project.total_project_piles) * 100) 
+                      : 0;
+                    setCompletedPilesPercent(completionPercent);
+                  }
+                } else if (stats) {
+                  // RPC function succeeded
+                  console.log('RPC stats received:', stats);
+                  setTotalPiles(stats.total_piles || 0);
+                  setPendingPiles(stats.refusal_piles || 0);
                   
-                  // Statistics calculated using same logic as my-piles page
-                  
-                  // Calculate completion percentage based on actual piles vs planned piles
                   const completionPercent = project.total_project_piles > 0 
-                    ? Math.round((allPilesData.length / project.total_project_piles) * 100) 
+                    ? Math.round((stats.total_piles / project.total_project_piles) * 100) 
                     : 0;
                   setCompletedPilesPercent(completionPercent);
-                } else {
-                  // No piles data found, set to 0
-                  setTotalPiles(totalCount);
-                  setPendingPiles(0);
-                  setCompletedPilesPercent(0);
                 }
+              } catch (err) {
+                console.error('Unexpected error loading statistics:', err);
+                setTotalPiles(0);
+                setPendingPiles(0);
+                setCompletedPilesPercent(0);
+              } finally {
+                // CRITICAL: Always set statsLoading to false after loading
+                setStatsLoading(false);
               }
             }
           }
 
-          // Extract user data for display
-          const metadata = user.user_metadata;
-          const firstName = metadata?.first_name || "";
-          const lastName = metadata?.last_name || "";
-          
-          // Generate initials
-          let initials = "";
-          if (firstName) initials += firstName[0].toUpperCase();
-          if (lastName) initials += lastName[0].toUpperCase();
-          
-          // If no initials could be generated, use the first character of the email
-          if (!initials && user.email) {
-            initials = user.email[0].toUpperCase();
-          }
-          
-          setUserInitials(initials || "U");
-          setUserName(firstName || user.email?.split("@")[0] || "User");
+          // User data already loaded at the beginning
         } catch (error) {
           console.error("Error loading project data:", error);
           toast.error("Failed to load project data");
+          setStatsLoading(false); // Ensure stats loading is set to false on error
         } finally {
           setIsLoading(false);
         }
@@ -221,101 +213,69 @@ export default function DashboardPage() {
     if (!user || !projectData) return;
 
     try {
-      // Use the same robust data fetching approach as my-piles page
+      const tolerance = embedmentTolerance;
+      console.log('Refreshing dashboard data for project:', projectData.id);
       
-      // First get the count
-      const { count, error: countError } = await supabase
-        .from('piles')
-        .select('*', { count: 'exact', head: true })
-        .eq('project_id', projectData.id);
-
-      if (countError) {
-        console.error("Error fetching piles count:", countError);
-        toast.error("Failed to load pile statistics");
-        return;
-      }
-
-      const totalCount = count || 0;
+      // Try to use RPC function for efficient aggregation
+      const { data: stats, error: statsError } = await supabase
+        .rpc('get_pile_statistics', {
+          project_id_param: projectData.id,
+          tolerance_param: tolerance
+        })
+        .single();
       
-      // Set total count immediately from count query
-      setTotalPiles(totalCount);
-      
-      // Now fetch all the data using pagination
-      let allPilesData: any[] = [];
-      const pageSize = 1000;
-      let page = 0;
-      let hasMoreData = true;
-      
-      // Fetch data in chunks to handle large datasets
-      while (hasMoreData) {
-        const from = page * pageSize;
-        const to = from + pageSize - 1;
+      if (statsError) {
+        console.error('RPC error on refresh:', statsError);
+        console.log('Using fallback method for refresh');
         
-        const { data: paginatedData, error } = await supabase
+        // Simplified fallback
+        const { count: totalCount, error: countError } = await supabase
           .from('piles')
-          .select('*')
+          .select('*', { count: 'exact', head: true })
+          .eq('project_id', projectData.id);
+        
+        if (countError) {
+          console.error('Count error on refresh:', countError);
+          return;
+        }
+        
+        setTotalPiles(totalCount || 0);
+        
+        // Get minimal embedment data for calculations
+        const { data: embedmentData, error: embedError } = await supabase
+          .from('piles')
+          .select('embedment, design_embedment')
           .eq('project_id', projectData.id)
-          .range(from, to);
+          .not('embedment', 'is', null)
+          .not('design_embedment', 'is', null);
         
-        if (error) {
-          console.error("Error fetching dashboard refresh page", page, error);
-          throw error;
+        if (embedError) {
+          console.error('Embedment query error on refresh:', embedError);
+          setPendingPiles(0);
+        } else if (embedmentData) {
+          const refusals = embedmentData.filter((pile: any) => {
+            const emb = parseFloat(pile.embedment);
+            const design = parseFloat(pile.design_embedment);
+            return !isNaN(emb) && !isNaN(design) && emb < (design - tolerance);
+          }).length;
+          
+          setPendingPiles(refusals);
         }
         
-        if (paginatedData && paginatedData.length > 0) {
-          allPilesData = [...allPilesData, ...paginatedData];
-          page++;
-          
-          // If we got fewer records than the page size, we've fetched all data
-          if (paginatedData.length < pageSize) {
-            hasMoreData = false;
-          }
-          
-          // Safety check - if we've fetched all records according to count
-          if (allPilesData.length >= totalCount) {
-            hasMoreData = false;
-          }
-        } else {
-          // No more data
-          hasMoreData = false;
-        }
-      }
-      
-      if (allPilesData.length > 0) {
-        // Use the same logic as my-piles page to calculate statistics
-        const tolerance = embedmentTolerance;
-        
-        // Function to determine pile status (same as my-piles page)
-        const getPileStatus = (pile: any) => {
-          if (!pile.embedment || !pile.design_embedment) return 'pending';
-          
-          if (Number(pile.embedment) >= Number(pile.design_embedment)) {
-            return 'accepted';
-          } else if (Number(pile.embedment) < (Number(pile.design_embedment) - tolerance)) {
-            return 'refusal';
-          } else {
-            return 'accepted'; // Within tolerance
-          }
-        };
-
-        // Calculate status counts using the same method as my-piles page
-        const refusals = allPilesData.filter((pile: any) => 
-          getPileStatus(pile) === 'refusal'
-        ).length;
-
-        // Set embedment issues to refusal count (piles with shallow embedment)
-        setPendingPiles(refusals);
-        
-        // Calculate completion percentage based on actual piles vs planned piles
         const completionPercent = projectData.total_project_piles > 0 
-          ? Math.round((allPilesData.length / projectData.total_project_piles) * 100) 
+          ? Math.round(((totalCount || 0) / projectData.total_project_piles) * 100) 
           : 0;
         setCompletedPilesPercent(completionPercent);
-      } else {
-        // No piles data found, set to 0
-        setTotalPiles(totalCount);
-        setPendingPiles(0);
-        setCompletedPilesPercent(0);
+      } else if (stats) {
+        // RPC succeeded
+        console.log('Refresh stats received:', stats);
+        setTotalPiles(stats.total_piles || 0);
+        setPendingPiles(stats.refusal_piles || 0);
+        
+        const completionPercent = projectData.total_project_piles > 0 
+          ? Math.round((stats.total_piles / projectData.total_project_piles) * 100) 
+          : 0;
+        setCompletedPilesPercent(completionPercent);
       }
     } catch (error) {
       console.error("Error refreshing dashboard data:", error);
@@ -504,10 +464,19 @@ export default function DashboardPage() {
                   <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Piles</CardTitle>
                 </CardHeader>
                 <CardContent className="p-3 pt-0">
-                  <div className="text-sm font-bold text-slate-900 dark:text-white">{totalPiles} / {projectData?.total_project_piles || "..."}</div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    {completedPilesPercent}% of planned piles
-                  </p>
+                  {statsLoading ? (
+                    <>
+                      <div className="h-5 w-20 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
+                      <div className="h-3 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse mt-1"></div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-sm font-bold text-slate-900 dark:text-white">{totalPiles} / {projectData?.total_project_piles || "..."}</div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        {completedPilesPercent}% of planned piles
+                      </p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
               
@@ -516,10 +485,19 @@ export default function DashboardPage() {
                   <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">Embedment Issues</CardTitle>
                 </CardHeader>
                 <CardContent className="p-3 pt-0">
-                  <div className="text-sm font-bold text-amber-500">{pendingPiles}</div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Piles with shallow embedment
-                  </p>
+                  {statsLoading ? (
+                    <>
+                      <div className="h-5 w-12 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
+                      <div className="h-3 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse mt-1"></div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-sm font-bold text-amber-500">{pendingPiles}</div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Piles with shallow embedment
+                      </p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
               
