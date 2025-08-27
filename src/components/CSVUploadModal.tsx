@@ -396,13 +396,43 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
               startDate = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
             }
           }
+          // Check if it's an Excel serial date number (numeric string > 1)
+          else if (/^\d+(\.\d+)?$/.test(dateStr)) {
+            const serialNumber = parseFloat(dateStr);
+            // Excel serial dates start from January 1, 1900 (with 1900 incorrectly treated as leap year)
+            // Serial number 1 = January 1, 1900
+            if (serialNumber > 1 && serialNumber < 100000) { // reasonable range for dates
+              // Excel epoch starts at 1900-01-01, but Excel treats 1900 as a leap year
+              // So we need to subtract 1 day for dates after Feb 28, 1900
+              const excelEpoch = new Date(1900, 0, 1); // January 1, 1900
+              const millisecondsPerDay = 24 * 60 * 60 * 1000;
+              
+              // Calculate the date
+              let calculatedDate;
+              if (serialNumber < 60) {
+                // Before March 1, 1900 (Excel's fake leap day)
+                calculatedDate = new Date(excelEpoch.getTime() + (serialNumber - 1) * millisecondsPerDay);
+              } else {
+                // After February 28, 1900 - subtract 1 day to account for Excel's leap year bug
+                calculatedDate = new Date(excelEpoch.getTime() + (serialNumber - 2) * millisecondsPerDay);
+              }
+              
+              if (!isNaN(calculatedDate.getTime())) {
+                startDate = calculatedDate.toISOString().split('T')[0];
+              } else {
+                errors.push(`Invalid Excel serial date: '${dateStr}'`);
+              }
+            } else {
+              errors.push(`Excel serial date out of range: '${dateStr}'`);
+            }
+          }
           // For other formats, attempt to parse with Date
           else {
             const date = new Date(dateStr);
             if (!isNaN(date.getTime())) {
               startDate = date.toISOString().split('T')[0];
             } else {
-              errors.push(`Invalid date format: '${dateStr}' (expected MM/DD/YYYY)`);
+              errors.push(`Invalid date format: '${dateStr}' (expected MM/DD/YYYY or Excel serial number)`);
             }
           }
         }
@@ -410,6 +440,46 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
         errors.push(`Error parsing date: '${row[startDateIndex]}'`);
       }
     }
+
+    // Parse start_time and stop_time (handle Excel time formats)
+    const parseTime = (timeStr: string | null) => {
+      if (!timeStr || !timeStr.trim()) return null;
+      
+      const trimmed = timeStr.trim();
+      
+      // If it's already in HH:MM or HH:MM AM/PM format, keep as is
+      if (/^\d{1,2}:\d{2}(\s*(AM|PM))?$/i.test(trimmed)) {
+        return trimmed;
+      }
+      
+      // Check if it's an Excel time decimal (0.0 to 1.0)
+      if (/^0\.\d+$/.test(trimmed)) {
+        const decimal = parseFloat(trimmed);
+        if (decimal >= 0 && decimal < 1) {
+          // Convert decimal to hours and minutes
+          const totalMinutes = Math.round(decimal * 24 * 60);
+          const hours = Math.floor(totalMinutes / 60) % 24;
+          const minutes = totalMinutes % 60;
+          return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        }
+      }
+      
+      // If it's just a number (like 14.5 for 2:30 PM), try to parse as decimal hours
+      if (/^\d+(\.\d+)?$/.test(trimmed)) {
+        const decimalHours = parseFloat(trimmed);
+        if (decimalHours >= 0 && decimalHours < 24) {
+          const hours = Math.floor(decimalHours);
+          const minutes = Math.round((decimalHours - hours) * 60);
+          return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+        }
+      }
+      
+      // Return original if we can't parse it
+      return trimmed;
+    };
+
+    const startTime = parseTime(getColumnValue('start_time'));
+    const stopTime = parseTime(getColumnValue('stop_time'));
 
     // Create a unique pile number - prefer pile_id, fallback to block + random
     let pileNumber = '';
@@ -449,9 +519,9 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       pile_color: getColumnValue('pile_color'),
       pile_id: pileIdValue,
       start_date: startDate,
-      start_time: getColumnValue('start_time'),
+      start_time: startTime,
       start_z: startZ,
-      stop_time: getColumnValue('stop_time'),
+      stop_time: stopTime,
       zone: getColumnValue('zone'),
       pile_status: 'pending' // Default status for all imported piles
     };
