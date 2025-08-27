@@ -340,19 +340,29 @@ export default function AuthPage() {
         } 
         // If no invitation, create the user-project association
         else if (selectedProjectId) {
-          const { error: projectError } = await supabase
+          // Check if user-project association already exists (in case it was created during project creation)
+          const { data: existingAssociation } = await supabase
             .from('user_projects')
-            .insert({
-              user_id: user.id,
-              project_id: selectedProjectId,
-              role: accountType === 'owner' ? 'owner_rep' : 'admin',
-              is_owner: accountType === 'epc'
-            });
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('project_id', selectedProjectId)
+            .maybeSingle();
 
-          if (projectError) {
-            console.error("Error associating user with project:", projectError);
-            toast.error("Failed to set up project access");
-            return;
+          if (!existingAssociation) {
+            const { error: projectError } = await supabase
+              .from('user_projects')
+              .insert({
+                user_id: user.id,
+                project_id: selectedProjectId,
+                role: accountType === 'owner' ? 'owner_rep' : 'admin',
+                is_owner: accountType === 'epc'
+              });
+
+            if (projectError) {
+              console.error("Error associating user with project:", projectError);
+              toast.error("Failed to set up project access");
+              return;
+            }
           }
         }
 
@@ -821,12 +831,15 @@ export default function AuthPage() {
                   <div className="space-y-2.5">
                     <Label className="text-sm font-medium text-slate-700 block">Select Project</Label>
                     <div className="relative">
-                      <ProjectSelector onProjectSelect={setSelectedProjectId} />
+                      <ProjectSelector 
+                        onProjectSelect={setSelectedProjectId}
+                        onNewProjectCreated={setSelectedProjectId}
+                      />
                     </div>
                     <p className="text-sm text-slate-500">
                       {accountType === "owner" 
-                        ? "Choose the project you want to monitor. You'll have view-only access to all data for this project."
-                        : "Choose the project you want to manage. You'll have full access to edit and manage this project."
+                        ? "Choose an existing project to monitor or create a new one. You'll have view-only access to all data for this project."
+                        : "Choose an existing project to manage or create a new one. You'll have full access to edit and manage this project."
                       }
                     </p>
                     {formErrors.project && (

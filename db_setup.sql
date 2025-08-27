@@ -78,6 +78,11 @@ CREATE POLICY "Project owners can update their projects"
     AND user_projects.is_owner = TRUE
   ));
 
+CREATE POLICY "Authenticated users can create projects" 
+  ON projects 
+  FOR INSERT 
+  WITH CHECK (auth.uid() IS NOT NULL);
+
 -- Create policies for user_projects
 CREATE POLICY "Users can view their project associations" 
   ON user_projects 

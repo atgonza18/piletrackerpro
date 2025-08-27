@@ -536,10 +536,11 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
   // Function to create intelligent column mapping from CSV headers
   const createColumnMapping = (headers: string[]): Record<string, number> => {
     // Define mapping patterns for each field (multiple variations)
+    // IMPORTANT: Removed generic 'time' from duration to avoid conflicts with 'start time', 'stop time'
     const fieldPatterns = {
       block: ['block', 'blocks', 'pile block', 'pileblock'],
       design_embedment: ['design embedment', 'designembedment', 'design_embedment', 'target embedment', 'targetembedment', 'target_embedment'],
-      duration: ['duration', 'time', 'drive time', 'drivetime', 'drive_time', 'total time', 'totaltime', 'total_time'],
+      duration: ['duration', 'drive time', 'drivetime', 'drive_time', 'total time', 'totaltime', 'total_time', 'duration (seconds)', 'duration seconds', 'duration_seconds'],
       embedment: ['embedment', 'actual embedment', 'actualembedment', 'actual_embedment', 'final embedment', 'finalembedment', 'final_embedment'],
       end_z: ['end z', 'endz', 'end_z', 'final z', 'finalz', 'final_z', 'end elevation', 'endelevation', 'end_elevation'],
       gain_per_30_seconds: ['gain per 30 seconds', 'gainper30seconds', 'gain_per_30_seconds', 'gain per 30', 'gainper30', 'gain_per_30', 'gain/30', 'gain30'],
@@ -560,26 +561,49 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       mapping[field] = -1;
     });
 
-    // For each header, try to match it to a field
+    // Enhanced mapping logic with better prioritization
     headers.forEach((header, index) => {
       const normalizedHeader = header.toLowerCase().trim();
+      let bestMatch: { fieldName: string; priority: number } | null = null;
       
       // Check each field pattern
       for (const [fieldName, patterns] of Object.entries(fieldPatterns)) {
         if (mapping[fieldName] === -1) { // Only map if not already mapped
-          // Check if header matches any pattern for this field
-          const matches = patterns.some(pattern => 
-            normalizedHeader === pattern || 
-            normalizedHeader.includes(pattern) ||
-            pattern.includes(normalizedHeader)
-          );
           
-          if (matches) {
-            mapping[fieldName] = index;
-            console.log(`🔗 Mapped '${header}' (column ${index}) -> ${fieldName}`);
-            break; // Stop checking other patterns for this header
+          for (const pattern of patterns) {
+            let priority = 0;
+            let matches = false;
+            
+            // Priority 1: Exact match (highest priority)
+            if (normalizedHeader === pattern) {
+              matches = true;
+              priority = 3;
+            }
+            // Priority 2: Header contains the full pattern
+            else if (normalizedHeader.includes(pattern)) {
+              matches = true;
+              priority = 2;
+            }
+            // Priority 3: Pattern contains header (lowest priority)
+            else if (pattern.includes(normalizedHeader)) {
+              matches = true;
+              priority = 1;
+            }
+            
+            if (matches) {
+              if (!bestMatch || priority > bestMatch.priority) {
+                bestMatch = { fieldName, priority };
+              }
+              if (priority === 3) break; // Exact match found, no need to check further
+            }
           }
         }
+      }
+      
+      // Apply the best match found
+      if (bestMatch && mapping[bestMatch.fieldName] === -1) {
+        mapping[bestMatch.fieldName] = index;
+        console.log(`🔗 Mapped '${header}' (column ${index}) -> ${bestMatch.fieldName} (priority: ${bestMatch.priority})`);
       }
     });
 
