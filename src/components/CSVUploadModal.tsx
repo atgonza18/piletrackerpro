@@ -132,7 +132,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
 
       setUploadProgress(100);
       setUploadStatus('success');
-      
+
       // Enhanced success message with detailed results
       if (data?.invalidRows && data.invalidRows > 0) {
         toast.success(`✅ Successfully uploaded ${data.validRows} piles! ⚠️ Skipped ${data.invalidRows} invalid rows out of ${data.totalRows} total.`);
@@ -227,9 +227,13 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     
     // Show mapping feedback to user
     console.log("📊 Column Mapping:", columnMapping);
+    console.log("📋 CSV Headers:", header);
     const mappedColumns = Object.keys(columnMapping).filter(key => columnMapping[key] !== -1);
     const unmappedColumns = header.filter((_, index) => !Object.values(columnMapping).includes(index));
-    
+
+    console.log("✅ Mapped columns:", mappedColumns);
+    console.log("❌ Unmapped columns:", unmappedColumns);
+
     if (mappedColumns.length > 0) {
       toast.success(`✅ Mapped ${mappedColumns.length} columns: ${mappedColumns.join(', ')}`);
     }
@@ -237,31 +241,15 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       toast.info(`ℹ️ Ignored ${unmappedColumns.length} unmapped columns: ${unmappedColumns.join(', ')}`);
     }
     
-    // First, get existing pile numbers for this project to avoid duplicates
-    const { data: existingPiles } = await supabase
-      .from('piles')
-      .select('pile_number')
-      .eq('project_id', projectId)
-      .limit(10000);
-    
-    const existingPileNumbers = new Set(existingPiles?.map(p => p.pile_number as string).filter(Boolean) || []);
-    
-    // Track pile numbers we've seen in this import to avoid duplicates within the import itself
-    const seenPileNumbers = new Set<string>();
-    
     // Validate each row individually and separate valid from invalid rows
     const validRows: any[] = [];
     const invalidRows: Array<{ row: string[], rowIndex: number, errors: string[] }> = [];
-    
+
     rows.forEach((row, index) => {
-      const validation = validateRow(row, index + 2, columnMapping, existingPileNumbers, seenPileNumbers); // +2 because CSV is 1-indexed and we skip header
-      
+      const validation = validateRow(row, index + 2, columnMapping, new Set(), new Set()); // +2 because CSV is 1-indexed and we skip header
+
       if (validation.isValid && validation.pileData) {
         validRows.push(validation.pileData);
-        // Add to seen pile numbers to track duplicates within this import
-        if (validation.pileData.pile_number) {
-          seenPileNumbers.add(validation.pileData.pile_number);
-        }
       } else {
         invalidRows.push({
           row,
@@ -294,37 +282,40 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     if (validRows.length === 0) {
       throw new Error("No valid rows found to upload. Please check your data and try again.");
     }
-    
+
     // Batch the inserts to avoid hitting limits - only process valid rows
     const batchSize = 50;
     const batches = [];
-    
+
     for (let i = 0; i < validRows.length; i += batchSize) {
       const batch = validRows.slice(i, i + batchSize);
       batches.push(batch);
     }
-    
-    // Insert all batches
+
+    // Insert all batches (use upsert to handle duplicates)
     for (const batch of batches) {
       const { error } = await supabase
         .from('piles')
-        .insert(batch);
-        
+        .upsert(batch, {
+          onConflict: 'pile_number,project_id',
+          ignoreDuplicates: false
+        });
+
       if (error) {
         console.error("Error inserting batch:", error);
         return { data: null, error };
       }
     }
     
-    return { 
-      data: { 
+    return {
+      data: {
         count: validRows.length,
         validRows: validRows.length,
         invalidRows: invalidRows.length,
         totalRows: rows.length,
         errorDetails: invalidRows
-      }, 
-      error: null 
+      },
+      error: null
     };
   };
 
@@ -481,21 +472,17 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     const startTime = parseTime(getColumnValue('start_time'));
     const stopTime = parseTime(getColumnValue('stop_time'));
 
-    // Create a unique pile number - prefer pile_id, fallback to block + random
+    // Create pile number - prefer pile_id, fallback to block + random
+    // Add a timestamp suffix to ensure uniqueness for duplicates
     let pileNumber = '';
+    const uniqueSuffix = `_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
     if (pileIdValue) {
-      pileNumber = pileIdValue;
+      pileNumber = `${pileIdValue}${uniqueSuffix}`;
     } else if (blockValue) {
-      pileNumber = `${blockValue}-${Math.floor(Math.random() * 10000)}`;
+      pileNumber = `${blockValue}${uniqueSuffix}`;
     } else {
-      pileNumber = `Pile-${Math.floor(Math.random() * 10000)}`;
-    }
-    
-    // Check if pile number already exists in database or in current import
-    if (existingPileNumbers.has(pileNumber)) {
-      errors.push(`Pile number '${pileNumber}' already exists in database`);
-    } else if (seenPileNumbers.has(pileNumber)) {
-      errors.push(`Duplicate pile number '${pileNumber}' in this import`);
+      pileNumber = `Pile${uniqueSuffix}`;
     }
 
     // Validate duration format if present
@@ -612,15 +599,15 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md border-none shadow-xl rounded-xl">
-        <DialogHeader className="space-y-3">
+      <DialogContent className="sm:max-w-md border-none shadow-xl rounded-xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="space-y-3 flex-shrink-0">
           <DialogTitle className="text-xl font-semibold">Upload CSV Data</DialogTitle>
           <DialogDescription className="text-slate-500">
             Import pile data from a CSV file to your project quickly and easily.
           </DialogDescription>
         </DialogHeader>
-        
-        <div className="mt-4">
+
+        <div className="mt-4 overflow-y-auto flex-1">
           <AnimatePresence mode="wait">
             {uploadStatus === 'error' ? (
               <motion.div
@@ -783,18 +770,18 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
             </div>
           </div>
         </div>
-        
-        <DialogFooter className="flex gap-3 sm:gap-3 pt-2">
-          <Button 
-            variant="outline" 
+
+        <DialogFooter className="flex gap-3 sm:gap-3 pt-2 flex-shrink-0">
+          <Button
+            variant="outline"
             onClick={onClose}
             disabled={isUploading}
             className="flex-1 sm:flex-none"
           >
             Cancel
           </Button>
-          <Button 
-            onClick={handleUpload} 
+          <Button
+            onClick={handleUpload}
             disabled={!file || isUploading || uploadStatus === 'success'}
             className={cn("flex-1 sm:flex-none", isUploading ? "opacity-80" : "")}
           >
