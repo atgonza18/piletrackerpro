@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { LogOut, List, BarChart3, Settings, User, Bell, FileText, MapPin } from "lucide-react";
+import { LogOut, List, BarChart3, Settings, User, Bell, FileText, MapPin, Box } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { toast } from "sonner";
@@ -27,7 +27,7 @@ interface ProjectData {
 export default function DashboardPage() {
   const router = useRouter();
   const [notifications] = useState(3);
-  const { user, signOut } = useAuth();
+  const { user, signOut, isLoading: authLoading } = useAuth();
   const { isOwner, canEdit, currentProjectId, currentProjectName } = useAccountType();
   const [userInitials, setUserInitials] = useState("JD");
   const [userName, setUserName] = useState("John");
@@ -40,6 +40,11 @@ export default function DashboardPage() {
   const [embedmentTolerance, setEmbedmentTolerance] = useState(1);
 
   useEffect(() => {
+    // Wait for auth to finish loading before making decisions
+    if (authLoading) {
+      return;
+    }
+
     // Check if user is logged in, if not redirect to auth page
     if (!user) {
       router.push("/auth");
@@ -192,7 +197,7 @@ export default function DashboardPage() {
     };
     
     loadData();
-  }, [user, router]);
+  }, [user, router, authLoading]);
 
   const handleLogout = async () => {
     try {
@@ -318,7 +323,8 @@ export default function DashboardPage() {
             {[
               { name: 'Dashboard', icon: BarChart3, href: '/dashboard', active: true },
               { name: 'My Piles', icon: List, href: '/my-piles', active: false },
-              { name: 'Zones', icon: MapPin, href: '/zones', active: false },
+              { name: 'Pile Types', icon: MapPin, href: '/zones', active: false },
+              { name: 'Blocks', icon: Box, href: '/blocks', active: false },
               { name: 'Notes', icon: FileText, href: '/notes', active: false },
             ].map((item) => (
               <button

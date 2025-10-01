@@ -1,4 +1,5 @@
 import emailjs from '@emailjs/browser';
+import { supabase } from './supabase';
 
 // EmailJS Configuration
 // You'll need to sign up at https://www.emailjs.com and get these values
@@ -20,7 +21,29 @@ export interface InvitationEmailParams {
   invitation_link: string;
 }
 
+// Primary method: Use Supabase Edge Function with Resend
 export const sendInvitationEmail = async (params: InvitationEmailParams) => {
+  try {
+    // Call Supabase Edge Function
+    const { data, error } = await supabase.functions.invoke('send-invitation-email', {
+      body: params
+    });
+
+    if (error) {
+      console.error('Edge Function error:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('Email sent successfully via Edge Function:', data);
+    return { success: true, data };
+  } catch (error) {
+    console.error('Failed to send email via Edge Function:', error);
+    return { success: false, error };
+  }
+};
+
+// Fallback method: EmailJS
+export const sendInvitationEmailViaEmailJS = async (params: InvitationEmailParams) => {
   // Check if EmailJS is configured
   if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
     console.log('EmailJS not configured. Skipping email send.');

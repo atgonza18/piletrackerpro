@@ -7,6 +7,7 @@ import { AccountTypeProvider } from "@/context/AccountTypeContext";
 import { Toaster } from "sonner";
 import { LoadingIndicator } from "@/components/ui/LoadingIndicator";
 import { NavigationEvents } from "@/components/ui/NavigationEvents";
+import NavigationProgress from "@/components/NavigationProgress";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,6 +37,7 @@ export default function RootLayout({
         <AuthProvider>
           <AccountTypeProvider>
             <ThemeProvider>
+              <NavigationProgress />
               <LoadingIndicator />
               <NavigationEvents />
               {children}

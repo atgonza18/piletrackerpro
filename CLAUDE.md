@@ -29,21 +29,58 @@ Note: The build process intentionally ignores TypeScript and ESLint errors (`NEX
 - **Framer Motion** for animations
 - **Recharts** for data visualization
 
+### Directory Structure
+```
+src/
+├── app/                    # Next.js App Router pages
+│   ├── auth/              # Authentication pages (login, signup)
+│   ├── dashboard/         # Main dashboard
+│   ├── my-piles/          # Pile management
+│   ├── zones/             # Zone management
+│   ├── notes/             # Project notes
+│   ├── blocks/            # Block management
+│   ├── settings/          # User/project settings
+│   └── project-setup/     # New project creation
+├── components/            # Shared components
+│   ├── ui/               # shadcn/ui components
+│   ├── CSVUploadModal.tsx
+│   ├── ProjectSelector.tsx
+│   └── DeleteAllPilesButton.tsx
+├── context/              # React Context providers
+│   ├── AuthContext.tsx
+│   ├── ThemeContext.tsx
+│   └── AccountTypeContext.tsx
+└── lib/                  # Utility libraries
+    ├── supabase.ts       # Supabase client
+    ├── emailService.ts   # Email service abstraction
+    └── utils.ts          # Helper utilities
+```
+
 ### Database Schema
 Main tables in Supabase:
-- `projects` - Project information
-- `user_projects` - User-project relationships (role-based access)
-- `piles` - Pile tracking data with embedment/refusal fields
-- `pile_activities` - Activity history
-- `project_invitations` - Invitation tracking with token-based security
+- `projects` - Project information with `embedment_tolerance` field
+- `user_projects` - User-project relationships with role-based access (Owner, Admin, Rep)
+- `piles` - Pile tracking data with embedment/refusal fields, status tracking, and `block` field for grouping
+- `pile_activities` - Activity history for pile operations
+- `project_invitations` - Invitation tracking with token-based security and 7-day expiration
+
+Key database functions:
+- `accept_project_invitation(token, user_id)` - Handles invitation acceptance and auto-adds user to project
+- `expire_old_invitations()` - Automatically marks expired invitations
+- `update_updated_at()` - Trigger function for automatic timestamp updates
 
 Database setup files:
-1. `db_setup.sql` - Main schema
+1. `db_setup.sql` - Main schema with RLS policies
 2. `db_migration_pile_columns.sql` - Column migrations
 3. `db_migration_embedment_tolerance.sql` - Tolerance fields
-4. `db_migration_invitations.sql` - Invitation system
+4. `db_migration_invitations.sql` - Invitation system with token security
 5. `db_email_trigger.sql` - Email trigger system
 6. `supabase-rls-fix.sql` - Row Level Security fixes
+7. `db_performance_indexes.sql` - Performance optimization indexes
+8. `db_migration_pile_lookup_table.sql` - Pile lookup table migration
+9. `db_migration_zone_to_pile_type.sql` - Zone to pile type migration
+
+**Important**: All tables use Row Level Security (RLS). Users can only access data for projects they're associated with via `user_projects` table. When querying blocks, use separate count queries per block for accuracy rather than filtering in-memory.
 
 ### Environment Variables
 Required in `.env.local`:
@@ -77,14 +114,19 @@ RESEND_API_KEY=your_resend_key                 # Option 3: Resend (production)
 - Intelligent column mapping with automatic detection
 - Row-by-row error handling with detailed feedback
 - Supports bulk pile data import with validation
+- Allows duplicate piles by design (tracked in pile_activities)
+- Additional upload modals: `PileLookupUploadModal.tsx` for lookup data
+- Manual pile entry: `ManualPileModal.tsx`, `EditPileModal.tsx`
 
 ### Authentication Flow
 - Supabase Auth with email/password
 - Protected routes using middleware
-- Context providers wrap entire app in `src/app/layout.tsx`:
-  1. AuthProvider
-  2. AccountTypeProvider
-  3. ThemeProvider
+- Context providers wrap entire app in `src/app/layout.tsx` in this order:
+  1. `AuthProvider` - Manages user authentication state and Supabase session
+  2. `AccountTypeProvider` - Tracks user account type/role
+  3. `ThemeProvider` - Handles light/dark theme switching
+- Authentication state is available throughout the app via `useAuth()` hook
+- All authenticated routes check for valid session before rendering
 
 ### Project Management
 - Multi-project support with role-based access (Owner, Rep, Admin)
@@ -95,8 +137,20 @@ RESEND_API_KEY=your_resend_key                 # Option 3: Resend (production)
 ### Data Operations
 - Bulk delete functionality in `DeleteAllPilesButton.tsx`
 - Delete lower duplicates feature for data cleanup
-- Export capabilities for reporting
-- Data visualization with Recharts
+- Export capabilities for reporting (XLSX format using `xlsx` library)
+- Data visualization with Recharts and `react-circular-progressbar`
+
+### Block Management System
+- New page at `src/app/blocks/page.tsx` for analyzing piles grouped by block
+- Tracks refusal, tolerance, and slow drive time metrics per block
+- Uses circular progress indicators to visualize block performance
+- Key metric: embedment tolerance (configurable per project, defaults to 1 ft)
+- Status classification:
+  - **Accepted**: Embedment ≥ design embedment
+  - **Tolerance**: Design embedment - tolerance ≤ embedment < design embedment
+  - **Refusal**: Embedment < design embedment - tolerance
+  - **Pending**: Missing embedment data
+- Block counting requires separate database count queries for accuracy (not in-memory filtering)
 
 ## Development Guidelines
 
@@ -138,28 +192,50 @@ No test framework is currently configured. Manual testing through the developmen
 
 ### Adding a New Page
 1. Create directory in `src/app/`
-2. Add `page.tsx` with proper authentication checks
+2. Add `page.tsx` with proper authentication checks (check existing pages for patterns)
 3. Use existing layout patterns from other pages
+4. Ensure the page respects project context if needed
 
 ### Setting Up Email Service
 1. Choose a service (Web3Forms recommended for quick start)
 2. Add environment variables to `.env.local`
 3. Test with `node test-invitation.js`
-4. See `EMAIL_SETUP.md` and `INVITATION_SETUP.md` for details
+4. See `EMAIL_SETUP.md` and `INVITATION_SETUP.md` for detailed setup
 
 ### Modifying Database Schema
-1. Update relevant SQL files in root directory
+1. Create or update SQL files in root directory
 2. Run migrations in Supabase SQL Editor
 3. Update TypeScript types if needed
 4. Verify RLS policies are properly configured
+5. Test with sample data to ensure policies work correctly
 
 ### Adding New Components
 1. Check if shadcn/ui has the component: `npx shadcn@latest add [component]`
-2. Otherwise, create in `src/components/` following existing patterns
-3. Use Tailwind classes and maintain dark mode support
+2. If creating custom component, place in `src/components/` following existing patterns
+3. Use Tailwind classes and maintain dark mode support via theme variables
+4. Components should be client-side (`"use client"`) if they use hooks or interactivity
 
 ### Working with Invitations
-1. Admin/Owner users can invite via the UI
+1. Admin/Owner users can invite via Settings → Team Management
 2. Invitations expire after 7 days
-3. Accepted invitations automatically assign user to project
-4. Email service must be configured for invitations to send
+3. Accepted invitations automatically assign user to project via `accept_project_invitation()` function
+4. Email service must be configured for automatic sending (otherwise link is copied to clipboard)
+
+### Deploying Supabase Edge Functions
+```bash
+# Install Supabase CLI
+npm install -g supabase
+
+# Login and link project
+supabase login
+supabase link --project-ref YOUR_PROJECT_REF
+
+# Set required secrets
+supabase secrets set RESEND_API_KEY=your_key
+
+# Deploy specific function
+supabase functions deploy send-invitation-email
+
+# View logs
+supabase functions logs send-invitation-email
+```

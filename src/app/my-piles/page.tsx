@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { LogOut, Plus, List, BarChart3, Settings, User, Bell, Filter, Download, Search, Info, X, Check, Clock, AlertTriangle, Link2, CheckCircle2, MoreHorizontal, Edit2, FileText, Trash2, ChevronLeft, ChevronRight, CalendarIcon, AlertCircle, Pencil, Save, Moon, Sun, FileUp, FileDown, RefreshCw, Eye, Home, MapPin, Loader2, ChevronDown, Building2, Grid } from "lucide-react";
+import { LogOut, Plus, List, BarChart3, Settings, User, Bell, Filter, Download, Search, Info, X, Check, Clock, AlertTriangle, Link2, CheckCircle2, MoreHorizontal, Edit2, FileText, Trash2, ChevronLeft, ChevronRight, CalendarIcon, AlertCircle, Pencil, Save, Moon, Sun, FileUp, FileDown, RefreshCw, Eye, Home, MapPin, Loader2, ChevronDown, Building2, Grid, Box } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { hasCompletedProjectSetup, supabase } from "@/lib/supabase";
@@ -12,6 +12,8 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CSVUploadModal } from "@/components/CSVUploadModal";
+import { ManualPileModal } from "@/components/ManualPileModal";
+import { EditPileModal } from "@/components/EditPileModal";
 import { DeleteAllPilesButton } from "@/components/DeleteAllPilesButton";
 import {
   Dialog,
@@ -67,7 +69,12 @@ interface PileData {
   start_time: string | null;
   start_z: number | null;
   stop_time: string | null;
-  zone: string | null;
+  pile_type: string | null;
+  is_combined?: boolean;
+  combined_count?: number;
+  combined_pile_ids?: string[];
+  date_range_start?: string | null;
+  date_range_end?: string | null;
 }
 
 interface ProjectData {
@@ -101,6 +108,9 @@ export default function MyPilesPage() {
   const [isDeletingDuplicates, setIsDeletingDuplicates] = useState(false);
   const [isDeleteLowerDuplicatesDialogOpen, setIsDeleteLowerDuplicatesDialogOpen] = useState(false);
   const [isDeletingLowerDuplicates, setIsDeletingLowerDuplicates] = useState(false);
+  const [isCombineDuplicatesDialogOpen, setIsCombineDuplicatesDialogOpen] = useState(false);
+  const [isCombiningDuplicates, setIsCombiningDuplicates] = useState(false);
+  const [pileIdToCombine, setPileIdToCombine] = useState<string | null>(null);
   const [selectedPiles, setSelectedPiles] = useState<Set<string>>(new Set());
   const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
   
@@ -109,10 +119,13 @@ export default function MyPilesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [blockFilter, setBlockFilter] = useState("all");
   const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
+  const [showMissingPilesOnly, setShowMissingPilesOnly] = useState(false);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [uniqueBlocks, setUniqueBlocks] = useState<string[]>([]);
+  const [pileLookupData, setPileLookupData] = useState<any[]>([]);
+  const [missingPileIds, setMissingPileIds] = useState<Set<string>>(new Set());
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -124,6 +137,7 @@ export default function MyPilesPage() {
   
   // CSV Upload Modal
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isManualPileModalOpen, setIsManualPileModalOpen] = useState(false);
   const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
 
@@ -137,7 +151,19 @@ export default function MyPilesPage() {
   const [isAddNotesDialogOpen, setIsAddNotesDialogOpen] = useState(false);
   const [pileToAddNotes, setPileToAddNotes] = useState<PileData | null>(null);
   const [noteContent, setNoteContent] = useState("");
-  
+
+  // Actions and edit modal state
+  const [isActionsModalOpen, setIsActionsModalOpen] = useState(false);
+  const [selectedPileForActions, setSelectedPileForActions] = useState<PileData | null>(null);
+  const [isEditPileModalOpen, setIsEditPileModalOpen] = useState(false);
+  const [pileToEdit, setPileToEdit] = useState<PileData | null>(null);
+
+  // Notes view modal state
+  const [isNotesViewModalOpen, setIsNotesViewModalOpen] = useState(false);
+  const [selectedPileForNotes, setSelectedPileForNotes] = useState<PileData | null>(null);
+  const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [editingNoteContent, setEditingNoteContent] = useState("");
+
   // Status editing state
   const [isEditingStatus, setIsEditingStatus] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<string>("");
@@ -286,6 +312,11 @@ export default function MyPilesPage() {
   };
 
   useEffect(() => {
+    // Wait for auth to finish loading before making decisions
+    if (authLoading) {
+      return;
+    }
+
     // Check if user is logged in, if not redirect to auth page
     if (!user) {
       router.push("/auth");
@@ -437,8 +468,89 @@ export default function MyPilesPage() {
                 setAcceptedPiles(accepted);
                 setRefusalPiles(refusals);
                 setPendingPiles(pending);
-                
+
                 // Statistics calculated using consistent logic
+              }
+
+              // Load pile lookup data (pile plot plan) with pagination
+              try {
+                // First, get the total count
+                const { count: lookupCount, error: lookupCountError } = await supabase
+                  .from('pile_lookup_data')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('project_id', project.id);
+
+                if (lookupCountError) {
+                  console.error("Error counting pile lookup data:", lookupCountError);
+                } else if (lookupCount && lookupCount > 0) {
+                  console.log(`Found ${lookupCount} piles in pile plot plan, loading with pagination...`);
+
+                  // Fetch all lookup data in parallel using pagination
+                  let allLookupData: any[] = [];
+                  const lookupPageSize = 1000;
+                  const lookupTotalPages = Math.ceil(lookupCount / lookupPageSize);
+                  const lookupFetchPromises = [];
+
+                  for (let page = 0; page < lookupTotalPages; page++) {
+                    const from = page * lookupPageSize;
+                    const to = Math.min(from + lookupPageSize - 1, lookupCount - 1);
+
+                    lookupFetchPromises.push(
+                      supabase
+                        .from('pile_lookup_data')
+                        .select('*')
+                        .eq('project_id', project.id)
+                        .order('pile_tag', { ascending: true })
+                        .range(from, to)
+                    );
+                  }
+
+                  console.log(`Fetching ${lookupFetchPromises.length} pages of lookup data in parallel...`);
+                  const lookupResults = await Promise.allSettled(lookupFetchPromises);
+
+                  // Process results
+                  for (let i = 0; i < lookupResults.length; i++) {
+                    const result = lookupResults[i];
+                    if (result.status === 'fulfilled' && result.value.data) {
+                      allLookupData = [...allLookupData, ...result.value.data];
+                      console.log(`Lookup page ${i + 1}: Loaded ${result.value.data.length} piles`);
+                    } else if (result.status === 'rejected') {
+                      console.error(`Lookup page ${i + 1} failed:`, result.reason);
+                    }
+                  }
+
+                  console.log(`Successfully loaded ${allLookupData.length} of ${lookupCount} lookup piles`);
+
+                  if (allLookupData.length > 0) {
+                    setPileLookupData(allLookupData);
+                    console.log(`Loaded ${allLookupData.length} piles from pile plot plan`);
+
+                    // Identify missing piles (in lookup but not in actual piles)
+                    // Note: uniquePiles here contains ALL piles loaded from database
+                    const existingPileIds = new Set(
+                      uniquePiles
+                        .map(p => p.pile_id || p.pile_number)
+                        .filter(id => id != null)
+                    );
+
+                    console.log(`Total existing pile IDs in database: ${existingPileIds.size}`);
+                    console.log(`Total piles in lookup data: ${allLookupData.length}`);
+
+                    const missing = new Set<string>();
+                    allLookupData.forEach(lookup => {
+                      if (lookup.pile_tag && !existingPileIds.has(lookup.pile_tag)) {
+                        missing.add(lookup.pile_tag);
+                      }
+                    });
+
+                    setMissingPileIds(missing);
+                    console.log(`Found ${missing.size} missing piles from pile plot plan`);
+                  }
+                } else {
+                  console.log("No pile lookup data found for this project");
+                }
+              } catch (error) {
+                console.error("Error loading pile lookup data:", error);
               }
             }
           }
@@ -468,9 +580,9 @@ export default function MyPilesPage() {
         setUserName(firstName || user.email?.split("@")[0] || "User");
       }
     };
-    
+
     loadData();
-  }, [user, router]);
+  }, [user, router, authLoading]);
 
   useEffect(() => {
     // Find duplicate pile IDs
@@ -528,43 +640,93 @@ export default function MyPilesPage() {
     });
   };
 
+  // Memoize missing pile placeholders to avoid expensive recalculation on every render
+  const missingPilePlaceholders = useMemo(() => {
+    if (missingPileIds.size === 0 || pileLookupData.length === 0) {
+      return [];
+    }
+
+    console.log(`[MEMO] Creating placeholders for ${missingPileIds.size} missing piles`);
+    const placeholders: PileData[] = [];
+
+    pileLookupData.forEach(lookup => {
+      if (lookup.pile_tag && missingPileIds.has(lookup.pile_tag)) {
+        placeholders.push({
+          id: `missing_${lookup.pile_tag}`,
+          pile_number: lookup.pile_tag,
+          pile_id: lookup.pile_tag,
+          pile_location: lookup.pile_location || '',
+          pile_type: lookup.pile_type || null,
+          pile_status: 'missing',
+          installation_date: null,
+          completed_date: null,
+          notes: 'NOT YET INSTALLED - From pile plot plan',
+          created_at: '',
+          updated_at: '',
+          block: lookup.block || null,
+          design_embedment: lookup.design_embedment || null,
+          duration: null,
+          embedment: null,
+          end_z: null,
+          gain_per_30_seconds: null,
+          machine: null,
+          pile_color: null,
+          pile_size: lookup.pile_size || null,
+          start_date: null,
+          start_time: null,
+          start_z: null,
+          stop_time: null,
+        });
+      }
+    });
+
+    console.log(`[MEMO] Created ${placeholders.length} placeholder piles`);
+    return placeholders;
+  }, [missingPileIds, pileLookupData]); // Only recalculate when these change
+
   // Filter piles based on search query, status filter, and duplicates filter
   useEffect(() => {
     let filtered = [...piles];
-    
-    // Apply status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(pile => getPileStatus(pile) === statusFilter);
+
+    // Apply missing piles filter - use pre-computed placeholders
+    if (showMissingPilesOnly && missingPilePlaceholders.length > 0) {
+      filtered = missingPilePlaceholders;
+    } else if (showDuplicatesOnly) {
+      // Apply duplicates filter (mutually exclusive with missing piles filter)
+      filtered = filtered.filter(pile => pile.pile_id && duplicatePileIds.has(pile.pile_id));
     }
-    
-    // Apply block filter
+
+    // Apply other filters (block and search work with missing piles, status/date don't)
+    if (!showMissingPilesOnly) {
+      // Status filter - only for actual piles (missing piles don't have status)
+      if (statusFilter !== "all") {
+        filtered = filtered.filter(pile => getPileStatus(pile) === statusFilter);
+      }
+
+      // Date filter - only for actual piles (missing piles don't have dates)
+      if (startDate) {
+        filtered = filtered.filter(pile => {
+          if (!pile.start_date) return false;
+          const pileDate = new Date(pile.start_date);
+          return pileDate >= startDate;
+        });
+      }
+
+      if (endDate) {
+        filtered = filtered.filter(pile => {
+          if (!pile.start_date) return false;
+          const pileDate = new Date(pile.start_date);
+          // Add one day to endDate to include the end date in the filter
+          const endDatePlusOne = new Date(endDate);
+          endDatePlusOne.setDate(endDatePlusOne.getDate() + 1);
+          return pileDate < endDatePlusOne;
+        });
+      }
+    }
+
+    // Block filter - works with both missing and actual piles
     if (blockFilter !== "all") {
       filtered = filtered.filter(pile => pile.block === blockFilter);
-    }
-    
-    // Apply date filter
-    if (startDate) {
-      filtered = filtered.filter(pile => {
-        if (!pile.start_date) return false;
-        const pileDate = new Date(pile.start_date);
-        return pileDate >= startDate;
-      });
-    }
-    
-    if (endDate) {
-      filtered = filtered.filter(pile => {
-        if (!pile.start_date) return false;
-        const pileDate = new Date(pile.start_date);
-        // Add one day to endDate to include the end date in the filter
-        const endDatePlusOne = new Date(endDate);
-        endDatePlusOne.setDate(endDatePlusOne.getDate() + 1);
-        return pileDate < endDatePlusOne;
-      });
-    }
-    
-    // Apply duplicates filter
-    if (showDuplicatesOnly) {
-      filtered = filtered.filter(pile => pile.pile_id && duplicatePileIds.has(pile.pile_id));
     }
     
     // Apply search filter
@@ -573,7 +735,7 @@ export default function MyPilesPage() {
       filtered = filtered.filter(pile => 
         (pile.pile_number && pile.pile_number.toLowerCase().includes(query)) ||
         (pile.pile_id && pile.pile_id.toLowerCase().includes(query)) ||
-        (pile.zone && pile.zone.toLowerCase().includes(query)) ||
+        (pile.pile_type && pile.pile_type.toLowerCase().includes(query)) ||
         (pile.block && pile.block.toLowerCase().includes(query)) ||
         (pile.pile_type && pile.pile_type.toLowerCase().includes(query)) ||
         (pile.pile_size && pile.pile_size.toLowerCase().includes(query)) ||
@@ -598,13 +760,13 @@ export default function MyPilesPage() {
     setFilteredPiles(filtered);
     // Reset to first page when filters change
     setCurrentPage(1);
-  }, [piles, searchQuery, statusFilter, blockFilter, startDate, endDate, embedmentTolerance, duplicatePileIds, showDuplicatesOnly]);
+  }, [piles, searchQuery, statusFilter, blockFilter, startDate, endDate, embedmentTolerance, duplicatePileIds, showDuplicatesOnly, showMissingPilesOnly, missingPileIds, pileLookupData]);
 
   // Update statistics based on filtered piles
   useEffect(() => {
     // Only update stats if filters are actually active, otherwise keep total stats
-    const hasActiveFilters = statusFilter !== "all" || blockFilter !== "all" || 
-                            showDuplicatesOnly || searchQuery || startDate || endDate;
+    const hasActiveFilters = statusFilter !== "all" || blockFilter !== "all" ||
+                            showDuplicatesOnly || showMissingPilesOnly || searchQuery || startDate || endDate;
     
     if (hasActiveFilters) {
       // Count piles by status within the filtered set
@@ -626,7 +788,7 @@ export default function MyPilesPage() {
       setPendingPiles(pending);
     }
     // When no filters are active, keep the total statistics from initial load
-  }, [filteredPiles, statusFilter, blockFilter, showDuplicatesOnly, searchQuery, startDate, endDate]);
+  }, [filteredPiles, statusFilter, blockFilter, showDuplicatesOnly, showMissingPilesOnly, searchQuery, startDate, endDate]);
 
   const handleLogout = async () => {
     try {
@@ -671,6 +833,13 @@ export default function MyPilesPage() {
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
             <AlertTriangle size={12} />
             Refusal
+          </span>
+        );
+      case 'missing':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-300">
+            <AlertCircle size={12} />
+            Not Yet Installed
           </span>
         );
       case 'pending':
@@ -948,7 +1117,7 @@ export default function MyPilesPage() {
         return {
           "Pile ID": pile.pile_id || "",
           "Block": pile.block || "",
-          "Zone": pile.zone || "",
+          "Pile Type": pile.pile_type || "",
           "Status": status.charAt(0).toUpperCase() + status.slice(1), // Capitalize status
           "Design Embedment (ft)": pile.design_embedment || "",
           "Actual Embedment (ft)": pile.embedment || "",
@@ -1178,6 +1347,112 @@ export default function MyPilesPage() {
     }
   };
 
+  // Function to combine duplicate piles into one with summed values
+  const handleCombineDuplicates = async () => {
+    if (!projectData || !pileIdToCombine) return;
+
+    try {
+      setIsCombiningDuplicates(true);
+
+      // Get all piles with this pile_id
+      const duplicatePiles = piles.filter(pile => pile.pile_id === pileIdToCombine);
+
+      if (duplicatePiles.length < 2) {
+        toast.info("Need at least 2 piles to combine");
+        setIsCombineDuplicatesDialogOpen(false);
+        return;
+      }
+
+      // Sort by embedment (highest first) to keep the best one as base
+      const sortedPiles = [...duplicatePiles].sort((a, b) =>
+        (b.embedment || 0) - (a.embedment || 0)
+      );
+
+      const basePile = sortedPiles[0];
+      const pilesToDelete = sortedPiles.slice(1);
+
+      // Calculate summed values
+      const totalEmbedment = duplicatePiles.reduce((sum, pile) => sum + (pile.embedment || 0), 0);
+      const totalGainPer30 = duplicatePiles.reduce((sum, pile) => sum + (pile.gain_per_30_seconds || 0), 0);
+
+      // Get date range
+      const dates = duplicatePiles
+        .map(pile => pile.start_date)
+        .filter(date => date != null)
+        .sort();
+      const dateRangeStart = dates[0] || null;
+      const dateRangeEnd = dates[dates.length - 1] || null;
+
+      // Collect all database IDs
+      const combinedPileIds = duplicatePiles.map(pile => pile.id);
+
+      // Update the base pile with combined data
+      const { error: updateError } = await supabase
+        .from('piles')
+        .update({
+          embedment: totalEmbedment,
+          gain_per_30_seconds: totalGainPer30,
+          is_combined: true,
+          combined_count: duplicatePiles.length,
+          combined_pile_ids: combinedPileIds,
+          date_range_start: dateRangeStart,
+          date_range_end: dateRangeEnd
+        })
+        .eq('id', basePile.id);
+
+      if (updateError) throw updateError;
+
+      // Delete the other duplicate piles
+      const { error: deleteError } = await supabase
+        .from('piles')
+        .delete()
+        .in('id', pilesToDelete.map(p => p.id));
+
+      if (deleteError) throw deleteError;
+
+      // Update local state
+      const updatedBasePile = {
+        ...basePile,
+        embedment: totalEmbedment,
+        gain_per_30_seconds: totalGainPer30,
+        is_combined: true,
+        combined_count: duplicatePiles.length,
+        combined_pile_ids: combinedPileIds,
+        date_range_start: dateRangeStart,
+        date_range_end: dateRangeEnd
+      };
+
+      setPiles(piles.filter(pile =>
+        !pilesToDelete.some(p => p.id === pile.id)
+      ).map(pile =>
+        pile.id === basePile.id ? updatedBasePile : pile
+      ));
+
+      setFilteredPiles(filteredPiles.filter(pile =>
+        !pilesToDelete.some(p => p.id === pile.id)
+      ).map(pile =>
+        pile.id === basePile.id ? updatedBasePile : pile
+      ));
+
+      // Update total counts
+      setTotalPiles(prev => prev - pilesToDelete.length);
+
+      // Update duplicate tracking - remove this pile_id from duplicates set since it's now combined
+      const newDuplicatePileIds = new Set(duplicatePileIds);
+      newDuplicatePileIds.delete(pileIdToCombine);
+      setDuplicatePileIds(newDuplicatePileIds);
+
+      toast.success(`Successfully combined ${duplicatePiles.length} duplicate piles. Total embedment: ${totalEmbedment.toFixed(2)} ft`);
+      setIsCombineDuplicatesDialogOpen(false);
+      setIsPileDetailOpen(false);
+    } catch (error) {
+      console.error("Error combining duplicate piles:", error);
+      toast.error("Failed to combine duplicate piles");
+    } finally {
+      setIsCombiningDuplicates(false);
+    }
+  };
+
   const handleBulkDelete = async () => {
     if (selectedPiles.size === 0) return;
     
@@ -1215,26 +1490,24 @@ export default function MyPilesPage() {
   };
 
   const toggleAllPilesSelection = () => {
+    // Select/deselect current page only
     const currentPagePiles = filteredPiles
       .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
       .map(pile => pile.id);
-    
+
     setSelectedPiles(prev => {
       const newSet = new Set(prev);
       const allSelected = currentPagePiles.every(id => newSet.has(id));
-      
+
       if (allSelected) {
         currentPagePiles.forEach(id => newSet.delete(id));
       } else {
         currentPagePiles.forEach(id => newSet.add(id));
       }
-      
+
       return newSet;
     });
   };
-
-  const [isActionsModalOpen, setIsActionsModalOpen] = useState(false);
-  const [selectedPileForActions, setSelectedPileForActions] = useState<PileData | null>(null);
 
   const openActionsModal = (pile: PileData, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1242,10 +1515,11 @@ export default function MyPilesPage() {
     setIsActionsModalOpen(true);
   };
 
-  const [isNotesViewModalOpen, setIsNotesViewModalOpen] = useState(false);
-  const [selectedPileForNotes, setSelectedPileForNotes] = useState<PileData | null>(null);
-  const [isEditingNotes, setIsEditingNotes] = useState(false);
-  const [editingNoteContent, setEditingNoteContent] = useState("");
+  const openEditPileModal = (pile: PileData) => {
+    setPileToEdit(pile);
+    setIsEditPileModalOpen(true);
+    setIsActionsModalOpen(false);
+  };
 
   const openNotesModal = (pile: PileData, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1347,7 +1621,8 @@ export default function MyPilesPage() {
             {[
               { name: 'Dashboard', icon: BarChart3, href: '/dashboard', active: false },
               { name: 'My Piles', icon: List, href: '/my-piles', active: true },
-              { name: 'Zones', icon: MapPin, href: '/zones', active: false },
+              { name: 'Pile Types', icon: MapPin, href: '/zones', active: false },
+              { name: 'Blocks', icon: Box, href: '/blocks', active: false },
               { name: 'Notes', icon: FileText, href: '/notes', active: false },
             ].map((item) => (
               <button
@@ -1444,14 +1719,25 @@ export default function MyPilesPage() {
                   Export
                 </Button>
                 {canEdit && (
-                  <Button 
-                    size="sm" 
-                    className="gap-1.5"
-                    onClick={() => setIsUploadModalOpen(true)}
-                  >
-                    <Plus size={16} />
-                    Upload CSV Data
-                  </Button>
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      onClick={() => setIsManualPileModalOpen(true)}
+                    >
+                      <Plus size={16} />
+                      Add Pile
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => setIsUploadModalOpen(true)}
+                    >
+                      <Plus size={16} />
+                      Upload CSV Data
+                    </Button>
+                  </>
                 )}
                 {canEdit && (
                   <Button
@@ -1473,7 +1759,7 @@ export default function MyPilesPage() {
             <Card className="border-none shadow-md">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-slate-500">
-                  Total Piles
+                  {showMissingPilesOnly ? "Missing Piles" : "Total Piles"}
                   {(statusFilter !== "all" || blockFilter !== "all" || showDuplicatesOnly || searchQuery) && (
                     <span className="ml-2 text-xs text-blue-600 font-normal">(Filtered)</span>
                   )}
@@ -1483,11 +1769,13 @@ export default function MyPilesPage() {
                 <div className="flex items-baseline">
                   <div className="text-3xl font-bold">{filteredPiles.length}</div>
                   <div className="ml-2 text-sm text-slate-500">
-                    {(statusFilter !== "all" || blockFilter !== "all" || showDuplicatesOnly || searchQuery) 
-                      ? `of ${totalPiles} total piles`
-                      : projectData?.total_project_piles && totalPiles < projectData.total_project_piles
-                        ? `${projectData.total_project_piles - totalPiles} remaining to add`
-                        : `${totalPiles} piles in database`}
+                    {showMissingPilesOnly
+                      ? `from pile plot plan`
+                      : (statusFilter !== "all" || blockFilter !== "all" || showDuplicatesOnly || searchQuery)
+                        ? `of ${totalPiles} total piles`
+                        : projectData?.total_project_piles && totalPiles < projectData.total_project_piles
+                          ? `${projectData.total_project_piles - totalPiles} remaining to add`
+                          : `${totalPiles} piles in database`}
                   </div>
                 </div>
               </CardContent>
@@ -1691,7 +1979,10 @@ export default function MyPilesPage() {
                   <div className="flex items-center gap-2">
                     <Switch
                       checked={showDuplicatesOnly}
-                      onCheckedChange={setShowDuplicatesOnly}
+                      onCheckedChange={(checked) => {
+                        setShowDuplicatesOnly(checked);
+                        if (checked) setShowMissingPilesOnly(false); // Mutually exclusive
+                      }}
                       className="data-[state=checked]:bg-blue-600"
                     />
                     <Label className="text-sm font-medium">Show Duplicates</Label>
@@ -1722,11 +2013,33 @@ export default function MyPilesPage() {
                       </div>
                     )}
                   </div>
+
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={showMissingPilesOnly}
+                      onCheckedChange={(checked) => {
+                        setShowMissingPilesOnly(checked);
+                        if (checked) setShowDuplicatesOnly(false); // Mutually exclusive
+                      }}
+                      className="data-[state=checked]:bg-orange-600"
+                    />
+                    <Label className="text-sm font-medium">Show Missing Piles</Label>
+                    {showMissingPilesOnly && missingPileIds.size > 0 && (
+                      <span className="ml-2 px-2 py-0.5 bg-orange-50 text-orange-700 text-xs font-medium rounded-full border border-orange-200">
+                        {missingPileIds.size} missing
+                      </span>
+                    )}
+                    {showMissingPilesOnly && missingPileIds.size === 0 && pileLookupData.length === 0 && (
+                      <span className="ml-2 text-xs text-slate-500 italic">
+                        (No pile plot data uploaded)
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-              
+
               {/* Active filters display */}
-              {(searchQuery || statusFilter !== "all" || blockFilter !== "all" || showDuplicatesOnly || startDate || endDate) && (
+              {(searchQuery || statusFilter !== "all" || blockFilter !== "all" || showDuplicatesOnly || showMissingPilesOnly || startDate || endDate) && (
                 <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
                   <span className="text-sm text-slate-500">Active filters:</span>
                   
@@ -1784,7 +2097,16 @@ export default function MyPilesPage() {
                       </button>
                     </div>
                   )}
-                  
+
+                  {showMissingPilesOnly && (
+                    <div className="flex items-center gap-1 bg-orange-50 text-orange-700 text-xs px-2 py-1 rounded">
+                      <span>Missing piles only</span>
+                      <button onClick={() => setShowMissingPilesOnly(false)} className="hover:text-orange-900">
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )}
+
                   <Button 
                     variant="ghost" 
                     size="sm" 
@@ -1793,6 +2115,7 @@ export default function MyPilesPage() {
                       setStatusFilter("all");
                       setBlockFilter("all");
                       setShowDuplicatesOnly(false);
+                      setShowMissingPilesOnly(false);
                       setStartDate(null);
                       setEndDate(null);
                     }}
@@ -1829,10 +2152,16 @@ export default function MyPilesPage() {
                 }
               </p>
               {!searchQuery && statusFilter === "all" && (
-                <Button onClick={() => setIsUploadModalOpen(true)}>
-                  <Plus size={16} className="mr-2" />
-                  Upload CSV Data
-                </Button>
+                <div className="flex gap-2 justify-center">
+                  <Button variant="outline" onClick={() => setIsManualPileModalOpen(true)}>
+                    <Plus size={16} className="mr-2" />
+                    Add Pile Manually
+                  </Button>
+                  <Button onClick={() => setIsUploadModalOpen(true)}>
+                    <Plus size={16} className="mr-2" />
+                    Upload CSV Data
+                  </Button>
+                </div>
               )}
             </div>
           ) : (
@@ -1846,9 +2175,8 @@ export default function MyPilesPage() {
                         <tr className="border-b border-slate-200 dark:border-slate-700">
                           <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide" style={{ width: '3%' }}>
                             {canEdit && (
-                              <Checkbox 
-                                checked={filteredPiles
-                                  .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                              <Checkbox
+                                checked={filteredPiles.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                                   .every(pile => selectedPiles.has(pile.id))}
                                 onCheckedChange={toggleAllPilesSelection}
                                 className="data-[state=checked]:bg-blue-600"
@@ -1856,7 +2184,7 @@ export default function MyPilesPage() {
                             )}
                           </th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide" style={{ width: '12%' }}>Pile ID</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide" style={{ width: '8%' }}>Zone</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide" style={{ width: '8%' }}>Pile Type</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide" style={{ width: '6%' }}>Block</th>
                           <th className="px-2 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide hidden md:table-cell" style={{ width: '6%' }}>Mach</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide" style={{ width: '7%' }}>Design</th>
@@ -1875,12 +2203,15 @@ export default function MyPilesPage() {
                         </tr>
                       </thead>
                       <tbody className="bg-white dark:bg-slate-800/90 divide-y divide-slate-200 dark:divide-slate-700">
-                        {filteredPiles
-                          .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                        {filteredPiles.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                           .map((pile) => (
-                          <tr 
-                            key={pile.id} 
-                            className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-blue-900/30 cursor-pointer transition-all duration-200 ease-in-out hover:shadow-sm relative row-click-effect group"
+                          <tr
+                            key={pile.id}
+                            className={`border-b border-slate-200 dark:border-slate-700 cursor-pointer transition-all duration-200 ease-in-out hover:shadow-sm relative row-click-effect group ${
+                              pile.pile_status === 'missing'
+                                ? 'bg-orange-50/60 dark:bg-orange-900/20 hover:bg-orange-100/80 dark:hover:bg-orange-900/30 border-l-4 border-l-orange-400'
+                                : 'hover:bg-slate-50 dark:hover:bg-blue-900/30'
+                            }`}
                             onClick={() => openPileDetail(pile)}
                             style={{
                               transform: "translateZ(0)", // Force hardware acceleration for smoother animations
@@ -1917,8 +2248,8 @@ export default function MyPilesPage() {
                               </span>
                             </td>
                             <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
-                              <span className="truncate block" title={pile.zone || "N/A"}>
-                                {pile.zone || "N/A"}
+                              <span className="truncate block" title={pile.pile_type || "N/A"}>
+                                {pile.pile_type || "N/A"}
                               </span>
                             </td>
                             <td className="px-2 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
@@ -1985,9 +2316,18 @@ export default function MyPilesPage() {
                               <span className="truncate block" title={pile.pile_color || "N/A"}>{pile.pile_color || "N/A"}</span>
                             </td>
                             <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
-                              <span className="truncate block" title={pile.start_date ? formatDate(pile.start_date) : "N/A"}>
-                                {pile.start_date ? formatDate(pile.start_date) : "N/A"}
-                              </span>
+                              {pile.is_combined && pile.date_range_start && pile.date_range_end && pile.date_range_start !== pile.date_range_end ? (
+                                <div className="flex flex-col">
+                                  <span className="truncate text-xs font-medium text-blue-600 dark:text-blue-400" title={`Combined ${pile.combined_count} piles from ${formatDate(pile.date_range_start)} to ${formatDate(pile.date_range_end)}`}>
+                                    {formatDate(pile.date_range_start)} - {formatDate(pile.date_range_end)}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 dark:text-slate-400">({pile.combined_count} combined)</span>
+                                </div>
+                              ) : (
+                                <span className="truncate block" title={pile.start_date ? formatDate(pile.start_date) : "N/A"}>
+                                  {pile.start_date ? formatDate(pile.start_date) : "N/A"}
+                                </span>
+                              )}
                             </td>
                             <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 hidden md:table-cell">
                               <span className="truncate block" title={formatTimeToStandard(pile.start_time)}>
@@ -2051,20 +2391,20 @@ export default function MyPilesPage() {
                 <p className="text-base text-slate-600 dark:text-slate-300">
                   Showing <span className="font-medium">{Math.min((currentPage - 1) * itemsPerPage + 1, filteredPiles.length)}</span> to{" "}
                   <span className="font-medium">{Math.min(currentPage * itemsPerPage, filteredPiles.length)}</span> of{" "}
-                  <span className="font-medium">{filteredPiles.length}</span> piles
+                  <span className="font-medium">{filteredPiles.length}</span> {showMissingPilesOnly ? "missing piles" : "piles"}
                 </p>
-                
+
                 <div className="flex items-center gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="flex items-center gap-1"
-                  >
-                    <ChevronLeft size={16} />
-                    Previous
-                  </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="flex items-center gap-1"
+                    >
+                      <ChevronLeft size={16} />
+                      Previous
+                    </Button>
                   
                   <div className="hidden sm:flex items-center gap-1">
                     {Array.from({ length: Math.min(5, Math.ceil(filteredPiles.length / itemsPerPage)) }, (_, i) => {
@@ -2099,16 +2439,16 @@ export default function MyPilesPage() {
                     )}
                   </div>
                   
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredPiles.length / itemsPerPage), p + 1))}
-                    disabled={currentPage === Math.ceil(filteredPiles.length / itemsPerPage) || filteredPiles.length <= itemsPerPage}
-                    className="flex items-center gap-1"
-                  >
-                    Next
-                    <ChevronRight size={16} />
-                  </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredPiles.length / itemsPerPage), p + 1))}
+                      disabled={currentPage === Math.ceil(filteredPiles.length / itemsPerPage) || filteredPiles.length <= itemsPerPage}
+                      className="flex items-center gap-1"
+                    >
+                      Next
+                      <ChevronRight size={16} />
+                    </Button>
                 </div>
               </div>
             </div>
@@ -2118,12 +2458,36 @@ export default function MyPilesPage() {
       
       {/* CSV Upload Modal */}
       {projectData && (
-        <CSVUploadModal 
+        <CSVUploadModal
           isOpen={isUploadModalOpen}
           onClose={handleCSVUploadComplete}
           projectId={projectData.id}
         />
       )}
+
+      {/* Manual Pile Creation Modal */}
+      {projectData && (
+        <ManualPileModal
+          isOpen={isManualPileModalOpen}
+          onClose={() => {
+            setIsManualPileModalOpen(false);
+            // Reload the page to refresh pile data
+            window.location.reload();
+          }}
+          projectId={projectData.id}
+        />
+      )}
+
+      {/* Edit Pile Modal */}
+      <EditPileModal
+        isOpen={isEditPileModalOpen}
+        onClose={() => setIsEditPileModalOpen(false)}
+        pile={pileToEdit}
+        onUpdate={() => {
+          // Reload the page to refresh pile data
+          window.location.reload();
+        }}
+      />
 
       {/* Pile Detail Dialog */}
       <Dialog open={isPileDetailOpen} onOpenChange={setIsPileDetailOpen}>
@@ -2224,10 +2588,24 @@ export default function MyPilesPage() {
                             </tbody>
                           </table>
                         </div>
-                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700">
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
                           <div className="text-sm text-slate-500 dark:text-slate-400">
                             {piles.filter(pile => pile.pile_id === selectedPile.pile_id).length} duplicate piles found
                           </div>
+                          {canEdit && (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => {
+                                setPileIdToCombine(selectedPile.pile_id);
+                                setIsCombineDuplicatesDialogOpen(true);
+                              }}
+                              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-1.5"
+                            >
+                              <Link2 size={14} />
+                              Combine All Duplicates
+                            </Button>
+                          )}
                         </div>
                       </PopoverContent>
                     </Popover>
@@ -2485,8 +2863,8 @@ export default function MyPilesPage() {
                     <h3 className="text-sm font-medium text-slate-700 dark:text-slate-200 mb-3">Location & Identification</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg border border-slate-100 dark:border-slate-600">
-                        <div className="text-xs text-slate-500 dark:text-slate-400">Zone</div>
-                        <div className="font-medium text-slate-800 dark:text-slate-200 break-words">{selectedPile.zone || "N/A"}</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">Pile Type</div>
+                        <div className="font-medium text-slate-800 dark:text-slate-200 break-words">{selectedPile.pile_type || "N/A"}</div>
                       </div>
                       
                       <div className="space-y-1 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg border border-slate-100 dark:border-slate-600">
@@ -2585,7 +2963,7 @@ export default function MyPilesPage() {
               Pile Information:
             </h4>
             <p>ID: {pileToDelete?.pile_id || pileToDelete?.pile_number}</p>
-            {pileToDelete?.zone && <p>Zone: {pileToDelete.zone}</p>}
+            {pileToDelete?.pile_type && <p>Zone: {pileToDelete.pile_type}</p>}
             {pileToDelete?.block && <p>Block: {pileToDelete.block}</p>}
           </div>
           <DialogFooter className="mt-6 gap-3">
@@ -2757,6 +3135,81 @@ export default function MyPilesPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Combine Duplicates Dialog */}
+      <Dialog open={isCombineDuplicatesDialogOpen} onOpenChange={setIsCombineDuplicatesDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-xl shadow-xl border-none overflow-hidden">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Link2 className="text-blue-600" size={20} />
+              Combine Duplicate Piles
+            </DialogTitle>
+            <DialogDescription className="text-slate-600 dark:text-slate-300 mt-2">
+              This will combine all duplicate piles with ID <span className="font-semibold text-blue-600">{pileIdToCombine}</span> into a single pile.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+              <h4 className="font-semibold text-sm text-blue-900 dark:text-blue-100 mb-2">What will happen:</h4>
+              <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span>All embedment values will be <strong>summed together</strong></span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span>All gain/30 seconds values will be <strong>summed together</strong></span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span>Date range will show <strong>earliest to latest date</strong></span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span>The pile with the <strong>highest embedment</strong> will be kept as the base</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span>All other duplicates will be <strong>deleted</strong></span>
+                </li>
+              </ul>
+            </div>
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3 flex items-start gap-2">
+              <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                <strong>Note:</strong> This action cannot be undone. Make sure you want to combine these piles before proceeding.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsCombineDuplicatesDialogOpen(false)}
+              disabled={isCombiningDuplicates}
+              className="transition-all duration-200"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCombineDuplicates}
+              disabled={isCombiningDuplicates}
+              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md transition-all duration-200"
+            >
+              {isCombiningDuplicates ? (
+                <>
+                  <Loader2 size={16} className="mr-2 animate-spin" />
+                  Combining...
+                </>
+              ) : (
+                <>
+                  <Link2 size={16} className="mr-2" />
+                  Combine Duplicates
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Actions Modal */}
       <Dialog open={isActionsModalOpen} onOpenChange={setIsActionsModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
@@ -2790,6 +3243,18 @@ export default function MyPilesPage() {
             </Button>
             {canEdit && (
               <>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start"
+                  onClick={() => {
+                    if (selectedPileForActions) {
+                      openEditPileModal(selectedPileForActions);
+                    }
+                  }}
+                >
+                  <Edit2 size={14} className="mr-2" />
+                  Edit Pile
+                </Button>
                 <Button
                   variant="outline"
                   className="w-full justify-start"

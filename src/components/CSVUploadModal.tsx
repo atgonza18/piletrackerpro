@@ -11,10 +11,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { FileText, UploadCloud, X, AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { FileText, UploadCloud, X, AlertCircle, CheckCircle2, Info, ArrowRight } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import * as XLSX from 'xlsx';
 
 interface CSVUploadModalProps {
   isOpen: boolean;
@@ -30,6 +32,35 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Column mapping state
+  const [showColumnMapping, setShowColumnMapping] = useState(false);
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [fileData, setFileData] = useState<string[][]>([]);
+  const [columnMapping, setColumnMapping] = useState({
+    // Required fields
+    pileNumber: '',
+    startDate: '',
+    startTime: '',
+    stopTime: '',
+    duration: '',
+    startZ: '',
+    endZ: '',
+    machine: '',
+    // Optional fields
+    endDate: '',
+    block: '',
+    pileLocation: '',
+    pileColor: '',
+    pileSize: '',
+    zone: '',
+    notes: '',
+    // Fields that can be provided OR calculated
+    embedment: '', // Can be calculated from Start Z - End Z
+    designEmbedment: '', // Can be looked up from pile_lookup_data
+    pileType: '', // Can be looked up from pile_lookup_data
+    gainPer30: '' // Can be calculated from embedment and duration
+  });
 
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -62,9 +93,10 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
   };
 
   const handleFileSelect = (selectedFile: File) => {
-    // Validate file type
-    if (!selectedFile.name.endsWith('.csv')) {
-      setErrorMessage("Please upload a CSV file");
+    // Validate file type - accept both CSV and XLSX
+    const fileName = selectedFile.name.toLowerCase();
+    if (!fileName.endsWith('.csv') && !fileName.endsWith('.xlsx')) {
+      setErrorMessage("Please upload a CSV or XLSX file");
       setUploadStatus('error');
       return;
     }
@@ -85,18 +117,128 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     setUploadStatus('idle');
     setErrorMessage("");
     setUploadProgress(0);
+    setShowColumnMapping(false);
+    setHeaders([]);
+    setFileData([]);
+    setColumnMapping({
+      pileNumber: '',
+      startDate: '',
+      startTime: '',
+      stopTime: '',
+      duration: '',
+      startZ: '',
+      endZ: '',
+      machine: '',
+      endDate: '',
+      block: '',
+      pileLocation: '',
+      pileColor: '',
+      pileSize: '',
+      zone: '',
+      notes: '',
+      embedment: '',
+      designEmbedment: '',
+      pileType: '',
+      gainPer30: ''
+    });
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
+  // Step 1: Parse file and show column mapping
+  const handleProceedToMapping = async () => {
+    if (!file) return;
+
+    try {
+      setIsUploading(true);
+      const parsedData = await readFile(file);
+
+      if (!parsedData || parsedData.length === 0) {
+        throw new Error("File is empty or could not be parsed");
+      }
+
+      // Filter out empty headers
+      const detectedHeaders = parsedData[0].filter((header, index, self) =>
+        header && header.trim() !== '' && self.indexOf(header) === index
+      );
+
+      if (detectedHeaders.length === 0) {
+        throw new Error("No valid column headers found in the file");
+      }
+
+      setHeaders(detectedHeaders);
+      setFileData(parsedData);
+
+      // Auto-suggest column mappings based on header names
+      const suggestColumnMapping = (patterns: string[]) => {
+        return detectedHeaders.findIndex(col =>
+          patterns.some(pattern => col.toLowerCase().includes(pattern.toLowerCase()))
+        );
+      };
+
+      const suggestedMapping = {
+        // Required fields
+        pileNumber: detectedHeaders[suggestColumnMapping(['pile number', 'pile_number', 'pilenumber', 'pile no', 'pile #', 'number', 'tag', 'name', 'pile id', 'pile_id'])] || '',
+        startDate: detectedHeaders[suggestColumnMapping(['start date', 'start_date', 'startdate', 'date', 'install date'])] || '',
+        startTime: detectedHeaders[suggestColumnMapping(['start time', 'start_time', 'starttime', 'begin time'])] || '',
+        stopTime: detectedHeaders[suggestColumnMapping(['stop time', 'stop_time', 'stoptime', 'end time', 'end_time', 'endtime', 'finish time'])] || '',
+        duration: detectedHeaders[suggestColumnMapping(['duration', 'drive time', 'drivetime', 'time'])] || '',
+        startZ: detectedHeaders[suggestColumnMapping(['start z', 'start_z', 'startz', 'start elevation', 'start z(feet)', 'start z (feet)'])] || '',
+        endZ: detectedHeaders[suggestColumnMapping(['end z', 'end_z', 'endz', 'end elevation', 'end z(feet)', 'end z (feet)'])] || '',
+        machine: detectedHeaders[suggestColumnMapping(['machine', 'equipment', 'rig', 'machine id', 'machine_id'])] || '',
+        // Optional fields
+        endDate: detectedHeaders[suggestColumnMapping(['end date', 'end_date', 'enddate', 'finish date', 'completion date'])] || '',
+        block: detectedHeaders[suggestColumnMapping(['block', 'pile block'])] || '',
+        pileLocation: detectedHeaders[suggestColumnMapping(['pile location', 'location', 'pile_location'])] || '',
+        pileColor: detectedHeaders[suggestColumnMapping(['pile color', 'color', 'pile_color'])] || '',
+        pileSize: detectedHeaders[suggestColumnMapping(['pile size', 'size', 'pile_size'])] || '',
+        zone: detectedHeaders[suggestColumnMapping(['zone', 'area', 'section'])] || '',
+        notes: detectedHeaders[suggestColumnMapping(['notes', 'comments', 'remarks'])] || '',
+        // Fields that can be provided OR calculated
+        embedment: detectedHeaders[suggestColumnMapping(['embedment', 'actual embedment', 'final embedment'])] || '',
+        designEmbedment: detectedHeaders[suggestColumnMapping(['design embedment', 'design_embedment', 'target embedment'])] || '',
+        pileType: detectedHeaders[suggestColumnMapping(['pile type', 'pile_type', 'type', 'zone type'])] || '',
+        gainPer30: detectedHeaders[suggestColumnMapping(['gain per 30', 'gain_per_30', 'gain/30', 'gain per 30 seconds'])] || ''
+      };
+
+      setColumnMapping(suggestedMapping);
+      setShowColumnMapping(true);
+    } catch (error) {
+      console.error("Error parsing file:", error);
+      setErrorMessage(error instanceof Error ? error.message : "Failed to parse file");
+      setUploadStatus('error');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Step 2: Upload with user-selected column mapping
   const handleUpload = async () => {
-    if (!file || !projectId) return;
+    if (!fileData || fileData.length === 0 || !projectId) return;
+
+    // Validate that all required columns are selected
+    const requiredFields = [
+      { field: 'pileNumber', label: 'Pile Number' },
+      { field: 'machine', label: 'Machine' },
+      { field: 'startDate', label: 'Start Date' },
+      { field: 'startTime', label: 'Start Time' },
+      { field: 'stopTime', label: 'Stop Time' },
+      { field: 'duration', label: 'Duration' },
+      { field: 'startZ', label: 'Start Z' },
+      { field: 'endZ', label: 'End Z' }
+    ];
+
+    const missingFields = requiredFields.filter(({ field }) => !columnMapping[field]);
+    if (missingFields.length > 0) {
+      toast.error(`Please select all required fields: ${missingFields.map(f => f.label).join(', ')}`);
+      return;
+    }
 
     setIsUploading(true);
     setUploadProgress(0);
     setErrorMessage("");
-    
+
     try {
       // Simulate upload progress for UX purposes
       const progressInterval = setInterval(() => {
@@ -106,15 +248,11 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
         });
       }, 500);
 
-      // Here you would parse the CSV and upload to Supabase
-      // This is a simplified example of what that might look like
-      const csvData = await readCSVFile(file);
-      
-      // Process the data and insert into Supabase
-      const { data, error } = await processAndUploadData(csvData, projectId);
+      // Process the data and insert into Supabase with user-selected mapping
+      const { data, error } = await processAndUploadData(fileData, projectId, columnMapping);
 
       clearInterval(progressInterval);
-      
+
       if (error) {
         // Provide more specific error messages based on the error type
         if (error.code === '23505') { // PostgreSQL unique violation code
@@ -139,13 +277,13 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       } else {
         toast.success(`✅ Successfully uploaded ${data?.count || 0} pile records! All rows were valid.`);
       }
-      
+
       // Close the modal after a delay to show success state
       setTimeout(() => {
         onClose();
         handleRemoveFile();
       }, 2000);
-      
+
     } catch (error) {
       console.error("Error uploading CSV:", error);
       setUploadStatus('error');
@@ -157,74 +295,227 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     }
   };
 
-  const readCSVFile = (file: File): Promise<string[][]> => {
+  // Read file (CSV or XLSX) and return as 2D array
+  const readFile = (file: File): Promise<string[][]> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      
+      const fileName = file.name.toLowerCase();
+
       reader.onload = (e) => {
-        if (!e.target || typeof e.target.result !== 'string') {
+        if (!e.target || !e.target.result) {
           reject(new Error('Error reading file'));
           return;
         }
-        
-        const csvText = e.target.result;
+
         try {
-          // More robust CSV parsing that handles quoted fields and commas within fields
-          const rows: string[][] = [];
-          const lines = csvText.split(/\r?\n/);
-          
-          lines.forEach(line => {
-            if (line.trim() === '') return; // Skip empty lines
-            
-            const row: string[] = [];
-            let inQuotes = false;
-            let currentValue = '';
-            
-            for (let i = 0; i < line.length; i++) {
-              const char = line[i];
-              
-              if (char === '"') {
-                inQuotes = !inQuotes;
-              } else if (char === ',' && !inQuotes) {
-                row.push(currentValue.trim());
-                currentValue = '';
-              } else {
-                currentValue += char;
+          if (fileName.endsWith('.xlsx')) {
+            // Parse XLSX file
+            const data = new Uint8Array(e.target.result as ArrayBuffer);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const jsonData: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false });
+
+            // Convert to string array
+            const rows: string[][] = jsonData.map(row =>
+              row.map((cell: any) => String(cell || '').trim())
+            );
+
+            resolve(rows);
+          } else {
+            // Parse CSV file
+            const csvText = e.target.result as string;
+            const rows: string[][] = [];
+            const lines = csvText.split(/\r?\n/);
+
+            lines.forEach(line => {
+              if (line.trim() === '') return; // Skip empty lines
+
+              const row: string[] = [];
+              let inQuotes = false;
+              let currentValue = '';
+
+              for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+
+                if (char === '"') {
+                  inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                  row.push(currentValue.trim());
+                  currentValue = '';
+                } else {
+                  currentValue += char;
+                }
               }
-            }
-            
-            // Push the last value
-            row.push(currentValue.trim());
-            rows.push(row);
-          });
-          
-          resolve(rows);
+
+              // Push the last value
+              row.push(currentValue.trim());
+              rows.push(row);
+            });
+
+            resolve(rows);
+          }
         } catch (error) {
-          reject(new Error(`Error parsing CSV: ${error instanceof Error ? error.message : String(error)}`));
+          reject(new Error(`Error parsing file: ${error instanceof Error ? error.message : String(error)}`));
         }
       };
-      
+
       reader.onerror = () => {
         reject(new Error('Error reading file'));
       };
-      
-      reader.readAsText(file);
+
+      // Read as ArrayBuffer for XLSX, as Text for CSV
+      if (fileName.endsWith('.xlsx')) {
+        reader.readAsArrayBuffer(file);
+      } else {
+        reader.readAsText(file);
+      }
     });
   };
 
-  const processAndUploadData = async (csvData: string[][], projectId: string) => {
+  // Normalize pile ID for matching (handle formatting variations)
+  const normalizePileId = (pileId: string): string => {
+    if (!pileId) return '';
+
+    // Convert to uppercase and trim
+    let normalized = pileId.toUpperCase().trim();
+
+    // Remove any extra whitespace
+    normalized = normalized.replace(/\s+/g, '');
+
+    // DON'T change zero-padding - keep the format as-is
+    // This way we match exactly what's in both files without transformation
+    // The old logic was changing A1.005.03 -> A1.005.003 which might not match
+
+    return normalized;
+  };
+
+  // Fetch pile lookup data for Pile Type and Design Embedment
+  const fetchPileLookupData = async (projectId: string) => {
+    // Fetch ALL records - Supabase defaults to 1000 row limit, so we need to handle pagination
+    let allData: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('pile_lookup_data')
+        .select('pile_tag, pile_type, design_embedment')
+        .eq('project_id', projectId)
+        .order('pile_tag', { ascending: true })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (error) {
+        console.warn('Error fetching pile lookup data:', error);
+        break;
+      }
+
+      if (data && data.length > 0) {
+        allData = allData.concat(data);
+        hasMore = data.length === pageSize; // If we got a full page, there might be more
+        page++;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    // Create multiple lookup maps for flexible matching
+    const exactMap = new Map();
+    const normalizedMap = new Map();
+
+    allData.forEach(row => {
+      const lookupData = {
+        pile_type: row.pile_type,
+        design_embedment: row.design_embedment
+      };
+
+      // Store by exact tag
+      exactMap.set(row.pile_tag, lookupData);
+
+      // Store by normalized tag for fuzzy matching
+      const normalizedTag = normalizePileId(row.pile_tag);
+      normalizedMap.set(normalizedTag, lookupData);
+    });
+
+    console.log(`📚 Loaded ${exactMap.size} pile lookup records from database (fetched in ${page} page(s))`);
+    console.log(`🔍 Sample exact tags (first 10):`, Array.from(exactMap.keys()).slice(0, 10));
+    console.log(`🔍 Sample exact tags (last 10):`, Array.from(exactMap.keys()).slice(-10));
+
+    if (exactMap.size === 0) {
+      console.warn('⚠️ WARNING: No pile lookup data found! Make sure you uploaded the pile plot plan first.');
+    }
+
+    return { exactMap, normalizedMap };
+  };
+
+  const processAndUploadData = async (
+    csvData: string[][],
+    projectId: string,
+    userMapping: typeof columnMapping
+  ) => {
     // Get header row and data rows
     const header = csvData[0];
     const rows = csvData.slice(1);
-    
-    // Create intelligent column mapping
-    const columnMapping = createColumnMapping(header);
-    
+
+    // Fetch pile lookup data
+    const pileLookupMaps = await fetchPileLookupData(projectId);
+
+    // Helper to check if a value is selected (not empty and not __none__)
+    const isSelected = (value: string) => value && value !== '__none__' && value.trim() !== '';
+
+    // Convert user mapping to column indices
+    const columnMapping = {
+      // Required fields
+      pile_id: isSelected(userMapping.pileNumber) ? header.indexOf(userMapping.pileNumber) : -1,
+      machine: isSelected(userMapping.machine) ? header.indexOf(userMapping.machine) : -1,
+      start_date: isSelected(userMapping.startDate) ? header.indexOf(userMapping.startDate) : -1,
+      start_time: isSelected(userMapping.startTime) ? header.indexOf(userMapping.startTime) : -1,
+      stop_time: isSelected(userMapping.stopTime) ? header.indexOf(userMapping.stopTime) : -1,
+      duration: isSelected(userMapping.duration) ? header.indexOf(userMapping.duration) : -1,
+      start_z: isSelected(userMapping.startZ) ? header.indexOf(userMapping.startZ) : -1,
+      end_z: isSelected(userMapping.endZ) ? header.indexOf(userMapping.endZ) : -1,
+      // Optional fields
+      end_date: isSelected(userMapping.endDate) ? header.indexOf(userMapping.endDate) : -1,
+      block: isSelected(userMapping.block) ? header.indexOf(userMapping.block) : -1,
+      pile_location: isSelected(userMapping.pileLocation) ? header.indexOf(userMapping.pileLocation) : -1,
+      pile_color: isSelected(userMapping.pileColor) ? header.indexOf(userMapping.pileColor) : -1,
+      pile_size: isSelected(userMapping.pileSize) ? header.indexOf(userMapping.pileSize) : -1,
+      zone: isSelected(userMapping.zone) ? header.indexOf(userMapping.zone) : -1,
+      notes: isSelected(userMapping.notes) ? header.indexOf(userMapping.notes) : -1,
+      // Fields that can be provided OR calculated
+      embedment: isSelected(userMapping.embedment) ? header.indexOf(userMapping.embedment) : -1,
+      design_embedment: isSelected(userMapping.designEmbedment) ? header.indexOf(userMapping.designEmbedment) : -1,
+      pile_type: isSelected(userMapping.pileType) ? header.indexOf(userMapping.pileType) : -1,
+      gain_per_30_seconds: isSelected(userMapping.gainPer30) ? header.indexOf(userMapping.gainPer30) : -1
+    };
+
     // Validate that we have essential columns
-    if (!columnMapping.pile_id && !columnMapping.block) {
-      throw new Error("CSV must contain either a 'Pile ID' or 'Block' column to identify piles");
+    if (columnMapping.pile_id === -1) {
+      throw new Error("Pile Number is required");
     }
-    
+    if (columnMapping.machine === -1) {
+      throw new Error("Machine is required");
+    }
+    if (columnMapping.start_date === -1) {
+      throw new Error("Start Date is required");
+    }
+    if (columnMapping.start_time === -1) {
+      throw new Error("Start Time is required");
+    }
+    if (columnMapping.stop_time === -1) {
+      throw new Error("Stop Time is required");
+    }
+    if (columnMapping.duration === -1) {
+      throw new Error("Duration is required");
+    }
+    if (columnMapping.start_z === -1) {
+      throw new Error("Start Z is required");
+    }
+    if (columnMapping.end_z === -1) {
+      throw new Error("End Z is required");
+    }
+
     // Show mapping feedback to user
     console.log("📊 Column Mapping:", columnMapping);
     console.log("📋 CSV Headers:", header);
@@ -244,12 +535,20 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     // Validate each row individually and separate valid from invalid rows
     const validRows: any[] = [];
     const invalidRows: Array<{ row: string[], rowIndex: number, errors: string[] }> = [];
+    let matchedCount = 0;
+    let unmatchedCount = 0;
 
     rows.forEach((row, index) => {
-      const validation = validateRow(row, index + 2, columnMapping, new Set(), new Set()); // +2 because CSV is 1-indexed and we skip header
+      const validation = validateRow(row, index + 2, columnMapping, new Set(), new Set(), pileLookupMaps); // +2 because CSV is 1-indexed and we skip header
 
       if (validation.isValid && validation.pileData) {
         validRows.push(validation.pileData);
+        // Track if pile type was successfully looked up
+        if (validation.pileData.pile_type) {
+          matchedCount++;
+        } else {
+          unmatchedCount++;
+        }
       } else {
         invalidRows.push({
           row,
@@ -258,6 +557,12 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
         });
       }
     });
+
+    // Log matching statistics
+    console.log(`📊 Pile Lookup Statistics:`);
+    console.log(`   ✅ Matched: ${matchedCount} piles`);
+    console.log(`   ❌ Unmatched: ${unmatchedCount} piles`);
+    console.log(`   Total valid rows: ${validRows.length}`);
     
     // Show validation results
     if (invalidRows.length > 0) {
@@ -292,14 +597,11 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       batches.push(batch);
     }
 
-    // Insert all batches (use upsert to handle duplicates)
+    // Insert all batches (allow duplicates for comparison feature)
     for (const batch of batches) {
       const { error } = await supabase
         .from('piles')
-        .upsert(batch, {
-          onConflict: 'pile_number,project_id',
-          ignoreDuplicates: false
-        });
+        .insert(batch);
 
       if (error) {
         console.error("Error inserting batch:", error);
@@ -320,9 +622,17 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
   };
 
   // Function to validate a single row and convert it to pile data
-  const validateRow = (row: string[], rowIndex: number, columnMapping: Record<string, number>, existingPileNumbers: Set<string>, seenPileNumbers: Set<string>) => {
+  const validateRow = (
+    row: string[],
+    rowIndex: number,
+    columnMapping: Record<string, number>,
+    existingPileNumbers: Set<string>,
+    seenPileNumbers: Set<string>,
+    pileLookupMaps: { exactMap: Map<string, any>, normalizedMap: Map<string, any> }
+  ) => {
+    const { exactMap, normalizedMap } = pileLookupMaps;
     const errors: string[] = [];
-    
+
     // Helper function to safely get column value
     const getColumnValue = (columnKey: keyof typeof columnMapping): string | null => {
       const index = columnMapping[columnKey];
@@ -333,7 +643,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     const getNumericValue = (columnKey: keyof typeof columnMapping): number | null => {
       const value = getColumnValue(columnKey);
       if (!value) return null;
-      
+
       const parsed = parseFloat(value);
       if (isNaN(parsed)) {
         errors.push(`Invalid numeric value in ${columnKey}: '${value}'`);
@@ -342,21 +652,117 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       return parsed;
     };
 
-    // Check for required pile identifier
-    const pileIdValue = getColumnValue('pile_id');
+    // Get pile identifier - prefer 'Name' column from GPS CSV, fallback to pile_id or block
+    const nameValue = getColumnValue('name') || getColumnValue('pile_id');
+    const pileIdValue = nameValue;
     const blockValue = getColumnValue('block');
-    
-    if (!pileIdValue && !blockValue) {
-      errors.push("Missing required pile identifier (Pile ID or Block)");
+
+    // Extract block from pile name if not provided (e.g., "A1.005.03" -> "A1")
+    let extractedBlock = blockValue;
+    if (!extractedBlock && pileIdValue) {
+      const match = pileIdValue.match(/^([A-Z]+\d+)/);
+      if (match) {
+        extractedBlock = match[1];
+      }
     }
 
-    // Validate numeric fields
-    const designEmbedment = getNumericValue('design_embedment');
-    const embedment = getNumericValue('embedment');
-    const endZ = getNumericValue('end_z');
-    const gainPer30 = getNumericValue('gain_per_30_seconds');
-    const machine = getNumericValue('machine');
+    if (!pileIdValue && !extractedBlock) {
+      errors.push("Missing required pile identifier (Name, Pile ID, or Block)");
+    }
+
+    // Read base numeric fields from GPS CSV
     const startZ = getNumericValue('start_z');
+    const endZ = getNumericValue('end_z');
+    const machine = getNumericValue('machine');
+
+    // ========== FORMULA CALCULATIONS ==========
+
+    // 1. Calculate Embedment (feet) = Start Z - End Z
+    let embedment = getNumericValue('embedment'); // Try to get from CSV first
+    if (embedment === null && startZ !== null && endZ !== null) {
+      embedment = startZ - endZ;
+    }
+
+    // 2. Calculate Embedment (in) = Embedment × 12
+    const embedmentInches = embedment !== null ? embedment * 12 : null;
+
+    // 3. Parse Duration and convert to seconds
+    const durationStr = getColumnValue('duration');
+    let durationSeconds: number | null = null;
+    if (durationStr) {
+      // Parse duration in format "HH:MM:SS" or "H:MM:SS"
+      const durationMatch = durationStr.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
+      if (durationMatch) {
+        const hours = parseInt(durationMatch[1]);
+        const minutes = parseInt(durationMatch[2]);
+        const seconds = parseInt(durationMatch[3]);
+        durationSeconds = hours * 3600 + minutes * 60 + seconds;
+      }
+    }
+
+    // 4. Calculate Gain/30 = Embedment (in) / (Duration (seconds) / 30)
+    let gainPer30 = getNumericValue('gain_per_30_seconds'); // Try to get from CSV first
+    if (gainPer30 === null && embedmentInches !== null && durationSeconds !== null && durationSeconds > 0) {
+      gainPer30 = embedmentInches / (durationSeconds / 30);
+    }
+
+    // 5. Lookup Pile Type and Design Embedment from pile lookup data
+    let pileType = getColumnValue('pile_type'); // Try to get from CSV first
+    let designEmbedment = getNumericValue('design_embedment'); // Try to get from CSV first
+    let matchedVia = null; // Track how we matched for debugging
+
+    if (pileIdValue) {
+      let lookupData = null;
+
+      // Try exact match first
+      if (exactMap.has(pileIdValue)) {
+        lookupData = exactMap.get(pileIdValue);
+        matchedVia = 'exact';
+      } else {
+        // Try normalized match (handles formatting differences)
+        const normalizedPileId = normalizePileId(pileIdValue);
+        if (normalizedMap.has(normalizedPileId)) {
+          lookupData = normalizedMap.get(normalizedPileId);
+          matchedVia = 'normalized';
+        } else {
+          // Log failed matches for debugging
+          if (rowIndex <= 5) { // Only log first 5 for debugging
+            console.log(`❌ No match for pile ID: "${pileIdValue}" (normalized: "${normalizedPileId}")`);
+            const availableKeys = Array.from(normalizedMap.keys()).slice(0, 10);
+            console.log(`   Available normalized keys:`, availableKeys);
+            console.log(`   Character comparison of first available key:`,
+              availableKeys[0] ? {
+                available: availableKeys[0],
+                searching: normalizedPileId,
+                match: availableKeys[0] === normalizedPileId
+              } : 'No keys available');
+          }
+        }
+      }
+
+      // Apply the lookup data if found
+      if (lookupData) {
+        if (!pileType && lookupData.pile_type) {
+          pileType = lookupData.pile_type;
+        }
+        if (designEmbedment === null && lookupData.design_embedment !== null) {
+          designEmbedment = lookupData.design_embedment;
+        }
+        // Log successful matches for debugging
+        if (rowIndex <= 5) {
+          console.log(`✅ Matched "${pileIdValue}" via ${matchedVia}, got type: ${pileType}`);
+        }
+      }
+    }
+
+    // 6. Calculate Embedment w/ Tolerance = Design Embedment - 1
+    const embedmentWithTolerance = designEmbedment !== null ? designEmbedment - 1 : null;
+
+    // 7. Calculate Embedment Difference = Embedment w/ Tolerance - Embedment (feet)
+    const embedmentDifference =
+      embedmentWithTolerance !== null && embedment !== null
+        ? embedmentWithTolerance - embedment
+        : null;
 
     // Validate and parse date
     let startDate = null;
@@ -472,17 +878,16 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     const startTime = parseTime(getColumnValue('start_time'));
     const stopTime = parseTime(getColumnValue('stop_time'));
 
-    // Create pile number - prefer pile_id, fallback to block + random
-    // Add a timestamp suffix to ensure uniqueness for duplicates
+    // Create pile number - use pile_id directly to preserve duplicates
+    // Duplicates are intentionally allowed so users can compare multiple entries for the same pile
     let pileNumber = '';
-    const uniqueSuffix = `_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
 
     if (pileIdValue) {
-      pileNumber = `${pileIdValue}${uniqueSuffix}`;
+      pileNumber = pileIdValue;
     } else if (blockValue) {
-      pileNumber = `${blockValue}${uniqueSuffix}`;
+      pileNumber = blockValue;
     } else {
-      pileNumber = `Pile${uniqueSuffix}`;
+      pileNumber = `Pile_Row${rowIndex}`;
     }
 
     // Validate duration format if present
@@ -492,25 +897,29 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       console.warn(`Row ${rowIndex}: Duration format '${duration}' may not be valid (expected H:MM:SS)`);
     }
 
-    // Create pile data object
+    // Create pile data object with calculated values
     const pileData = {
       project_id: projectId,
       pile_number: pileNumber,
-      block: blockValue,
-      design_embedment: designEmbedment,
-      duration: duration,
-      embedment: embedment,
+      block: extractedBlock || getColumnValue('block'), // Use extracted block or direct column
+      design_embedment: designEmbedment, // From lookup or CSV
+      duration: duration, // Original duration string
+      embedment: embedment, // Calculated or from CSV
       end_z: endZ,
-      gain_per_30_seconds: gainPer30,
+      gain_per_30_seconds: gainPer30, // Calculated or from CSV
       machine: machine,
       pile_color: getColumnValue('pile_color'),
       pile_id: pileIdValue,
+      pile_location: getColumnValue('pile_location'),
+      pile_size: getColumnValue('pile_size'),
+      pile_type: pileType, // From lookup or CSV
       start_date: startDate,
       start_time: startTime,
       start_z: startZ,
       stop_time: stopTime,
-      zone: getColumnValue('zone'),
+      notes: getColumnValue('notes'),
       pile_status: 'pending' // Default status for all imported piles
+      // Note: 'zone' column is excluded - it was replaced by 'pile_type' in the schema
     };
 
     return {
@@ -529,16 +938,18 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       design_embedment: ['design embedment', 'designembedment', 'design_embedment', 'target embedment', 'targetembedment', 'target_embedment'],
       duration: ['duration', 'drive time', 'drivetime', 'drive_time', 'total time', 'totaltime', 'total_time', 'duration (seconds)', 'duration seconds', 'duration_seconds'],
       embedment: ['embedment', 'actual embedment', 'actualembedment', 'actual_embedment', 'final embedment', 'finalembedment', 'final_embedment'],
-      end_z: ['end z', 'endz', 'end_z', 'final z', 'finalz', 'final_z', 'end elevation', 'endelevation', 'end_elevation'],
+      end_z: ['end z', 'endz', 'end_z', 'final z', 'finalz', 'final_z', 'end elevation', 'endelevation', 'end_elevation', 'end z(feet)', 'end z (feet)'],
       gain_per_30_seconds: ['gain per 30 seconds', 'gainper30seconds', 'gain_per_30_seconds', 'gain per 30', 'gainper30', 'gain_per_30', 'gain/30', 'gain30'],
       machine: ['machine', 'equipment', 'rig', 'machine id', 'machineid', 'machine_id', 'equipment id', 'equipmentid', 'equipment_id'],
+      name: ['name', 'pile name', 'pilename', 'pile_name', 'tag', 'pile tag', 'piletag', 'pile_tag'],
       pile_color: ['pile color', 'pilecolor', 'pile_color', 'color', 'pile colour', 'pilecolour', 'pile_colour'],
       pile_id: ['pile id', 'pileid', 'pile_id', 'id', 'pile number', 'pilenumber', 'pile_number', 'pile no', 'pileno', 'pile_no'],
+      pile_type: ['pile type', 'piletype', 'pile_type', 'type', 'zone', 'zones', 'pile zone', 'pilezone', 'pile_zone', 'area', 'section'],
       start_date: ['start date', 'startdate', 'start_date', 'date', 'installation date', 'installationdate', 'installation_date'],
       start_time: ['start time', 'starttime', 'start_time', 'begin time', 'begintime', 'begin_time'],
-      start_z: ['start z', 'startz', 'start_z', 'initial z', 'initialz', 'initial_z', 'start elevation', 'startelevation', 'start_elevation'],
-      stop_time: ['stop time', 'stoptime', 'stop_time', 'end time', 'endtime', 'end_time', 'finish time', 'finishtime', 'finish_time'],
-      zone: ['zone', 'zones', 'area', 'section', 'location', 'pile zone', 'pilezone', 'pile_zone']
+      start_z: ['start z', 'startz', 'start_z', 'initial z', 'initialz', 'initial_z', 'start elevation', 'startelevation', 'start_elevation', 'start z(feet)', 'start z (feet)'],
+      stop_date: ['stop date', 'stopdate', 'stop_date', 'end date', 'enddate', 'end_date'],
+      stop_time: ['stop time', 'stoptime', 'stop_time', 'end time', 'endtime', 'end_time', 'finish time', 'finishtime', 'finish_time']
     };
 
     const mapping: Record<string, number> = {};
@@ -603,13 +1014,453 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
         <DialogHeader className="space-y-3 flex-shrink-0">
           <DialogTitle className="text-xl font-semibold">Upload CSV Data</DialogTitle>
           <DialogDescription className="text-slate-500">
-            Import pile data from a CSV file to your project quickly and easily.
+            Import pile data directly from GPS CSV/XLSX files. The app will automatically calculate all derived fields.
           </DialogDescription>
         </DialogHeader>
 
         <div className="mt-4 overflow-y-auto flex-1">
           <AnimatePresence mode="wait">
-            {uploadStatus === 'error' ? (
+            {showColumnMapping ? (
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-4"
+              >
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 flex items-start gap-3">
+                  <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-blue-700">
+                    <p className="font-medium mb-1">Map Your GPS Data Columns</p>
+                    <p className="text-blue-600 text-xs">
+                      Select which columns contain the raw data from your GPS file. The app will automatically calculate derived fields (like actual embedment from Start Z - End Z) and lookup fields (like Pile Type from your pile plot data).
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {/* Required Field: Pile Number */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700 flex items-center gap-1">
+                      Pile Number / ID <span className="text-red-500">*</span>
+                    </label>
+                    <Select
+                      value={columnMapping.pileNumber}
+                      onValueChange={(value) => setColumnMapping(prev => ({ ...prev, pileNumber: value }))}
+                    >
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="Select column for Pile Number" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {headers.map((header, index) => (
+                          <SelectItem key={`pilenum-${index}`} value={header}>{header}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Machine */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700 flex items-center gap-1">
+                      Machine / Equipment <span className="text-red-500">*</span>
+                    </label>
+                    <Select
+                      value={columnMapping.machine}
+                      onValueChange={(value) => setColumnMapping(prev => ({ ...prev, machine: value }))}
+                    >
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="Select column for Machine" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {headers.map((header, index) => (
+                          <SelectItem key={`machine-${index}`} value={header}>{header}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Start Date */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700 flex items-center gap-1">
+                      Start Date <span className="text-red-500">*</span>
+                    </label>
+                    <Select
+                      value={columnMapping.startDate}
+                      onValueChange={(value) => setColumnMapping(prev => ({ ...prev, startDate: value }))}
+                    >
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="Select column for Start Date" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {headers.map((header, index) => (
+                          <SelectItem key={`startdate-${index}`} value={header}>{header}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Start Time */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700 flex items-center gap-1">
+                      Start Time <span className="text-red-500">*</span>
+                    </label>
+                    <Select
+                      value={columnMapping.startTime}
+                      onValueChange={(value) => setColumnMapping(prev => ({ ...prev, startTime: value }))}
+                    >
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="Select column for Start Time" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {headers.map((header, index) => (
+                          <SelectItem key={`starttime-${index}`} value={header}>{header}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Stop Time */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700 flex items-center gap-1">
+                      Stop / End Time <span className="text-red-500">*</span>
+                    </label>
+                    <Select
+                      value={columnMapping.stopTime}
+                      onValueChange={(value) => setColumnMapping(prev => ({ ...prev, stopTime: value }))}
+                    >
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="Select column for Stop Time" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {headers.map((header, index) => (
+                          <SelectItem key={`stoptime-${index}`} value={header}>{header}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Duration */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700 flex items-center gap-1">
+                      Duration / Drive Time <span className="text-red-500">*</span>
+                    </label>
+                    <Select
+                      value={columnMapping.duration}
+                      onValueChange={(value) => setColumnMapping(prev => ({ ...prev, duration: value }))}
+                    >
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="Select column for Duration" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {headers.map((header, index) => (
+                          <SelectItem key={`duration-${index}`} value={header}>{header}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Start Z */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700 flex items-center gap-1">
+                      Start Z / Elevation <span className="text-red-500">*</span>
+                      <span className="text-xs text-slate-500 font-normal ml-1">(feet)</span>
+                    </label>
+                    <Select
+                      value={columnMapping.startZ}
+                      onValueChange={(value) => setColumnMapping(prev => ({ ...prev, startZ: value }))}
+                    >
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="Select column for Start Z" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {headers.map((header, index) => (
+                          <SelectItem key={`startz-${index}`} value={header}>{header}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* End Z */}
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700 flex items-center gap-1">
+                      End Z / Elevation <span className="text-red-500">*</span>
+                      <span className="text-xs text-slate-500 font-normal ml-1">(feet)</span>
+                    </label>
+                    <Select
+                      value={columnMapping.endZ}
+                      onValueChange={(value) => setColumnMapping(prev => ({ ...prev, endZ: value }))}
+                    >
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="Select column for End Z" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {headers.map((header, index) => (
+                          <SelectItem key={`endz-${index}`} value={header}>{header}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-slate-500">Actual Embedment will be calculated as: Start Z - End Z</p>
+                  </div>
+
+                  {/* Optional Fields Collapsible */}
+                  <details className="group">
+                    <summary className="cursor-pointer text-sm font-medium text-slate-600 hover:text-slate-800 flex items-center gap-2">
+                      <span className="group-open:rotate-90 transition-transform">▶</span>
+                      Additional Optional Fields
+                    </summary>
+                    <div className="mt-3 space-y-3 pl-4 border-l-2 border-slate-200">
+                      {/* End Date */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700">End / Completion Date</label>
+                        <Select
+                          value={columnMapping.endDate}
+                          onValueChange={(value) => setColumnMapping(prev => ({ ...prev, endDate: value }))}
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue placeholder="Select column for End Date (optional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">-- None --</SelectItem>
+                            {headers.map((header, index) => (
+                              <SelectItem key={`enddate-${index}`} value={header}>{header}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Block - Direct Column */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700">Block (Direct Column)</label>
+                        <Select
+                          value={columnMapping.block}
+                          onValueChange={(value) => setColumnMapping(prev => ({ ...prev, block: value }))}
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue placeholder="Select if you have a Block column (optional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">-- None --</SelectItem>
+                            {headers.map((header, index) => (
+                              <SelectItem key={`block-${index}`} value={header}>{header}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-slate-500">OR if no direct Block column exists, the app will auto-extract from Pile Number (e.g., "A1" from "A1.005.03")</p>
+                      </div>
+
+                      {/* Pile Location */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700">Pile Location</label>
+                        <Select
+                          value={columnMapping.pileLocation}
+                          onValueChange={(value) => setColumnMapping(prev => ({ ...prev, pileLocation: value }))}
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue placeholder="Select column for Pile Location (optional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">-- None --</SelectItem>
+                            {headers.map((header, index) => (
+                              <SelectItem key={`pilelocation-${index}`} value={header}>{header}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Pile Color */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700">Pile Color</label>
+                        <Select
+                          value={columnMapping.pileColor}
+                          onValueChange={(value) => setColumnMapping(prev => ({ ...prev, pileColor: value }))}
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue placeholder="Select column for Pile Color (optional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">-- None --</SelectItem>
+                            {headers.map((header, index) => (
+                              <SelectItem key={`pilecolor-${index}`} value={header}>{header}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Pile Size */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700">Pile Size</label>
+                        <Select
+                          value={columnMapping.pileSize}
+                          onValueChange={(value) => setColumnMapping(prev => ({ ...prev, pileSize: value }))}
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue placeholder="Select column for Pile Size (optional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">-- None --</SelectItem>
+                            {headers.map((header, index) => (
+                              <SelectItem key={`pilesize-${index}`} value={header}>{header}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Notes */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700">Notes / Comments</label>
+                        <Select
+                          value={columnMapping.notes}
+                          onValueChange={(value) => setColumnMapping(prev => ({ ...prev, notes: value }))}
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue placeholder="Select column for Notes (optional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">-- None --</SelectItem>
+                            {headers.map((header, index) => (
+                              <SelectItem key={`notes-${index}`} value={header}>{header}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </details>
+
+                  {/* Optional Fields with Formulas Collapsible */}
+                  <details className="group">
+                    <summary className="cursor-pointer text-sm font-medium text-slate-600 hover:text-slate-800 flex items-center gap-2">
+                      <span className="group-open:rotate-90 transition-transform">▶</span>
+                      Advanced: Override Auto-Calculated Fields
+                    </summary>
+                    <div className="mt-3 space-y-3 pl-4 border-l-2 border-amber-200">
+                      <p className="text-xs text-amber-700 mb-2">
+                        ⚠️ These fields are normally calculated automatically. Only map them if your CSV already contains these values and you want to override the calculations.
+                      </p>
+
+                      {/* Embedment (can override calculation) */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                          Actual Embedment
+                          <span className="text-xs text-amber-600 font-normal">(Formula: Start Z - End Z)</span>
+                        </label>
+                        <Select
+                          value={columnMapping.embedment}
+                          onValueChange={(value) => setColumnMapping(prev => ({ ...prev, embedment: value }))}
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue placeholder="Auto-calculated (optional override)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">-- Auto-Calculate --</SelectItem>
+                            {headers.map((header, index) => (
+                              <SelectItem key={`embedment-${index}`} value={header}>{header}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-slate-500">If not selected, will be calculated from Start Z - End Z</p>
+                      </div>
+
+                      {/* Design Embedment (can override lookup) */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                          Design Embedment
+                          <span className="text-xs text-blue-600 font-normal">(Looked up from Pile Plot)</span>
+                        </label>
+                        <Select
+                          value={columnMapping.designEmbedment}
+                          onValueChange={(value) => setColumnMapping(prev => ({ ...prev, designEmbedment: value }))}
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue placeholder="Auto-looked up (optional override)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">-- Auto-Lookup --</SelectItem>
+                            {headers.map((header, index) => (
+                              <SelectItem key={`designembedment-${index}`} value={header}>{header}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-slate-500">If not selected, will be looked up from pile_lookup_data table</p>
+                      </div>
+
+                      {/* Pile Type (can override lookup) */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                          Pile Type
+                          <span className="text-xs text-blue-600 font-normal">(Looked up from Pile Plot)</span>
+                        </label>
+                        <Select
+                          value={columnMapping.pileType}
+                          onValueChange={(value) => setColumnMapping(prev => ({ ...prev, pileType: value }))}
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue placeholder="Auto-looked up (optional override)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">-- Auto-Lookup --</SelectItem>
+                            {headers.map((header, index) => (
+                              <SelectItem key={`piletype-${index}`} value={header}>{header}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-slate-500">If not selected, will be looked up from pile_lookup_data table</p>
+                      </div>
+
+                      {/* Gain per 30 seconds (can override calculation) */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                          Gain per 30 seconds
+                          <span className="text-xs text-amber-600 font-normal">(Formula: Embedment (in) / (Duration / 30))</span>
+                        </label>
+                        <Select
+                          value={columnMapping.gainPer30}
+                          onValueChange={(value) => setColumnMapping(prev => ({ ...prev, gainPer30: value }))}
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue placeholder="Auto-calculated (optional override)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">-- Auto-Calculate --</SelectItem>
+                            {headers.map((header, index) => (
+                              <SelectItem key={`gainper30-${index}`} value={header}>{header}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-slate-500">If not selected, will be calculated from embedment and duration</p>
+                      </div>
+                    </div>
+                  </details>
+
+                  {/* Info about auto-calculated fields */}
+                  <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <p className="text-xs text-amber-800 font-medium mb-1">✨ Auto-Calculated & Looked-Up Fields:</p>
+                    <ul className="text-xs text-amber-700 space-y-0.5">
+                      <li>• <strong>Actual Embedment (ft):</strong> Start Z - End Z</li>
+                      <li>• <strong>Embedment (inches):</strong> Embedment × 12</li>
+                      <li>• <strong>Gain/30 seconds:</strong> Embedment (in) / (Duration (seconds) / 30)</li>
+                      <li>• <strong>Pile Type:</strong> Looked up from pile_lookup_data by Pile ID</li>
+                      <li>• <strong>Design Embedment:</strong> Looked up from pile_lookup_data by Pile ID</li>
+                      <li>• <strong>Block:</strong> Auto-extracted from Pile Number (e.g., "A1" from "A1.005.03")</li>
+                      <li>• <strong>Embedment w/ Tolerance:</strong> Design Embedment - 1</li>
+                      <li>• <strong>Embedment Difference:</strong> Embedment w/ Tolerance - Actual Embedment</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {isUploading && (
+                  <div className="space-y-2">
+                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-blue-500 rounded-full transition-all"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-slate-500 text-center">
+                      {uploadProgress < 100 ? 'Processing...' : 'Completed'}
+                    </p>
+                  </div>
+                )}
+              </motion.div>
+            ) : uploadStatus === 'error' ? (
               <motion.div
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -700,10 +1551,10 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                       </div>
                       <div className="space-y-2">
                         <p className="text-base font-medium text-slate-800">
-                          {isDragging ? "Drop your file here" : "Drag and drop your CSV file"}
+                          {isDragging ? "Drop your file here" : "Drag and drop your CSV or XLSX file"}
                         </p>
                         <p className="text-sm text-slate-500">
-                          or select a file from your computer
+                          Direct from GPS pile driver or from your computer
                         </p>
                       </div>
                       <Button
@@ -717,7 +1568,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept=".csv"
+                        accept=".csv,.xlsx"
                         onChange={handleFileInputChange}
                         className="hidden"
                       />
@@ -733,7 +1584,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
             <div className="text-sm text-blue-700">
               <p className="font-medium mb-1">Format Requirements</p>
               <p className="text-blue-600 text-xs leading-relaxed">
-                🎉 <strong>Flexible CSV Upload!</strong> Your CSV columns can now be in any order. The app will automatically detect and map your columns based on their names.
+                🎉 <strong>GPS CSV Support!</strong> Upload CSV/XLSX files directly from your GPS pile driver. The app will automatically calculate Embedment, Gain/30, Pile Type, Design Embedment, and more!
               </p>
               <div className="mt-2 space-y-1">
                 <p className="text-blue-600 text-xs">
@@ -749,22 +1600,21 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                     <li><strong>Elevations:</strong> "Start Z", "End Z", "Start Elevation", "End Elevation"</li>
                     <li><strong>Machine:</strong> "Machine", "Equipment", "Rig", "Machine ID"</li>
                     <li><strong>Dates/Times:</strong> "Start Date" (MM/DD/YYYY), "Start Time", "Stop Time"</li>
-                    <li><strong>Other:</strong> "Zone", "Pile Color", "Gain per 30 seconds"</li>
+                    <li><strong>Other:</strong> "Pile Type", "Pile Color", "Gain per 30 seconds"</li>
                   </ul>
                 </div>
                 <p className="text-blue-600 text-xs mt-2">
                   <span className="font-medium">🔍 Smart Features:</span>
                 </p>
                 <ul className="text-blue-600 text-xs list-disc ml-4 space-y-1">
-                  <li>✅ Columns can be in any order</li>
-                  <li>✅ Column names are case-insensitive</li>
-                  <li>✅ Supports spaces, underscores, and variations</li>
-                  <li>✅ Automatically ignores unmapped columns</li>
+                  <li>✅ Accepts CSV and XLSX files (direct from GPS pile driver)</li>
+                  <li>✅ <strong>Auto-calculates:</strong> Embedment, Embedment (in), Duration (int), Gain/30, Embedment w/ Tolerance, Embedment Difference</li>
+                  <li>✅ <strong>Auto-lookups:</strong> Pile Type and Design Embedment (if pile lookup data uploaded)</li>
+                  <li>✅ <strong>Auto-extracts:</strong> Block from pile name (e.g., "A1" from "A1.005.03")</li>
+                  <li>✅ Columns can be in any order - case-insensitive matching</li>
                   <li>✅ <strong>Skips invalid rows</strong> - uploads valid data even if some rows have errors</li>
-                  <li>✅ Shows detailed validation feedback after upload</li>
-                  <li>⚠️ Must have either "Pile ID" or "Block" column to identify piles</li>
-                  <li>📅 Dates should be in MM/DD/YYYY format</li>
-                  <li>🔢 Numeric fields will be automatically parsed</li>
+                  <li>⚠️ Minimum required columns: Name (or Pile ID), Machine, Start Date, Start Time, Stop Time, Duration, Start Z(Feet), End Z(Feet)</li>
+                  <li>📅 Dates auto-convert from various formats (MM/DD/YYYY, Excel serial dates)</li>
                 </ul>
               </div>
             </div>
@@ -772,21 +1622,62 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
         </div>
 
         <DialogFooter className="flex gap-3 sm:gap-3 pt-2 flex-shrink-0">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            disabled={isUploading}
-            className="flex-1 sm:flex-none"
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleUpload}
-            disabled={!file || isUploading || uploadStatus === 'success'}
-            className={cn("flex-1 sm:flex-none", isUploading ? "opacity-80" : "")}
-          >
-            {isUploading ? "Processing..." : "Upload Data"}
-          </Button>
+          {showColumnMapping ? (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowColumnMapping(false);
+                  handleRemoveFile();
+                }}
+                disabled={isUploading}
+                className="flex-1 sm:flex-none"
+              >
+                Back
+              </Button>
+              <Button
+                onClick={handleUpload}
+                disabled={
+                  !columnMapping.pileNumber ||
+                  !columnMapping.machine ||
+                  !columnMapping.startDate ||
+                  !columnMapping.startTime ||
+                  !columnMapping.stopTime ||
+                  !columnMapping.duration ||
+                  !columnMapping.startZ ||
+                  !columnMapping.endZ ||
+                  isUploading ||
+                  uploadStatus === 'success'
+                }
+                className={cn("flex-1 sm:flex-none", isUploading ? "opacity-80" : "")}
+              >
+                {isUploading ? "Processing..." : "Upload Data"}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                onClick={onClose}
+                disabled={isUploading}
+                className="flex-1 sm:flex-none"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleProceedToMapping}
+                disabled={!file || isUploading}
+                className={cn("flex-1 sm:flex-none", isUploading ? "opacity-80" : "")}
+              >
+                {isUploading ? "Analyzing..." : (
+                  <>
+                    Next: Map Columns
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </>
+                )}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

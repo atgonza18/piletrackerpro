@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { LogOut, List, BarChart3, Settings, User, Bell, FileText, MapPin, Filter, Search, Clock, AlertTriangle, AlertCircle, Check, ChevronLeft, ChevronRight } from "lucide-react";
+import { LogOut, List, BarChart3, Settings, User, Bell, FileText, MapPin, Filter, Search, Clock, AlertTriangle, AlertCircle, Check, ChevronLeft, ChevronRight, Box } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -41,14 +41,14 @@ interface ZoneData {
   designEmbedment: number | null;
 }
 
-export default function ZonesPage() {
+export default function PileTypesPage() {
   const router = useRouter();
   const [notifications, setNotifications] = useState(3);
   const { user, signOut, isLoading: authLoading } = useAuth();
   const [userInitials, setUserInitials] = useState("JD");
   const [userName, setUserName] = useState("User");
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
-  const [zones, setZones] = useState<ZoneData[]>([]);
+  const [pileTypes, setPileTypes] = useState<ZoneData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTab, setSelectedTab] = useState("all");
@@ -62,11 +62,16 @@ export default function ZonesPage() {
   const [driveTimeThreshold, setDriveTimeThreshold] = useState(10);
 
   // Filtering
-  const [filteredZones, setFilteredZones] = useState<ZoneData[]>([]);
+  const [filteredPileTypes, setFilteredPileTypes] = useState<ZoneData[]>([]);
   const [sortBy, setSortBy] = useState("name");
   const [sortOrder, setSortOrder] = useState("asc");
 
   useEffect(() => {
+    // Wait for auth to finish loading before making decisions
+    if (authLoading) {
+      return;
+    }
+
     // Check if user is logged in, if not redirect to auth page
     if (!user) {
       router.push("/auth");
@@ -100,12 +105,12 @@ export default function ZonesPage() {
                 setEmbedmentTolerance(project.embedment_tolerance);
               }
 
-              // Load pile data for zone statistics
+              // Load pile data for pile type statistics
               const { data: pileData, error: pileError } = await supabase
                 .from('piles')
                 .select('*')
                 .eq('project_id', project.id)
-                .not('zone', 'is', null);
+                .not('pile_type', 'is', null);
 
               if (pileError) {
                 throw pileError;
@@ -114,11 +119,11 @@ export default function ZonesPage() {
               // Process zone data
               const zoneMap = new Map<string, ZoneData>();
 
-              // First gather all unique zones
-              const uniqueZones = new Set<string>();
+              // First gather all unique pileTypes
+              const uniquePileTypes = new Set<string>();
               pileData.forEach(pile => {
-                if (pile.zone) {
-                  uniqueZones.add(pile.zone.trim());
+                if (pile.pile_type) {
+                  uniquePileTypes.add(pile.pile_type.trim());
                 }
               });
               
@@ -126,8 +131,8 @@ export default function ZonesPage() {
               const zoneArray: ZoneData[] = [];
               
               // Process each zone one by one, making separate count queries for each
-              const processZones = async () => {
-                for (const zoneName of uniqueZones) {
+              const processPileTypes = async () => {
+                for (const zoneName of uniquePileTypes) {
                   // Create basic zone data structure
                   const zoneData: ZoneData = {
                     name: zoneName,
@@ -145,10 +150,10 @@ export default function ZonesPage() {
                     .from('piles')
                     .select('*', { count: 'exact', head: true })
                     .eq('project_id', project.id)
-                    .eq('zone', zoneName);
+                    .eq('pile_type', zoneName);
                     
                   if (countError) {
-                    console.error(`Error getting count for zone ${zoneName}:`, countError);
+                    console.error(`Error getting count for pile type ${zoneName}:`, countError);
                   } else if (count !== null) {
                     // Set the exact count from the database
                     zoneData.totalPiles = count;
@@ -171,9 +176,9 @@ export default function ZonesPage() {
                 
                 // Process statistics for each pile
                 pileData.forEach(pile => {
-                  if (!pile.zone) return;
+                  if (!pile.pile_type) return;
                   
-                  const zoneName = pile.zone.trim();
+                  const zoneName = pile.pile_type.trim();
                   const zoneData = zoneMap.get(zoneName);
                   if (!zoneData) return;
                   
@@ -190,7 +195,7 @@ export default function ZonesPage() {
 
                   // Update embedment data
                   if (pile.embedment && pile.design_embedment) {
-                    // Set design embedment (should be the same for all piles in zone)
+                    // Set design embedment (should be the same for all piles in pile type)
                     zoneData.designEmbedment = pile.design_embedment;
                     
                     // Track total embedment for calculating average later
@@ -208,7 +213,7 @@ export default function ZonesPage() {
                 });
                 
                 // Update all the zone data with calculated statistics
-                for (const zoneName of uniqueZones) {
+                for (const zoneName of uniquePileTypes) {
                   const zoneData = zoneMap.get(zoneName);
                   if (!zoneData) continue;
                   
@@ -229,14 +234,14 @@ export default function ZonesPage() {
                   }
                 }
                 
-                // Set the zones state
-                setZones(zoneArray);
+                // Set the pileTypes state
+                setPileTypes(zoneArray);
                 setIsLoading(false);
               };
               
               // Execute the async function
-              processZones().catch(error => {
-                console.error("Error processing zones:", error);
+              processPileTypes().catch(error => {
+                console.error("Error processing pileTypes:", error);
                 setIsLoading(false);
               });
             }
@@ -268,7 +273,7 @@ export default function ZonesPage() {
     };
     
     loadData();
-  }, [user, router]);
+  }, [user, router, authLoading]);
 
   // Function to parse duration string to minutes
   const parseDuration = (durationString: string | null): number => {
@@ -313,9 +318,9 @@ export default function ZonesPage() {
     }
   };
 
-  // Filter and sort zones
+  // Filter and sort pileTypes
   useEffect(() => {
-    let filtered = [...zones];
+    let filtered = [...pileTypes];
     
     // Apply search filter
     if (searchQuery) {
@@ -370,8 +375,8 @@ export default function ZonesPage() {
       return sortOrder === "asc" ? comparison : -comparison;
     });
     
-    setFilteredZones(filtered);
-  }, [zones, searchQuery, selectedTab, sortBy, sortOrder]);
+    setFilteredPileTypes(filtered);
+  }, [pileTypes, searchQuery, selectedTab, sortBy, sortOrder]);
 
   const handleLogout = async () => {
     try {
@@ -396,7 +401,7 @@ export default function ZonesPage() {
         .from('piles')
         .select('*')
         .eq('project_id', projectData.id)
-        .eq('zone', zoneName);
+        .eq('pile_type', zoneName);
       
       if (error) {
         throw error;
@@ -429,7 +434,7 @@ export default function ZonesPage() {
       
       setZonePiles(processedPileData || []);
     } catch (error) {
-      console.error(`Error loading piles for zone ${zoneName}:`, error);
+      console.error(`Error loading piles for pile type ${zoneName}:`, error);
       toast.error("Failed to load piles data");
     } finally {
       setIsLoadingPiles(false);
@@ -509,7 +514,8 @@ export default function ZonesPage() {
             {[
               { name: 'Dashboard', icon: BarChart3, href: '/dashboard', active: false },
               { name: 'My Piles', icon: List, href: '/my-piles', active: false },
-              { name: 'Zones', icon: MapPin, href: '/zones', active: true },
+              { name: 'Pile Types', icon: MapPin, href: '/pileTypes', active: true },
+              { name: 'Blocks', icon: Box, href: '/blocks', active: false },
               { name: 'Notes', icon: FileText, href: '/notes', active: false },
             ].map((item) => (
               <button
@@ -571,7 +577,7 @@ export default function ZonesPage() {
             PT
           </div>
           <h1 className="text-lg font-bold text-slate-900 dark:text-white">
-            Zones
+            Pile Types
           </h1>
         </div>
         
@@ -593,9 +599,9 @@ export default function ZonesPage() {
             {/* Page header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
               <div>
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Zone Analysis</h1>
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Pile Type Analysis</h1>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                  Analyze pile performance by zone to identify patterns and issues
+                  Analyze pile performance by pile type to identify patterns and issues
                 </p>
               </div>
               
@@ -604,7 +610,7 @@ export default function ZonesPage() {
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                   <Input
                     type="search"
-                    placeholder="Search zones..."
+                    placeholder="Search pileTypes..."
                     className="pl-8 h-10 w-full sm:w-[240px] bg-white dark:bg-slate-800"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -616,7 +622,7 @@ export default function ZonesPage() {
                     <SelectValue placeholder="Sort by" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="name">Zone Name</SelectItem>
+                    <SelectItem value="name">Pile Type Name</SelectItem>
                     <SelectItem value="totalPiles">Total Piles</SelectItem>
                     <SelectItem value="refusalPercent">Refusal %</SelectItem>
                     <SelectItem value="tolerancePercent">Tolerance %</SelectItem>
@@ -641,31 +647,31 @@ export default function ZonesPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
               <Card className="bg-white dark:bg-slate-800">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Zones</CardTitle>
+                  <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Total Pile Types</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-slate-900 dark:text-white">{zones.length}</div>
+                  <div className="text-2xl font-bold text-slate-900 dark:text-white">{pileTypes.length}</div>
                 </CardContent>
               </Card>
               
               <Card className="bg-white dark:bg-slate-800">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Zones with Refusal</CardTitle>
+                  <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Pile Types with Refusal</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-amber-600 dark:text-amber-500">
-                    {zones.filter(z => z.refusalCount > 0).length}
+                    {pileTypes.filter(z => z.refusalCount > 0).length}
                   </div>
                 </CardContent>
               </Card>
               
               <Card className="bg-white dark:bg-slate-800">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Zones Within Tolerance</CardTitle>
+                  <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Pile Types Within Tolerance</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-500">
-                    {zones.filter(z => z.toleranceCount > 0).length}
+                    {pileTypes.filter(z => z.toleranceCount > 0).length}
                   </div>
                 </CardContent>
               </Card>
@@ -676,18 +682,18 @@ export default function ZonesPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-500">
-                    {zones.reduce((sum, zone) => sum + zone.toleranceCount, 0)}
+                    {pileTypes.reduce((sum, zone) => sum + zone.toleranceCount, 0)}
                   </div>
                 </CardContent>
               </Card>
               
               <Card className="bg-white dark:bg-slate-800">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Zones with Slow Drive Time</CardTitle>
+                  <CardTitle className="text-sm font-medium text-slate-500 dark:text-slate-400">Pile Types with Slow Drive Time</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-blue-600 dark:text-blue-500">
-                    {zones.filter(z => z.slowDriveTimeCount > 0).length}
+                    {pileTypes.filter(z => z.slowDriveTimeCount > 0).length}
                   </div>
                 </CardContent>
               </Card>
@@ -698,7 +704,7 @@ export default function ZonesPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-slate-900 dark:text-white">
-                    {formatNumber(zones.reduce((sum, zone) => sum + zone.averageDriveTime, 0) / (zones.length || 1))} min
+                    {formatNumber(pileTypes.reduce((sum, zone) => sum + zone.averageDriveTime, 0) / (pileTypes.length || 1))} min
                   </div>
                 </CardContent>
               </Card>
@@ -708,7 +714,7 @@ export default function ZonesPage() {
             <Tabs defaultValue="all" className="mb-6" onValueChange={setSelectedTab}>
               <TabsList className="bg-slate-100 dark:bg-slate-800">
                 <TabsTrigger value="all" className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700">
-                  All Zones
+                  All Pile Types
                 </TabsTrigger>
                 <TabsTrigger value="refusal" className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700">
                   <AlertTriangle className="h-4 w-4 mr-1" />
@@ -726,29 +732,29 @@ export default function ZonesPage() {
               <div className="flex justify-center items-center min-h-[400px]">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
               </div>
-            ) : filteredZones.length === 0 ? (
+            ) : filteredPileTypes.length === 0 ? (
               <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <MapPin className="h-12 w-12 text-slate-300 dark:text-slate-600 mb-4" />
-                  <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-2">No zones found</h3>
+                  <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-2">No pileTypes found</h3>
                                     <p className="text-sm text-slate-500 dark:text-slate-400 text-center max-w-md">
                     {searchQuery 
-                      ? "No zones match your search criteria. Try different search terms."
+                      ? "No pileTypes match your search criteria. Try different search terms."
                       : selectedTab !== "all" 
-                        ? `No zones with ${
+                        ? `No pileTypes with ${
                             selectedTab === "refusal" 
                               ? "refusal" 
                               : selectedTab === "tolerance"
                                 ? "tolerance" 
                                 : "drive time"
                           } issues found.`
-                        : "No zones have been defined yet. Zones are imported from your CSV data."}
+                        : "No pileTypes have been defined yet. Pile Types are imported from your CSV data."}
                   </p>
                 </CardContent>
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredZones.map(zone => (
+                {filteredPileTypes.map(zone => (
                   <Card key={zone.name} className="bg-white dark:bg-slate-800 overflow-hidden">
                     <CardHeader className="pb-2">
                       <div className="flex justify-between items-start">
@@ -871,7 +877,7 @@ export default function ZonesPage() {
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center">
               <MapPin className="h-5 w-5 mr-2 text-indigo-600" />
-              Piles in Zone: {selectedZone}
+              Piles in Pile Type: {selectedZone}
             </DialogTitle>
           </DialogHeader>
           
@@ -884,7 +890,7 @@ export default function ZonesPage() {
               <AlertCircle className="h-12 w-12 text-slate-300 mb-4" />
               <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-2">No piles found</h3>
               <p className="text-sm text-slate-500 dark:text-slate-400 text-center max-w-md">
-                No piles were found in zone {selectedZone}
+                No piles were found in pile type {selectedZone}
               </p>
             </div>
           ) : (

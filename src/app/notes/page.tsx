@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { LogOut, Plus, List, BarChart3, Settings, User, Bell, FileText, Search, X, AlertTriangle, Check, Clock, MapPin, Pencil, Trash2, Save } from "lucide-react";
+import { LogOut, Plus, List, BarChart3, Settings, User, Bell, FileText, Search, X, AlertTriangle, Check, Clock, MapPin, Pencil, Trash2, Save, Box } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { toast } from "sonner";
@@ -342,7 +342,8 @@ export default function NotesPage() {
             {[
               { name: 'Dashboard', icon: BarChart3, href: '/dashboard', active: false },
               { name: 'My Piles', icon: List, href: '/my-piles', active: false },
-              { name: 'Zones', icon: MapPin, href: '/zones', active: false },
+              { name: 'Pile Types', icon: MapPin, href: '/zones', active: false },
+              { name: 'Blocks', icon: Box, href: '/blocks', active: false },
               { name: 'Notes', icon: FileText, href: '/notes', active: true },
             ].map((item) => (
               <button

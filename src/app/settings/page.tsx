@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Save, Building2, MapPin, Settings2, Users, Database, AlertTriangle, Plus, Mail, UserPlus, Info } from "lucide-react";
+import { ArrowRight, Save, Building2, MapPin, Settings2, Users, Database, AlertTriangle, Plus, Mail, UserPlus, Info, Upload, FileSpreadsheet } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useAccountType } from "@/context/AccountTypeContext";
 import { sendInvitationEmail, sendInvitationEmailViaAPI } from "@/lib/emailService";
+import { PileLookupUploadModal } from "@/components/PileLookupUploadModal";
 
 interface ProjectSettings {
   id: string;
@@ -49,14 +50,21 @@ export default function ProjectSettingsPage() {
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserRole, setNewUserRole] = useState("");
   const [isInvitingUser, setIsInvitingUser] = useState(false);
-  
+  const [isPilePlotModalOpen, setIsPilePlotModalOpen] = useState(false);
+  const [pileLookupCount, setPileLookupCount] = useState<number>(0);
+
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { canEdit } = useAccountType();
 
   // Load project settings data
   useEffect(() => {
     const loadProjectSettings = async () => {
+      // Wait for auth to finish loading before making decisions
+      if (authLoading) {
+        return;
+      }
+
       if (!user) {
         router.push("/auth");
         return;
@@ -116,6 +124,9 @@ export default function ProjectSettingsPage() {
         if (projectData.embedment_tolerance !== undefined && projectData.embedment_tolerance !== null) {
           setEmbedmentTolerance(projectData.embedment_tolerance.toString());
         }
+
+        // Load pile lookup count
+        loadPileLookupCount();
       } catch (error) {
         console.error("Error loading project settings:", error);
         toast.error("Failed to load project settings");
@@ -125,7 +136,27 @@ export default function ProjectSettingsPage() {
     };
 
     loadProjectSettings();
-  }, [user, router]);
+  }, [user, router, authLoading]);
+
+  const loadPileLookupCount = async () => {
+    if (!projectId) return;
+
+    try {
+      const { count, error } = await supabase
+        .from('pile_lookup_data')
+        .select('*', { count: 'exact', head: true })
+        .eq('project_id', projectId);
+
+      if (error) {
+        console.error('Error loading pile lookup count:', error);
+        return;
+      }
+
+      setPileLookupCount(count || 0);
+    } catch (error) {
+      console.error('Error loading pile lookup count:', error);
+    }
+  };
 
   const validateForm = () => {
     const errors: { [key: string]: string } = {};
@@ -413,10 +444,10 @@ export default function ProjectSettingsPage() {
 
       // Try to send email using our email service
       const inviterName = `${user?.user_metadata?.first_name || ''} ${user?.user_metadata?.last_name || ''}`.trim() || user?.email?.split('@')[0] || 'Team Admin';
-      
-      // First try Web3Forms (if configured)
+
+      // Try Supabase Edge Function first (uses Resend)
       let emailSent = false;
-      let emailResult = await sendInvitationEmailViaAPI({
+      let emailResult = await sendInvitationEmail({
         to_email: newUserEmail.toLowerCase(),
         from_name: inviterName,
         project_name: projectName || 'PileTrackerPro Project',
@@ -427,15 +458,15 @@ export default function ProjectSettingsPage() {
       if (emailResult.success) {
         emailSent = true;
       } else {
-        // Try EmailJS as fallback
-        emailResult = await sendInvitationEmail({
+        // Fallback to Web3Forms if Edge Function fails
+        emailResult = await sendInvitationEmailViaAPI({
           to_email: newUserEmail.toLowerCase(),
           from_name: inviterName,
           project_name: projectName || 'PileTrackerPro Project',
           role: newUserRole,
           invitation_link: invitationLink
         });
-        
+
         if (emailResult.success) {
           emailSent = true;
         }
@@ -693,6 +724,66 @@ export default function ProjectSettingsPage() {
                         Maximum allowed deviation from design embedment
                       </p>
                     </div>
+
+                    {/* Pile Plot Plan Section */}
+                    <div className="border-t pt-6 mt-6">
+                      <div className="space-y-4">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h3 className="text-lg font-semibold flex items-center gap-2">
+                              <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                              Pile Plot Plan
+                            </h3>
+                            <p className="text-sm text-slate-500 mt-1">
+                              Upload your pile plot reference data for automatic Pile Type and Design Embedment lookups during CSV imports
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                Current Status
+                              </p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                {pileLookupCount > 0
+                                  ? `${pileLookupCount} pile reference${pileLookupCount !== 1 ? 's' : ''} loaded`
+                                  : 'No pile plot plan uploaded yet'}
+                              </p>
+                            </div>
+                            <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                              pileLookupCount > 0
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300'
+                            }`}>
+                              {pileLookupCount > 0 ? 'Active' : 'Not Configured'}
+                            </div>
+                          </div>
+
+                          <div className="flex gap-2">
+                            <Button
+                              onClick={() => setIsPilePlotModalOpen(true)}
+                              variant="outline"
+                              size="sm"
+                              className="flex items-center gap-2"
+                              disabled={!canEdit}
+                            >
+                              <Upload className="h-4 w-4" />
+                              {pileLookupCount > 0 ? 'Replace' : 'Upload'} Pile Plot Plan
+                            </Button>
+                          </div>
+
+                          <div className="text-xs text-slate-500 dark:text-slate-400 space-y-1 pt-2 border-t border-slate-200 dark:border-slate-700">
+                            <p className="font-medium">Supported formats: CSV, XLSX</p>
+                            <p>Required columns: TAG/Name, Pile Type, Design Embedment</p>
+                            <p className="text-amber-600 dark:text-amber-400">
+                              ⚠️ Uploading a new file will replace existing pile plot data
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -851,6 +942,16 @@ export default function ProjectSettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* Pile Plot Upload Modal */}
+      <PileLookupUploadModal
+        isOpen={isPilePlotModalOpen}
+        onClose={() => {
+          setIsPilePlotModalOpen(false);
+          loadPileLookupCount(); // Reload count after upload
+        }}
+        projectId={projectId}
+      />
     </div>
   );
 } 

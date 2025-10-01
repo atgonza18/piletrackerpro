@@ -23,16 +23,21 @@ export default function ProjectSetupPage() {
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
   
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
 
   // Redirect if not logged in or if project setup is already completed
   useEffect(() => {
     console.log('Project setup page loaded, user:', user);
-    
+
+    // Wait for auth to finish loading before making decisions
+    if (authLoading) {
+      return;
+    }
+
     // Check if we have the flag indicating the user needs project setup
     const needsProjectSetup = typeof window !== 'undefined' ? localStorage.getItem('needs_project_setup') : null;
     console.log('Needs project setup flag:', needsProjectSetup);
-    
+
     if (!user) {
       console.log('No user found, redirecting to auth page');
       // Only redirect if we don't have the flag
@@ -71,7 +76,7 @@ export default function ProjectSetupPage() {
     };
     
     checkProjectSetup();
-  }, [user, router]);
+  }, [user, router, authLoading]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
