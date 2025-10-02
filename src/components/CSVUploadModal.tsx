@@ -62,6 +62,23 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     gainPer30: '' // Can be calculated from embedment and duration
   });
 
+  // Pattern extraction state for Pile ID and Block
+  const [pileIdPattern, setPileIdPattern] = useState({
+    enabled: false,
+    startIndex: 0,
+    endIndex: 0,
+    useRegex: false,
+    regexPattern: ''
+  });
+
+  const [blockPattern, setBlockPattern] = useState({
+    enabled: false,
+    startIndex: 0,
+    endIndex: 0,
+    useRegex: false,
+    regexPattern: ''
+  });
+
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -449,6 +466,29 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     return { exactMap, normalizedMap };
   };
 
+  // Helper function to extract pattern from text
+  const extractPattern = (
+    text: string,
+    pattern: typeof pileIdPattern | typeof blockPattern
+  ): string => {
+    if (!pattern.enabled || !text) return text;
+
+    if (pattern.useRegex && pattern.regexPattern) {
+      try {
+        const regex = new RegExp(pattern.regexPattern);
+        const match = text.match(regex);
+        return match && match[1] ? match[1] : text;
+      } catch (error) {
+        console.warn('Invalid regex pattern:', pattern.regexPattern, error);
+        return text;
+      }
+    } else {
+      // Use character position extraction
+      const end = pattern.endIndex > 0 ? pattern.endIndex : undefined;
+      return text.substring(pattern.startIndex, end);
+    }
+  };
+
   const processAndUploadData = async (
     csvData: string[][],
     projectId: string,
@@ -539,7 +579,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     let unmatchedCount = 0;
 
     rows.forEach((row, index) => {
-      const validation = validateRow(row, index + 2, columnMapping, new Set(), new Set(), pileLookupMaps); // +2 because CSV is 1-indexed and we skip header
+      const validation = validateRow(row, index + 2, columnMapping, new Set(), new Set(), pileLookupMaps, pileIdPattern, blockPattern); // +2 because CSV is 1-indexed and we skip header
 
       if (validation.isValid && validation.pileData) {
         validRows.push(validation.pileData);
@@ -628,7 +668,9 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     columnMapping: Record<string, number>,
     existingPileNumbers: Set<string>,
     seenPileNumbers: Set<string>,
-    pileLookupMaps: { exactMap: Map<string, any>, normalizedMap: Map<string, any> }
+    pileLookupMaps: { exactMap: Map<string, any>, normalizedMap: Map<string, any> },
+    pileIdPatternConfig: typeof pileIdPattern,
+    blockPatternConfig: typeof blockPattern
   ) => {
     const { exactMap, normalizedMap } = pileLookupMaps;
     const errors: string[] = [];
@@ -653,9 +695,14 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     };
 
     // Get pile identifier - prefer 'Name' column from GPS CSV, fallback to pile_id or block
-    const nameValue = getColumnValue('name') || getColumnValue('pile_id');
-    const pileIdValue = nameValue;
-    const blockValue = getColumnValue('block');
+    let rawPileIdValue = getColumnValue('name') || getColumnValue('pile_id');
+    let rawBlockValue = getColumnValue('block');
+
+    // Apply pattern extraction for Pile ID if enabled
+    const pileIdValue = rawPileIdValue ? extractPattern(rawPileIdValue, pileIdPatternConfig) : rawPileIdValue;
+
+    // Apply pattern extraction for Block if enabled
+    let blockValue = rawBlockValue ? extractPattern(rawBlockValue, blockPatternConfig) : rawBlockValue;
 
     // Extract block from pile name if not provided (e.g., "A1.005.03" -> "A1")
     let extractedBlock = blockValue;
@@ -1056,6 +1103,89 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                         ))}
                       </SelectContent>
                     </Select>
+
+                    {/* Pattern extraction for Pile ID */}
+                    {columnMapping.pileNumber && fileData.length > 1 && (
+                      <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id="pileIdPatternEnabled"
+                            checked={pileIdPattern.enabled}
+                            onChange={(e) => setPileIdPattern(prev => ({ ...prev, enabled: e.target.checked }))}
+                            className="rounded"
+                          />
+                          <label htmlFor="pileIdPatternEnabled" className="text-xs font-medium text-slate-700">
+                            Extract pattern from text
+                          </label>
+                        </div>
+
+                        {pileIdPattern.enabled && (
+                          <div className="space-y-2">
+                            <div className="text-xs text-slate-600">
+                              Sample value: <span className="font-mono bg-white px-2 py-1 rounded">{fileData[1][headers.indexOf(columnMapping.pileNumber)]}</span>
+                            </div>
+
+                            <div className="flex gap-2 items-center">
+                              <label className="text-xs text-slate-600">Extract characters from position:</label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={pileIdPattern.startIndex}
+                                onChange={(e) => setPileIdPattern(prev => ({ ...prev, startIndex: parseInt(e.target.value) || 0 }))}
+                                className="w-16 px-2 py-1 text-xs border border-slate-300 rounded"
+                                placeholder="Start"
+                              />
+                              <span className="text-xs text-slate-600">to</span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={pileIdPattern.endIndex}
+                                onChange={(e) => setPileIdPattern(prev => ({ ...prev, endIndex: parseInt(e.target.value) || 0 }))}
+                                className="w-16 px-2 py-1 text-xs border border-slate-300 rounded"
+                                placeholder="End"
+                              />
+                            </div>
+
+                            <div className="text-xs text-slate-600">
+                              Result: <span className="font-mono bg-white px-2 py-1 rounded font-medium text-blue-600">
+                                {fileData[1][headers.indexOf(columnMapping.pileNumber)]?.substring(pileIdPattern.startIndex, pileIdPattern.endIndex || undefined)}
+                              </span>
+                            </div>
+
+                            <div className="pt-2 border-t border-slate-300">
+                              <div className="flex items-center gap-2 mb-2">
+                                <input
+                                  type="checkbox"
+                                  id="pileIdUseRegex"
+                                  checked={pileIdPattern.useRegex}
+                                  onChange={(e) => setPileIdPattern(prev => ({ ...prev, useRegex: e.target.checked }))}
+                                  className="rounded"
+                                />
+                                <label htmlFor="pileIdUseRegex" className="text-xs font-medium text-slate-700">
+                                  Use regex pattern instead
+                                </label>
+                              </div>
+
+                              {pileIdPattern.useRegex && (
+                                <div className="space-y-2">
+                                  <input
+                                    type="text"
+                                    value={pileIdPattern.regexPattern}
+                                    onChange={(e) => setPileIdPattern(prev => ({ ...prev, regexPattern: e.target.value }))}
+                                    className="w-full px-2 py-1 text-xs border border-slate-300 rounded font-mono"
+                                    placeholder="e.g., ^([A-Z]+\d+\.\d+\.\d+)$ or ^([A-Z]+\d+)"
+                                  />
+                                  <div className="text-xs text-slate-500">
+                                    Example: ^([A-Z]+\d+) extracts "A1" from "A1.005.03"
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Machine */}
@@ -1245,6 +1375,89 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                           </SelectContent>
                         </Select>
                         <p className="text-xs text-slate-500">OR if no direct Block column exists, the app will auto-extract from Pile Number (e.g., "A1" from "A1.005.03")</p>
+
+                        {/* Pattern extraction for Block */}
+                        {columnMapping.block && columnMapping.block !== '__none__' && fileData.length > 1 && (
+                          <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id="blockPatternEnabled"
+                                checked={blockPattern.enabled}
+                                onChange={(e) => setBlockPattern(prev => ({ ...prev, enabled: e.target.checked }))}
+                                className="rounded"
+                              />
+                              <label htmlFor="blockPatternEnabled" className="text-xs font-medium text-slate-700">
+                                Extract pattern from text
+                              </label>
+                            </div>
+
+                            {blockPattern.enabled && (
+                              <div className="space-y-2">
+                                <div className="text-xs text-slate-600">
+                                  Sample value: <span className="font-mono bg-white px-2 py-1 rounded">{fileData[1][headers.indexOf(columnMapping.block)]}</span>
+                                </div>
+
+                                <div className="flex gap-2 items-center">
+                                  <label className="text-xs text-slate-600">Extract characters from position:</label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={blockPattern.startIndex}
+                                    onChange={(e) => setBlockPattern(prev => ({ ...prev, startIndex: parseInt(e.target.value) || 0 }))}
+                                    className="w-16 px-2 py-1 text-xs border border-slate-300 rounded"
+                                    placeholder="Start"
+                                  />
+                                  <span className="text-xs text-slate-600">to</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={blockPattern.endIndex}
+                                    onChange={(e) => setBlockPattern(prev => ({ ...prev, endIndex: parseInt(e.target.value) || 0 }))}
+                                    className="w-16 px-2 py-1 text-xs border border-slate-300 rounded"
+                                    placeholder="End"
+                                  />
+                                </div>
+
+                                <div className="text-xs text-slate-600">
+                                  Result: <span className="font-mono bg-white px-2 py-1 rounded font-medium text-blue-600">
+                                    {fileData[1][headers.indexOf(columnMapping.block)]?.substring(blockPattern.startIndex, blockPattern.endIndex || undefined)}
+                                  </span>
+                                </div>
+
+                                <div className="pt-2 border-t border-slate-300">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <input
+                                      type="checkbox"
+                                      id="blockUseRegex"
+                                      checked={blockPattern.useRegex}
+                                      onChange={(e) => setBlockPattern(prev => ({ ...prev, useRegex: e.target.checked }))}
+                                      className="rounded"
+                                    />
+                                    <label htmlFor="blockUseRegex" className="text-xs font-medium text-slate-700">
+                                      Use regex pattern instead
+                                    </label>
+                                  </div>
+
+                                  {blockPattern.useRegex && (
+                                    <div className="space-y-2">
+                                      <input
+                                        type="text"
+                                        value={blockPattern.regexPattern}
+                                        onChange={(e) => setBlockPattern(prev => ({ ...prev, regexPattern: e.target.value }))}
+                                        className="w-full px-2 py-1 text-xs border border-slate-300 rounded font-mono"
+                                        placeholder="e.g., ^([A-Z]+\d+)"
+                                      />
+                                      <div className="text-xs text-slate-500">
+                                        Example: ^([A-Z]+\d+) extracts "A1" from "A1.005.03"
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Pile Location */}

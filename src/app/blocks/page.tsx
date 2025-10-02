@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { LogOut, List, BarChart3, Settings, User, Bell, FileText, MapPin, Filter, Search, Clock, AlertTriangle, AlertCircle, Check, ChevronLeft, ChevronRight, Box } from "lucide-react";
+import { LogOut, List, BarChart3, Settings, User, Bell, FileText, MapPin, Filter, Search, Clock, AlertTriangle, AlertCircle, Check, ChevronLeft, ChevronRight, Box, Download, ChevronDown, FileDown } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -15,7 +15,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
+import { exportBlocksToPDF } from '@/lib/pdfExport';
+import * as XLSX from 'xlsx';
 
 interface ProjectData {
   id: string;
@@ -508,6 +511,76 @@ export default function BlocksPage() {
     }
   };
 
+  // Export blocks to Excel
+  const exportBlocksToExcel = () => {
+    if (!blocks.length) {
+      toast.error("No block data to export");
+      return;
+    }
+
+    try {
+      const exportData = filteredBlocks.map(block => ({
+        'Block': block.name,
+        'Total Piles': block.totalPiles,
+        'Refusal Count': block.refusalCount,
+        'Refusal %': block.totalPiles > 0 ? ((block.refusalCount / block.totalPiles) * 100).toFixed(1) : '0',
+        'Tolerance Count': block.toleranceCount,
+        'Tolerance %': block.totalPiles > 0 ? ((block.toleranceCount / block.totalPiles) * 100).toFixed(1) : '0',
+        'Slow Drive Count': block.slowDriveTimeCount,
+        'Slow Drive %': block.totalPiles > 0 ? ((block.slowDriveTimeCount / block.totalPiles) * 100).toFixed(1) : '0',
+        'Avg Drive Time (min)': formatNumber(block.averageDriveTime),
+        'Avg Embedment (ft)': formatNumber(block.averageEmbedment, 2),
+        'Design Embedment (ft)': block.designEmbedment ? formatNumber(block.designEmbedment, 2) : 'N/A'
+      }));
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Blocks");
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+      const projectName = projectData?.project_name?.replace(/[^a-zA-Z0-9]/g, '_') || 'project';
+      const filename = `${projectName}_blocks_${timestamp}.xlsx`;
+
+      XLSX.writeFile(workbook, filename);
+      toast.success(`${filteredBlocks.length} blocks exported to Excel successfully`);
+    } catch (error) {
+      console.error("Error exporting to Excel:", error);
+      toast.error("Failed to export to Excel");
+    }
+  };
+
+  // Export blocks to PDF
+  const exportBlocksToPDFFile = () => {
+    if (!blocks.length) {
+      toast.error("No block data to export");
+      return;
+    }
+
+    try {
+      const activeFilters = [];
+      if (searchTerm) activeFilters.push({ label: 'Search', value: searchTerm });
+      if (selectedTab !== 'all') activeFilters.push({ label: 'Filter', value: selectedTab });
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+      const projectName = projectData?.project_name?.replace(/[^a-zA-Z0-9]/g, '_') || 'project';
+      const filename = `${projectName}_blocks_${timestamp}.pdf`;
+
+      exportBlocksToPDF(filteredBlocks, {
+        title: 'Block Analysis Report',
+        projectName: projectData?.project_name,
+        projectLocation: projectData?.project_location,
+        fileName: filename,
+        orientation: 'landscape',
+        filters: activeFilters
+      });
+
+      toast.success(`${filteredBlocks.length} blocks exported to PDF successfully`);
+    } catch (error) {
+      console.error("Error exporting to PDF:", error);
+      toast.error("Failed to export to PDF");
+    }
+  };
+
   // Get status badge for visual display
   const getStatusBadge = (status: string) => {
     switch (status?.toLowerCase()) {
@@ -692,6 +765,26 @@ export default function BlocksPage() {
                 >
                   {sortOrder === "asc" ? "↑" : "↓"}
                 </Button>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-10 gap-1.5 bg-white dark:bg-slate-800">
+                      <Download size={16} />
+                      Export
+                      <ChevronDown size={14} className="ml-1" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={exportBlocksToExcel}>
+                      <FileDown size={16} className="mr-2" />
+                      Export to Excel
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={exportBlocksToPDFFile}>
+                      <FileText size={16} className="mr-2" />
+                      Export to PDF
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 

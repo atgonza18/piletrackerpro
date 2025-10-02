@@ -35,6 +35,7 @@ import { Textarea } from "@/components/ui/textarea";
 import * as XLSX from 'xlsx';
 import ReactDatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
+import { exportToPDF } from '@/lib/pdfExport';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { CircularProgressbar } from 'react-circular-progressbar';
@@ -111,6 +112,8 @@ export default function MyPilesPage() {
   const [isCombineDuplicatesDialogOpen, setIsCombineDuplicatesDialogOpen] = useState(false);
   const [isCombiningDuplicates, setIsCombiningDuplicates] = useState(false);
   const [pileIdToCombine, setPileIdToCombine] = useState<string | null>(null);
+  const [isCombineAllDuplicatesDialogOpen, setIsCombineAllDuplicatesDialogOpen] = useState(false);
+  const [isCombiningAllDuplicates, setIsCombiningAllDuplicates] = useState(false);
   const [selectedPiles, setSelectedPiles] = useState<Set<string>>(new Set());
   const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
   
@@ -1156,6 +1159,73 @@ export default function MyPilesPage() {
     }
   };
 
+  const exportToPDFFile = () => {
+    if (!filteredPiles.length) {
+      toast.error("No data to export");
+      return;
+    }
+
+    try {
+      // Create a clean version of the data with better formatted fields
+      const cleanData = filteredPiles.map(pile => {
+        const status = getPileStatus(pile);
+        const formattedStartTime = pile.start_time ? formatTimeToStandard(pile.start_time) : "";
+        const formattedStopTime = pile.stop_time ? formatTimeToStandard(pile.stop_time) : "";
+        const formattedStartDate = pile.start_date ? formatDate(pile.start_date) : "";
+        const driveTimeMinutes = pile.duration ? parseDuration(pile.duration) : "";
+        const driveTimeRating = typeof driveTimeMinutes === 'number' ? getDriveTimeClass(driveTimeMinutes).label : "";
+
+        return {
+          "Pile ID": pile.pile_id || "",
+          "Block": pile.block || "",
+          "Pile Type": pile.pile_type || "",
+          "Status": status.charAt(0).toUpperCase() + status.slice(1),
+          "Design Embedment (ft)": pile.design_embedment || "",
+          "Actual Embedment (ft)": pile.embedment || "",
+          "Duration": pile.duration || "",
+          "Drive Time (min)": driveTimeMinutes || "",
+          "Drive Time Rating": driveTimeRating || "",
+          "Machine": pile.machine || "",
+          "Start Date": formattedStartDate,
+          "Start Time": formattedStartTime,
+          "Stop Time": formattedStopTime,
+          "Start Z": pile.start_z || "",
+          "End Z": pile.end_z || "",
+          "Gain per 30s": pile.gain_per_30_seconds || "",
+          "Notes": pile.notes || ""
+        };
+      });
+
+      // Collect active filters for the PDF
+      const activeFilters = [];
+      if (searchQuery) activeFilters.push({ label: 'Search', value: searchQuery });
+      if (blockFilter !== 'all') activeFilters.push({ label: 'Block', value: blockFilter });
+      if (statusFilter !== 'all') activeFilters.push({ label: 'Status', value: statusFilter });
+      if (showDuplicatesOnly) activeFilters.push({ label: 'Filter', value: 'Duplicates Only' });
+      if (showMissingPilesOnly) activeFilters.push({ label: 'Filter', value: 'Missing Piles Only' });
+      if (startDate) activeFilters.push({ label: 'Start Date', value: new Date(startDate).toLocaleDateString() });
+      if (endDate) activeFilters.push({ label: 'End Date', value: new Date(endDate).toLocaleDateString() });
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+      const projectName = projectData?.project_name?.replace(/[^a-zA-Z0-9]/g, '_') || 'project';
+      const filename = `${projectName}_piles_${timestamp}.pdf`;
+
+      exportToPDF(cleanData, {
+        title: 'Pile Tracking Report',
+        projectName: projectData?.project_name,
+        projectLocation: projectData?.project_location,
+        fileName: filename,
+        orientation: 'landscape',
+        filters: activeFilters
+      });
+
+      toast.success(`${filteredPiles.length} piles exported to PDF successfully`);
+    } catch (error) {
+      console.error("Error exporting to PDF:", error);
+      toast.error("Failed to export to PDF");
+    }
+  };
+
   // Function to find and delete duplicate piles
   const handleDeleteDuplicates = async () => {
     if (!projectData) return;
@@ -1453,6 +1523,99 @@ export default function MyPilesPage() {
     }
   };
 
+  // Function to combine ALL duplicate piles at once
+  const handleCombineAllDuplicates = async () => {
+    if (!projectData || duplicatePileIds.size === 0) return;
+
+    try {
+      setIsCombiningAllDuplicates(true);
+
+      let totalCombined = 0;
+      let totalDeleted = 0;
+      const errors: string[] = [];
+
+      // Process each duplicate pile_id
+      for (const pileId of duplicatePileIds) {
+        try {
+          // Get all piles with this pile_id
+          const duplicatePiles = piles.filter(pile => pile.pile_id === pileId);
+
+          if (duplicatePiles.length < 2) continue;
+
+          // Sort by embedment (highest first) to keep the best one as base
+          const sortedPiles = [...duplicatePiles].sort((a, b) =>
+            (b.embedment || 0) - (a.embedment || 0)
+          );
+
+          const basePile = sortedPiles[0];
+          const pilesToDelete = sortedPiles.slice(1);
+
+          // Calculate summed values
+          const totalEmbedment = duplicatePiles.reduce((sum, pile) => sum + (pile.embedment || 0), 0);
+          const totalGainPer30 = duplicatePiles.reduce((sum, pile) => sum + (pile.gain_per_30_seconds || 0), 0);
+
+          // Get date range
+          const dates = duplicatePiles
+            .map(pile => pile.start_date)
+            .filter(date => date != null)
+            .sort();
+          const dateRangeStart = dates[0] || null;
+          const dateRangeEnd = dates[dates.length - 1] || null;
+
+          // Collect all database IDs
+          const combinedPileIds = duplicatePiles.map(pile => pile.id);
+
+          // Update the base pile with combined data
+          const { error: updateError } = await supabase
+            .from('piles')
+            .update({
+              embedment: totalEmbedment,
+              gain_per_30_seconds: totalGainPer30,
+              is_combined: true,
+              combined_count: duplicatePiles.length,
+              combined_pile_ids: combinedPileIds,
+              date_range_start: dateRangeStart,
+              date_range_end: dateRangeEnd
+            })
+            .eq('id', basePile.id);
+
+          if (updateError) throw updateError;
+
+          // Delete the other duplicate piles
+          const { error: deleteError } = await supabase
+            .from('piles')
+            .delete()
+            .in('id', pilesToDelete.map(p => p.id));
+
+          if (deleteError) throw deleteError;
+
+          totalCombined += duplicatePiles.length;
+          totalDeleted += pilesToDelete.length;
+        } catch (error) {
+          console.error(`Error combining duplicates for pile_id ${pileId}:`, error);
+          errors.push(pileId);
+        }
+      }
+
+      // Refresh the entire pile list to get the updated state
+      await refreshPilesData();
+
+      if (errors.length > 0) {
+        toast.warning(`Combined most duplicates, but ${errors.length} groups failed`);
+      } else {
+        toast.success(`Successfully combined all duplicates! ${totalCombined} piles combined into ${totalCombined - totalDeleted} piles`);
+      }
+
+      setIsCombineAllDuplicatesDialogOpen(false);
+      setShowDuplicatesOnly(false); // Turn off duplicates filter since they're all combined
+    } catch (error) {
+      console.error("Error combining all duplicate piles:", error);
+      toast.error("Failed to combine all duplicate piles");
+    } finally {
+      setIsCombiningAllDuplicates(false);
+    }
+  };
+
   const handleBulkDelete = async () => {
     if (selectedPiles.size === 0) return;
     
@@ -1714,10 +1877,25 @@ export default function MyPilesPage() {
                     Delete Selected ({selectedPiles.size})
                   </Button>
                 )}
-                <Button variant="outline" size="sm" className="gap-1.5" onClick={exportToExcel}>
-                  <Download size={16} />
-                  Export
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1.5">
+                      <Download size={16} />
+                      Export
+                      <ChevronDown size={14} className="ml-1" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={exportToExcel}>
+                      <FileDown size={16} className="mr-2" />
+                      Export to Excel
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={exportToPDFFile}>
+                      <FileText size={16} className="mr-2" />
+                      Export to PDF
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 {canEdit && (
                   <>
                     <Button
@@ -1988,6 +2166,19 @@ export default function MyPilesPage() {
                     <Label className="text-sm font-medium">Show Duplicates</Label>
                     {showDuplicatesOnly && duplicatePileIds.size > 0 && (
                       <div className="flex items-center gap-2 ml-2">
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => setIsCombineAllDuplicatesDialogOpen(true)}
+                          className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-1.5 border border-blue-400/20"
+                          title="Combine all duplicate piles into single piles with summed embedment values"
+                        >
+                          <Link2 size={14} className="mr-1" />
+                          <span className="font-medium">Combine All Duplicates</span>
+                          <span className="ml-1 px-1.5 py-0.5 bg-blue-400/20 rounded-full text-xs font-medium">
+                            {duplicatePileIds.size}
+                          </span>
+                        </Button>
                         <Button
                           variant="destructive"
                           size="sm"
@@ -3203,6 +3394,81 @@ export default function MyPilesPage() {
                 <>
                   <Link2 size={16} className="mr-2" />
                   Combine Duplicates
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Combine ALL Duplicates Dialog */}
+      <Dialog open={isCombineAllDuplicatesDialogOpen} onOpenChange={setIsCombineAllDuplicatesDialogOpen}>
+        <DialogContent className="sm:max-w-[550px] rounded-xl shadow-xl border-none overflow-hidden">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Link2 className="text-blue-600" size={20} />
+              Combine All Duplicate Piles
+            </DialogTitle>
+            <DialogDescription className="text-slate-600 dark:text-slate-300 mt-2">
+              This will combine <span className="font-semibold text-blue-600">{duplicatePileIds.size} groups</span> of duplicate piles into single piles.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
+              <h4 className="font-semibold text-sm text-blue-900 dark:text-blue-100 mb-2">What will happen:</h4>
+              <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span>For each duplicate group, embedment values will be <strong>summed together</strong></span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span>For each group, gain/30 seconds values will be <strong>summed together</strong></span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span>Date ranges will show <strong>earliest to latest date</strong> for each group</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span>For each group, the pile with the <strong>highest embedment</strong> will be kept as the base</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span>All other duplicates will be <strong>deleted</strong></span>
+                </li>
+              </ul>
+            </div>
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3 flex items-start gap-2">
+              <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                <strong>Warning:</strong> This will process all {duplicatePileIds.size} duplicate groups at once. This action cannot be undone.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsCombineAllDuplicatesDialogOpen(false)}
+              disabled={isCombiningAllDuplicates}
+              className="transition-all duration-200"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCombineAllDuplicates}
+              disabled={isCombiningAllDuplicates}
+              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md transition-all duration-200"
+            >
+              {isCombiningAllDuplicates ? (
+                <>
+                  <Loader2 size={16} className="mr-2 animate-spin" />
+                  Combining All...
+                </>
+              ) : (
+                <>
+                  <Link2 size={16} className="mr-2" />
+                  Combine All Duplicates
                 </>
               )}
             </Button>

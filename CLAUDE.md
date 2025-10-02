@@ -239,3 +239,16 @@ supabase functions deploy send-invitation-email
 # View logs
 supabase functions logs send-invitation-email
 ```
+
+## Important Development Reminders
+
+### File Operations
+- **ALWAYS prefer editing existing files** over creating new ones
+- **NEVER proactively create documentation files** (*.md) or README files unless explicitly requested
+- Only create new files when absolutely necessary for the task at hand
+
+### Code Practices
+- Client components must use `"use client"` directive when using hooks or browser APIs
+- All pages that require authentication should check for valid session (see existing pages for patterns)
+- When working with RLS-protected tables, remember users can only see data for projects in their `user_projects` associations
+- Use `useSearchParams()` within a Suspense boundary to avoid production build issues
