@@ -186,9 +186,9 @@ function FieldEntryForm({ projectId }: FieldEntryFormProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800 py-8 px-4">
-      <div className="max-w-2xl mx-auto">
-        <Card>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800 py-4 sm:py-8 px-4 pb-8">
+      <div className="max-w-2xl mx-auto mb-8">
+        <Card className="mb-8">
           <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-lg">
             <div className="flex items-center gap-2">
               <ClipboardCheck className="h-6 w-6" />
@@ -199,8 +199,8 @@ function FieldEntryForm({ projectId }: FieldEntryFormProps) {
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="pt-6">
-            <form onSubmit={handleSubmit} className="space-y-6">
+          <CardContent className="pt-6 pb-8">
+            <form onSubmit={handleSubmit} className="space-y-6 pb-4">
               {/* Inspector Name - Prominent at top */}
               <div className="space-y-2 bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border-2 border-blue-200 dark:border-blue-800">
                 <Label htmlFor="inspector_name" className="text-base font-semibold">
@@ -454,15 +454,17 @@ function FieldEntryForm({ projectId }: FieldEntryFormProps) {
               </div>
 
               {/* Submit Button */}
-              <Button
-                type="submit"
-                className="w-full h-12 text-base"
-                disabled={isSubmitting}
-                size="lg"
-              >
-                {isSubmitting && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
-                {isSubmitting ? "Submitting..." : "Submit Pile Entry"}
-              </Button>
+              <div className="pt-2 pb-2">
+                <Button
+                  type="submit"
+                  className="w-full h-12 sm:h-14 text-base font-semibold"
+                  disabled={isSubmitting}
+                  size="lg"
+                >
+                  {isSubmitting && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+                  {isSubmitting ? "Submitting..." : "Submit Pile Entry"}
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>
