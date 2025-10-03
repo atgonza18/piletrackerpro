@@ -110,11 +110,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } else if (!session && mounted) {
           // Only redirect to auth if we're on a protected route
-          const publicPaths = ['/auth', '/auth/forgot-password', '/auth/reset-password', '/'];
-          const isProtectedRoute = !publicPaths.includes(pathname) && 
-                                 !pathname.startsWith('/auth/') && 
+          const publicPaths = ['/auth', '/auth/forgot-password', '/auth/reset-password', '/', '/field-entry'];
+          const isProtectedRoute = !publicPaths.includes(pathname) &&
+                                 !pathname.startsWith('/auth/') &&
                                  pathname !== '/';
-          
+
           if (isProtectedRoute) {
             redirectTimeout = setTimeout(() => {
               router.push('/auth');
