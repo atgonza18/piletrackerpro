@@ -30,7 +30,7 @@ function FieldEntryForm({ projectId }: FieldEntryFormProps) {
     pile_type: "",
     pile_size: "",
     pile_status: "Pending",
-    installation_date: new Date().toISOString().split('T')[0], // Default to today
+    start_date: new Date().toISOString().split('T')[0], // Default to today
     start_time: "",
     stop_time: "",
     duration: "",
@@ -101,7 +101,7 @@ function FieldEntryForm({ projectId }: FieldEntryFormProps) {
         pile_type: formData.pile_type.trim() || null,
         pile_size: formData.pile_size.trim() || null,
         pile_status: formData.pile_status,
-        installation_date: formData.installation_date || null,
+        start_date: formData.start_date || null,
         start_time: formData.start_time || null,
         stop_time: formData.stop_time || null,
         duration: formData.duration || null,
@@ -133,9 +133,9 @@ function FieldEntryForm({ projectId }: FieldEntryFormProps) {
 
       toast.success(`Pile created successfully by ${formData.inspector_name}!`);
 
-      // Reset form but keep inspector name and installation date
+      // Reset form but keep inspector name and start date
       const inspectorName = formData.inspector_name;
-      const installationDate = formData.installation_date;
+      const startDate = formData.start_date;
 
       setFormData({
         inspector_name: inspectorName, // Keep inspector name
@@ -146,7 +146,7 @@ function FieldEntryForm({ projectId }: FieldEntryFormProps) {
         pile_type: "",
         pile_size: "",
         pile_status: "Pending",
-        installation_date: installationDate, // Keep date
+        start_date: startDate, // Keep date
         start_time: "",
         stop_time: "",
         duration: "",
@@ -323,12 +323,12 @@ function FieldEntryForm({ projectId }: FieldEntryFormProps) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Installation Date */}
                   <div className="space-y-2">
-                    <Label htmlFor="installation_date">Installation Date</Label>
+                    <Label htmlFor="start_date">Installation Date</Label>
                     <Input
-                      id="installation_date"
+                      id="start_date"
                       type="date"
-                      value={formData.installation_date}
-                      onChange={(e) => handleInputChange("installation_date", e.target.value)}
+                      value={formData.start_date}
+                      onChange={(e) => handleInputChange("start_date", e.target.value)}
                     />
                   </div>
 

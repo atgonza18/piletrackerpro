@@ -28,7 +28,7 @@ export function ManualPileModal({ isOpen, onClose, projectId }: ManualPileModalP
     pile_type: "",
     pile_size: "",
     pile_status: "Pending",
-    installation_date: "",
+    start_date: "",
     start_time: "",
     stop_time: "",
     duration: "",
@@ -69,7 +69,7 @@ export function ManualPileModal({ isOpen, onClose, projectId }: ManualPileModalP
         pile_type: formData.pile_type.trim() || null,
         pile_size: formData.pile_size.trim() || null,
         pile_status: formData.pile_status,
-        installation_date: formData.installation_date || null,
+        start_date: formData.start_date || null,
         start_time: formData.start_time || null,
         stop_time: formData.stop_time || null,
         duration: formData.duration || null,
@@ -111,7 +111,7 @@ export function ManualPileModal({ isOpen, onClose, projectId }: ManualPileModalP
         pile_type: "",
         pile_size: "",
         pile_status: "Pending",
-        installation_date: "",
+        start_date: "",
         start_time: "",
         stop_time: "",
         duration: "",
@@ -260,12 +260,12 @@ export function ManualPileModal({ isOpen, onClose, projectId }: ManualPileModalP
             <div className="grid grid-cols-2 gap-x-4 gap-y-4">
               {/* Installation Date */}
               <div className="space-y-2">
-                <Label htmlFor="installation_date">Installation Date</Label>
+                <Label htmlFor="start_date">Installation Date</Label>
                 <Input
-                  id="installation_date"
+                  id="start_date"
                   type="date"
-                  value={formData.installation_date}
-                  onChange={(e) => handleInputChange("installation_date", e.target.value)}
+                  value={formData.start_date}
+                  onChange={(e) => handleInputChange("start_date", e.target.value)}
                 />
               </div>
 
