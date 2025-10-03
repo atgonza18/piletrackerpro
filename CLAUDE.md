@@ -45,7 +45,9 @@ src/
 │   ├── blocks/            # Block management
 │   ├── settings/          # User/project settings
 │   ├── project-setup/     # New project creation
-│   └── icon.tsx           # App favicon (edge runtime)
+│   ├── icon.tsx           # App favicon (edge runtime)
+│   ├── layout.tsx         # Root layout with provider wrapping
+│   └── page.tsx           # Landing/home page
 ├── components/            # Shared components
 │   ├── ui/               # shadcn/ui components
 │   ├── CSVUploadModal.tsx
@@ -199,6 +201,8 @@ RESEND_API_KEY=your_resend_key                 # Option 3: Resend (production)
 - Use existing shadcn/ui components from `src/components/ui/`
 - Follow the New York style configuration in `components.json`
 - Maintain consistent naming patterns (PascalCase for components)
+- Install shadcn components: `npx shadcn@latest add [component]`
+- Icon library: Lucide React (configured in `components.json`)
 
 ### State Management
 - Use React Context for global state (auth, theme, account type)
@@ -286,3 +290,8 @@ supabase functions logs send-invitation-email
 - Next.js config (`next.config.ts`) intentionally ignores ESLint and TypeScript errors during builds
 - Both `npm run build` and the Next.js config have error ignoring enabled for rapid development
 - Typed routes are experimental and enabled in Next.js config
+
+### Icon and Favicon
+- App icon defined in `src/app/icon.tsx` using edge runtime
+- Exports a single ImageResponse component for favicon generation
+- Edge runtime required for Next.js 15 icon generation

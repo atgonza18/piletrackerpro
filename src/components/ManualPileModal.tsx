@@ -20,6 +20,7 @@ interface ManualPileModalProps {
 export function ManualPileModal({ isOpen, onClose, projectId }: ManualPileModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
+    inspector_name: "",
     pile_id: "",
     pile_number: "",
     pile_location: "",
@@ -60,6 +61,7 @@ export function ManualPileModal({ isOpen, onClose, projectId }: ManualPileModalP
       // Prepare pile data
       const pileData: any = {
         project_id: projectId,
+        inspector_name: formData.inspector_name.trim() || null,
         pile_id: formData.pile_id.trim(),
         pile_number: formData.pile_number.trim(),
         pile_location: formData.pile_location.trim() || null,
@@ -101,6 +103,7 @@ export function ManualPileModal({ isOpen, onClose, projectId }: ManualPileModalP
 
       // Reset form
       setFormData({
+        inspector_name: "",
         pile_id: "",
         pile_number: "",
         pile_location: "",
@@ -141,6 +144,17 @@ export function ManualPileModal({ isOpen, onClose, projectId }: ManualPileModalP
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Inspector Name Section */}
+          <div className="space-y-2">
+            <Label htmlFor="inspector_name">Inspector Name</Label>
+            <Input
+              id="inspector_name"
+              value={formData.inspector_name}
+              onChange={(e) => handleInputChange("inspector_name", e.target.value)}
+              placeholder="Enter inspector's name (optional)"
+            />
+          </div>
+
           {/* Basic Information Section */}
           <div>
             <h3 className="text-sm font-semibold mb-3 text-muted-foreground">Basic Information</h3>

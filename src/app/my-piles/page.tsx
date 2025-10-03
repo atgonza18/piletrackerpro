@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { LogOut, Plus, List, BarChart3, Settings, User, Bell, Filter, Download, Search, Info, X, Check, Clock, AlertTriangle, Link2, CheckCircle2, MoreHorizontal, Edit2, FileText, Trash2, ChevronLeft, ChevronRight, CalendarIcon, AlertCircle, Pencil, Save, Moon, Sun, FileUp, FileDown, RefreshCw, Eye, Home, MapPin, Loader2, ChevronDown, Building2, Grid, Box } from "lucide-react";
+import { LogOut, Plus, List, BarChart3, Settings, User, Bell, Filter, Download, Search, Info, X, Check, Clock, AlertTriangle, Link2, CheckCircle2, MoreHorizontal, Edit2, FileText, Trash2, ChevronLeft, ChevronRight, CalendarIcon, AlertCircle, Pencil, Save, Moon, Sun, FileUp, FileDown, RefreshCw, Eye, Home, MapPin, Loader2, ChevronDown, Building2, Grid, Box, QrCode } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { hasCompletedProjectSetup, supabase } from "@/lib/supabase";
@@ -15,6 +15,7 @@ import { CSVUploadModal } from "@/components/CSVUploadModal";
 import { ManualPileModal } from "@/components/ManualPileModal";
 import { EditPileModal } from "@/components/EditPileModal";
 import { DeleteAllPilesButton } from "@/components/DeleteAllPilesButton";
+import { FieldEntryQRCode } from "@/components/FieldEntryQRCode";
 import {
   Dialog,
   DialogContent,
@@ -143,6 +144,7 @@ export default function MyPilesPage() {
   const [isManualPileModalOpen, setIsManualPileModalOpen] = useState(false);
   const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [isQRCodeModalOpen, setIsQRCodeModalOpen] = useState(false);
 
   // For the pile detail popup
   const [selectedPile, setSelectedPile] = useState<PileData | null>(null);
@@ -1909,6 +1911,15 @@ export default function MyPilesPage() {
                     </Button>
                     <Button
                       size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      onClick={() => setIsQRCodeModalOpen(true)}
+                    >
+                      <QrCode size={16} />
+                      Field Entry QR
+                    </Button>
+                    <Button
+                      size="sm"
                       className="gap-1.5"
                       onClick={() => setIsUploadModalOpen(true)}
                     >
@@ -2666,6 +2677,16 @@ export default function MyPilesPage() {
             window.location.reload();
           }}
           projectId={projectData.id}
+        />
+      )}
+
+      {/* Field Entry QR Code Modal */}
+      {projectData && (
+        <FieldEntryQRCode
+          isOpen={isQRCodeModalOpen}
+          onClose={() => setIsQRCodeModalOpen(false)}
+          projectId={projectData.id}
+          projectName={projectData.project_name}
         />
       )}
 

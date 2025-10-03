@@ -32,7 +32,8 @@ interface ProjectData {
 
 interface ZoneData {
   name: string;
-  totalPiles: number;
+  totalPiles: number; // Total from pile plot plan
+  installedPiles: number; // Actually installed piles
   refusalCount: number;
   toleranceCount: number; // Piles below design embedment but within tolerance
   slowDriveTimeCount: number;
@@ -106,26 +107,59 @@ export default function PileTypesPage() {
               }
 
               // Load pile data for pile type statistics
+              // Note: We load ALL piles, not just those with pile_type
               const { data: pileData, error: pileError } = await supabase
                 .from('piles')
                 .select('*')
-                .eq('project_id', project.id)
-                .not('pile_type', 'is', null);
+                .eq('project_id', project.id);
 
               if (pileError) {
                 throw pileError;
               }
 
+              console.log(`Total piles loaded: ${pileData?.length || 0}`);
+
+              // Load pile lookup data to get ALL pile types from the pile plot plan
+              const { data: pileLookupData, error: lookupError } = await supabase
+                .from('pile_lookup')
+                .select('*')
+                .eq('project_id', project.id);
+
+              if (lookupError) {
+                console.error("Error loading pile lookup data:", lookupError);
+              }
+
               // Process zone data
               const zoneMap = new Map<string, ZoneData>();
 
-              // First gather all unique pileTypes
+              // First gather all unique pileTypes from BOTH piles and pile lookup
               const uniquePileTypes = new Set<string>();
+              let hasUncategorizedPiles = false;
+
+              // Add pile types from actual piles
               pileData.forEach(pile => {
                 if (pile.pile_type) {
                   uniquePileTypes.add(pile.pile_type.trim());
+                } else {
+                  hasUncategorizedPiles = true;
                 }
               });
+
+              // Add pile types from pile lookup (pile plot plan)
+              if (pileLookupData && pileLookupData.length > 0) {
+                pileLookupData.forEach(lookupPile => {
+                  if (lookupPile.pile_type) {
+                    uniquePileTypes.add(lookupPile.pile_type.trim());
+                  }
+                });
+              }
+
+              // Add "Uncategorized" if there are piles without a pile_type
+              if (hasUncategorizedPiles) {
+                uniquePileTypes.add('Uncategorized');
+              }
+
+              console.log(`Unique pile types found: ${Array.from(uniquePileTypes).join(', ')}`);
               
               // Initialize zone data with empty counts
               const zoneArray: ZoneData[] = [];
@@ -137,6 +171,7 @@ export default function PileTypesPage() {
                   const zoneData: ZoneData = {
                     name: zoneName,
                     totalPiles: 0,
+                    installedPiles: 0,
                     refusalCount: 0,
                     toleranceCount: 0,
                     slowDriveTimeCount: 0,
@@ -144,25 +179,56 @@ export default function PileTypesPage() {
                     averageEmbedment: 0,
                     designEmbedment: null
                   };
-                  
-                  // Get exact count for this zone directly from database
-                  const { count, error: countError } = await supabase
-                    .from('piles')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('project_id', project.id)
-                    .eq('pile_type', zoneName);
-                    
-                  if (countError) {
-                    console.error(`Error getting count for pile type ${zoneName}:`, countError);
-                  } else if (count !== null) {
-                    // Set the exact count from the database
-                    zoneData.totalPiles = count;
-                    console.log(`Zone ${zoneName} has ${count} piles`);
+
+                  // Get count from pile lookup (pile plot plan) - this is the total expected
+                  let lookupCount = 0;
+                  if (pileLookupData && pileLookupData.length > 0) {
+                    if (zoneName === 'Uncategorized') {
+                      // Don't count uncategorized in lookup
+                      lookupCount = 0;
+                    } else {
+                      lookupCount = pileLookupData.filter(p => p.pile_type?.trim() === zoneName).length;
+                    }
                   }
-                  
+
+                  // Get exact count for this zone from actual piles
+                  let installedCount = 0;
+                  if (zoneName === 'Uncategorized') {
+                    // Count piles with null or empty pile_type
+                    const { count, error: countError } = await supabase
+                      .from('piles')
+                      .select('*', { count: 'exact', head: true })
+                      .eq('project_id', project.id)
+                      .is('pile_type', null);
+
+                    if (countError) {
+                      console.error(`Error getting count for uncategorized piles:`, countError);
+                    } else {
+                      installedCount = count || 0;
+                    }
+                  } else {
+                    // Normal pile type count
+                    const { count, error: countError } = await supabase
+                      .from('piles')
+                      .select('*', { count: 'exact', head: true })
+                      .eq('project_id', project.id)
+                      .eq('pile_type', zoneName);
+
+                    if (countError) {
+                      console.error(`Error getting count for pile type ${zoneName}:`, countError);
+                    } else {
+                      installedCount = count || 0;
+                    }
+                  }
+
+                  // Set both total (from plot) and installed counts
+                  zoneData.totalPiles = lookupCount > 0 ? lookupCount : installedCount;
+                  zoneData.installedPiles = installedCount;
+                  console.log(`Pile type ${zoneName}: ${lookupCount} total (from plot), ${installedCount} installed`);
+
                   // Add to array
                   zoneArray.push(zoneData);
-                  
+
                   // Also add to map for statistics calculation
                   zoneMap.set(zoneName, zoneData);
                 }
@@ -176,9 +242,8 @@ export default function PileTypesPage() {
                 
                 // Process statistics for each pile
                 pileData.forEach(pile => {
-                  if (!pile.pile_type) return;
-                  
-                  const zoneName = pile.pile_type.trim();
+                  // Determine the zone name - use 'Uncategorized' for piles without pile_type
+                  const zoneName = pile.pile_type ? pile.pile_type.trim() : 'Uncategorized';
                   const zoneData = zoneMap.get(zoneName);
                   if (!zoneData) return;
                   
@@ -221,15 +286,15 @@ export default function PileTypesPage() {
                   zoneData.refusalCount = zoneRefusalCounts[zoneName] || 0;
                   zoneData.toleranceCount = zoneToleranceCounts[zoneName] || 0;
                   zoneData.slowDriveTimeCount = zoneSlowDriveCounts[zoneName] || 0;
-                  
-                  // Calculate averages if we have data
-                  if (zoneData.totalPiles > 0) {
+
+                  // Calculate averages if we have installed piles
+                  if (zoneData.installedPiles > 0) {
                     if (zoneDurationSums[zoneName]) {
-                      zoneData.averageDriveTime = zoneDurationSums[zoneName] / zoneData.totalPiles;
+                      zoneData.averageDriveTime = zoneDurationSums[zoneName] / zoneData.installedPiles;
                     }
-                    
+
                     if (zoneEmbedmentSums[zoneName]) {
-                      zoneData.averageEmbedment = zoneEmbedmentSums[zoneName] / zoneData.totalPiles;
+                      zoneData.averageEmbedment = zoneEmbedmentSums[zoneName] / zoneData.installedPiles;
                     }
                   }
                 }
@@ -348,18 +413,18 @@ export default function PileTypesPage() {
           comparison = a.totalPiles - b.totalPiles;
           break;
         case "refusalPercent":
-          const refusalA = a.totalPiles > 0 ? (a.refusalCount / a.totalPiles) : 0;
-          const refusalB = b.totalPiles > 0 ? (b.refusalCount / b.totalPiles) : 0;
+          const refusalA = a.installedPiles > 0 ? (a.refusalCount / a.installedPiles) : 0;
+          const refusalB = b.installedPiles > 0 ? (b.refusalCount / b.installedPiles) : 0;
           comparison = refusalA - refusalB;
           break;
         case "tolerancePercent":
-          const toleranceA = a.totalPiles > 0 ? (a.toleranceCount / a.totalPiles) : 0;
-          const toleranceB = b.totalPiles > 0 ? (b.toleranceCount / b.totalPiles) : 0;
+          const toleranceA = a.installedPiles > 0 ? (a.toleranceCount / a.installedPiles) : 0;
+          const toleranceB = b.installedPiles > 0 ? (b.toleranceCount / b.installedPiles) : 0;
           comparison = toleranceA - toleranceB;
           break;
         case "driveTimePercent":
-          const slowA = a.totalPiles > 0 ? (a.slowDriveTimeCount / a.totalPiles) : 0;
-          const slowB = b.totalPiles > 0 ? (b.slowDriveTimeCount / b.totalPiles) : 0;
+          const slowA = a.installedPiles > 0 ? (a.slowDriveTimeCount / a.installedPiles) : 0;
+          const slowB = b.installedPiles > 0 ? (b.slowDriveTimeCount / b.installedPiles) : 0;
           comparison = slowA - slowB;
           break;
         case "averageDriveTime":
@@ -390,19 +455,36 @@ export default function PileTypesPage() {
   
   const handleViewPilesInZone = async (zoneName: string) => {
     if (!projectData) return;
-    
+
     try {
       setSelectedZone(zoneName);
       setIsLoadingPiles(true);
       setIsZonePilesModalOpen(true);
-      
+
       // Fetch piles for the selected zone
-      const { data: pileData, error } = await supabase
-        .from('piles')
-        .select('*')
-        .eq('project_id', projectData.id)
-        .eq('pile_type', zoneName);
-      
+      let pileData;
+      let error;
+
+      if (zoneName === 'Uncategorized') {
+        // Fetch piles with null pile_type
+        const result = await supabase
+          .from('piles')
+          .select('*')
+          .eq('project_id', projectData.id)
+          .is('pile_type', null);
+        pileData = result.data;
+        error = result.error;
+      } else {
+        // Normal pile type query
+        const result = await supabase
+          .from('piles')
+          .select('*')
+          .eq('project_id', projectData.id)
+          .eq('pile_type', zoneName);
+        pileData = result.data;
+        error = result.error;
+      }
+
       if (error) {
         throw error;
       }
@@ -761,8 +843,13 @@ export default function PileTypesPage() {
                         <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">
                           {zone.name}
                         </CardTitle>
-                        <div className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full">
-                          {zone.totalPiles} piles
+                        <div className="flex flex-col items-end gap-1">
+                          <div className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full">
+                            {zone.totalPiles} total
+                          </div>
+                          <div className="text-xs font-medium px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full">
+                            {zone.installedPiles} installed
+                          </div>
                         </div>
                       </div>
                       <CardDescription>
@@ -776,8 +863,8 @@ export default function PileTypesPage() {
                         <div className="flex flex-col items-center">
                           <div className="w-16 h-16 mb-2">
                             <CircularProgressbar
-                              value={zone.totalPiles > 0 ? (zone.refusalCount / zone.totalPiles) * 100 : 0}
-                              text={`${zone.totalPiles > 0 ? Math.round((zone.refusalCount / zone.totalPiles) * 100) : 0}%`}
+                              value={zone.installedPiles > 0 ? (zone.refusalCount / zone.installedPiles) * 100 : 0}
+                              text={`${zone.installedPiles > 0 ? Math.round((zone.refusalCount / zone.installedPiles) * 100) : 0}%`}
                               styles={buildStyles({
                                 textSize: '1.5rem',
                                 pathColor: zone.refusalCount > 0 ? '#f59e0b' : '#10b981',
@@ -788,16 +875,16 @@ export default function PileTypesPage() {
                           </div>
                           <div className="text-xs text-slate-500 dark:text-slate-400">Refusal</div>
                           <div className={`text-sm font-medium ${zone.refusalCount > 0 ? 'text-amber-600 dark:text-amber-500' : 'text-green-600 dark:text-green-500'}`}>
-                            {zone.refusalCount} of {zone.totalPiles}
+                            {zone.refusalCount} of {zone.installedPiles}
                           </div>
                         </div>
-                        
+
                         {/* Tolerance Gauge */}
                         <div className="flex flex-col items-center">
                           <div className="w-16 h-16 mb-2">
                             <CircularProgressbar
-                              value={zone.totalPiles > 0 ? (zone.toleranceCount / zone.totalPiles) * 100 : 0}
-                              text={`${zone.totalPiles > 0 ? Math.round((zone.toleranceCount / zone.totalPiles) * 100) : 0}%`}
+                              value={zone.installedPiles > 0 ? (zone.toleranceCount / zone.installedPiles) * 100 : 0}
+                              text={`${zone.installedPiles > 0 ? Math.round((zone.toleranceCount / zone.installedPiles) * 100) : 0}%`}
                               styles={buildStyles({
                                 textSize: '1.5rem',
                                 pathColor: zone.toleranceCount > 0 ? '#6366f1' : '#10b981',
@@ -808,16 +895,16 @@ export default function PileTypesPage() {
                           </div>
                           <div className="text-xs text-slate-500 dark:text-slate-400">Tolerance</div>
                           <div className={`text-sm font-medium ${zone.toleranceCount > 0 ? 'text-indigo-600 dark:text-indigo-500' : 'text-green-600 dark:text-green-500'}`}>
-                            {zone.toleranceCount} of {zone.totalPiles}
+                            {zone.toleranceCount} of {zone.installedPiles}
                           </div>
                         </div>
-                        
+
                         {/* Drive Time Gauge */}
                         <div className="flex flex-col items-center">
                           <div className="w-16 h-16 mb-2">
                             <CircularProgressbar
-                              value={zone.totalPiles > 0 ? (zone.slowDriveTimeCount / zone.totalPiles) * 100 : 0}
-                              text={`${zone.totalPiles > 0 ? Math.round((zone.slowDriveTimeCount / zone.totalPiles) * 100) : 0}%`}
+                              value={zone.installedPiles > 0 ? (zone.slowDriveTimeCount / zone.installedPiles) * 100 : 0}
+                              text={`${zone.installedPiles > 0 ? Math.round((zone.slowDriveTimeCount / zone.installedPiles) * 100) : 0}%`}
                               styles={buildStyles({
                                 textSize: '1.5rem',
                                 pathColor: zone.slowDriveTimeCount > 0 ? '#3b82f6' : '#10b981',
@@ -828,7 +915,7 @@ export default function PileTypesPage() {
                           </div>
                           <div className="text-xs text-slate-500 dark:text-slate-400">Drive Time</div>
                           <div className={`text-sm font-medium ${zone.slowDriveTimeCount > 0 ? 'text-blue-600 dark:text-blue-500' : 'text-green-600 dark:text-green-500'}`}>
-                            {zone.slowDriveTimeCount} of {zone.totalPiles}
+                            {zone.slowDriveTimeCount} of {zone.installedPiles}
                           </div>
                         </div>
                       </div>
