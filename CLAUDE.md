@@ -20,7 +20,7 @@ Note: The build process intentionally ignores TypeScript and ESLint errors (`NEX
 ## Architecture
 
 ### Tech Stack
-- **Next.js 15.3.3** with App Router
+- **Next.js 15.3.3** with App Router and experimental typed routes
 - **React 19** with TypeScript 5
 - **Supabase** for backend (database, auth, real-time, edge functions)
 - **Tailwind CSS 4** with custom theme
@@ -28,24 +28,33 @@ Note: The build process intentionally ignores TypeScript and ESLint errors (`NEX
 - **React Hook Form + Zod** for forms and validation
 - **Framer Motion** for animations
 - **Recharts** for data visualization
+- **jsPDF + jsPDF-AutoTable** for PDF export
+- **XLSX** for Excel export
+
+**TypeScript Configuration**: Path alias `@/*` maps to `./src/*` for cleaner imports
 
 ### Directory Structure
 ```
 src/
 ├── app/                    # Next.js App Router pages
-│   ├── auth/              # Authentication pages (login, signup)
+│   ├── auth/              # Authentication pages (login, signup, forgot-password)
 │   ├── dashboard/         # Main dashboard
 │   ├── my-piles/          # Pile management
-│   ├── zones/             # Zone management
+│   ├── zones/             # Pile type analysis (formerly zones)
 │   ├── notes/             # Project notes
 │   ├── blocks/            # Block management
 │   ├── settings/          # User/project settings
-│   └── project-setup/     # New project creation
+│   ├── project-setup/     # New project creation
+│   └── icon.tsx           # App favicon (edge runtime)
 ├── components/            # Shared components
 │   ├── ui/               # shadcn/ui components
 │   ├── CSVUploadModal.tsx
+│   ├── PileLookupUploadModal.tsx
+│   ├── ManualPileModal.tsx
+│   ├── EditPileModal.tsx
 │   ├── ProjectSelector.tsx
-│   └── DeleteAllPilesButton.tsx
+│   ├── DeleteAllPilesButton.tsx
+│   └── NavigationProgress.tsx
 ├── context/              # React Context providers
 │   ├── AuthContext.tsx
 │   ├── ThemeContext.tsx
@@ -60,7 +69,8 @@ src/
 Main tables in Supabase:
 - `projects` - Project information with `embedment_tolerance` field
 - `user_projects` - User-project relationships with role-based access (Owner, Admin, Rep)
-- `piles` - Pile tracking data with embedment/refusal fields, status tracking, and `block` field for grouping
+- `piles` - Pile tracking data with embedment/refusal fields, status tracking, `block` field for grouping, and `pile_type` field for categorization
+- `pile_lookup` - Pile plot plan data for tracking expected piles per type
 - `pile_activities` - Activity history for pile operations
 - `project_invitations` - Invitation tracking with token-based security and 7-day expiration
 
@@ -79,6 +89,11 @@ Database setup files:
 7. `db_performance_indexes.sql` - Performance optimization indexes
 8. `db_migration_pile_lookup_table.sql` - Pile lookup table migration
 9. `db_migration_zone_to_pile_type.sql` - Zone to pile type migration
+10. `db_migration_add_pile_location.sql` - Pile location field
+11. `db_migration_remove_pile_unique_constraint.sql` - Allow duplicate pile names
+12. `db_migration_combined_piles.sql` - Combined pile data migrations
+13. `db_create_statistics_function.sql` - Statistics calculation function
+14. `db_fix_project_insert_policy.sql` - Project creation RLS fixes
 
 **Important**: All tables use Row Level Security (RLS). Users can only access data for projects they're associated with via `user_projects` table. When querying blocks, use separate count queries per block for accuracy rather than filtering in-memory.
 
@@ -115,11 +130,13 @@ RESEND_API_KEY=your_resend_key                 # Option 3: Resend (production)
 - Row-by-row error handling with detailed feedback
 - Supports bulk pile data import with validation
 - Allows duplicate piles by design (tracked in pile_activities)
-- Additional upload modals: `PileLookupUploadModal.tsx` for lookup data
-- Manual pile entry: `ManualPileModal.tsx`, `EditPileModal.tsx`
+- Additional upload modals:
+  - `PileLookupUploadModal.tsx` for pile plot plan data (expected piles per type)
+  - `ManualPileModal.tsx`, `EditPileModal.tsx` for manual pile entry/editing
 
 ### Authentication Flow
 - Supabase Auth with email/password
+- Forgot password functionality at `/auth/forgot-password`
 - Protected routes using middleware
 - Context providers wrap entire app in `src/app/layout.tsx` in this order:
   1. `AuthProvider` - Manages user authentication state and Supabase session
@@ -137,11 +154,14 @@ RESEND_API_KEY=your_resend_key                 # Option 3: Resend (production)
 ### Data Operations
 - Bulk delete functionality in `DeleteAllPilesButton.tsx`
 - Delete lower duplicates feature for data cleanup
-- Export capabilities for reporting (XLSX format using `xlsx` library)
+- Export capabilities for reporting:
+  - XLSX format using `xlsx` library
+  - PDF export using `jspdf` and `jspdf-autotable`
 - Data visualization with Recharts and `react-circular-progressbar`
+- Navigation progress indicators via `NavigationProgress.tsx` using `nprogress`
 
 ### Block Management System
-- New page at `src/app/blocks/page.tsx` for analyzing piles grouped by block
+- Page at `src/app/blocks/page.tsx` for analyzing piles grouped by block
 - Tracks refusal, tolerance, and slow drive time metrics per block
 - Uses circular progress indicators to visualize block performance
 - Key metric: embedment tolerance (configurable per project, defaults to 1 ft)
@@ -151,6 +171,14 @@ RESEND_API_KEY=your_resend_key                 # Option 3: Resend (production)
   - **Refusal**: Embedment < design embedment - tolerance
   - **Pending**: Missing embedment data
 - Block counting requires separate database count queries for accuracy (not in-memory filtering)
+
+### Pile Type Analysis System
+- Page at `src/app/zones/page.tsx` for analyzing piles grouped by pile type (previously called "zones")
+- Similar to block management but groups by `pile_type` field instead of `block`
+- Compares installed piles against expected totals from `pile_lookup` table (pile plot plan)
+- Tracks same metrics as block system: refusal, tolerance, slow drive time
+- Supports "Uncategorized" type for piles without a pile_type assigned
+- Uses separate database count queries per pile type for RLS accuracy
 
 ## Development Guidelines
 
@@ -252,3 +280,9 @@ supabase functions logs send-invitation-email
 - All pages that require authentication should check for valid session (see existing pages for patterns)
 - When working with RLS-protected tables, remember users can only see data for projects in their `user_projects` associations
 - Use `useSearchParams()` within a Suspense boundary to avoid production build issues
+- Import paths use `@/*` alias for `src/*` (e.g., `import { supabase } from '@/lib/supabase'`)
+
+### Build Configuration
+- Next.js config (`next.config.ts`) intentionally ignores ESLint and TypeScript errors during builds
+- Both `npm run build` and the Next.js config have error ignoring enabled for rapid development
+- Typed routes are experimental and enabled in Next.js config

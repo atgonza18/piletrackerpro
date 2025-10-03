@@ -289,11 +289,21 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       setUploadStatus('success');
 
       // Enhanced success message with detailed results
-      if (data?.invalidRows && data.invalidRows > 0) {
-        toast.success(`✅ Successfully uploaded ${data.validRows} piles! ⚠️ Skipped ${data.invalidRows} invalid rows out of ${data.totalRows} total.`);
-      } else {
-        toast.success(`✅ Successfully uploaded ${data?.count || 0} pile records! All rows were valid.`);
+      const messages: string[] = [];
+
+      if (data?.validRows) {
+        messages.push(`✅ Successfully uploaded ${data.validRows} pile(s)`);
       }
+
+      if (data?.skippedDuplicates && data.skippedDuplicates > 0) {
+        messages.push(`⏭️ Skipped ${data.skippedDuplicates} duplicate(s)`);
+      }
+
+      if (data?.invalidRows && data.invalidRows > 0) {
+        messages.push(`⚠️ Skipped ${data.invalidRows} invalid row(s)`);
+      }
+
+      toast.success(messages.join(' • '));
 
       // Close the modal after a delay to show success state
       setTimeout(() => {
@@ -498,6 +508,31 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     const header = csvData[0];
     const rows = csvData.slice(1);
 
+    // Fetch existing piles from database to check for duplicates
+    const { data: existingPiles, error: fetchError } = await supabase
+      .from('piles')
+      .select('pile_number, embedment')
+      .eq('project_id', projectId);
+
+    if (fetchError) {
+      console.warn('Error fetching existing piles:', fetchError);
+    }
+
+    // Create a map of pile_number -> embedment values for quick lookup
+    const existingPileMap = new Map<string, number[]>();
+    if (existingPiles) {
+      existingPiles.forEach(pile => {
+        if (pile.pile_number && pile.embedment !== null) {
+          if (!existingPileMap.has(pile.pile_number)) {
+            existingPileMap.set(pile.pile_number, []);
+          }
+          existingPileMap.get(pile.pile_number)!.push(pile.embedment);
+        }
+      });
+    }
+
+    console.log(`📊 Found ${existingPileMap.size} existing pile numbers with embedment data`);
+
     // Fetch pile lookup data
     const pileLookupMaps = await fetchPileLookupData(projectId);
 
@@ -575,6 +610,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     // Validate each row individually and separate valid from invalid rows
     const validRows: any[] = [];
     const invalidRows: Array<{ row: string[], rowIndex: number, errors: string[] }> = [];
+    const skippedDuplicates: Array<{ row: string[], rowIndex: number, pileNumber: string, embedment: number }> = [];
     let matchedCount = 0;
     let unmatchedCount = 0;
 
@@ -582,6 +618,31 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       const validation = validateRow(row, index + 2, columnMapping, new Set(), new Set(), pileLookupMaps, pileIdPattern, blockPattern); // +2 because CSV is 1-indexed and we skip header
 
       if (validation.isValid && validation.pileData) {
+        // Check if this pile_number + embedment combination already exists
+        const pileNumber = validation.pileData.pile_number;
+        const embedment = validation.pileData.embedment;
+
+        if (pileNumber && embedment !== null && existingPileMap.has(pileNumber)) {
+          const existingEmbedments = existingPileMap.get(pileNumber)!;
+          // Check if any existing embedment matches (with small tolerance for floating point)
+          const isDuplicate = existingEmbedments.some(existing =>
+            Math.abs(existing - embedment) < 0.001
+          );
+
+          if (isDuplicate) {
+            // Skip this row - it's a duplicate
+            skippedDuplicates.push({
+              row,
+              rowIndex: index + 2,
+              pileNumber,
+              embedment
+            });
+            console.log(`⏭️ Skipping duplicate: ${pileNumber} with embedment ${embedment}ft`);
+            return; // Skip to next row
+          }
+        }
+
+        // Not a duplicate, add to valid rows
         validRows.push(validation.pileData);
         // Track if pile type was successfully looked up
         if (validation.pileData.pile_type) {
@@ -603,11 +664,18 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     console.log(`   ✅ Matched: ${matchedCount} piles`);
     console.log(`   ❌ Unmatched: ${unmatchedCount} piles`);
     console.log(`   Total valid rows: ${validRows.length}`);
-    
+    console.log(`   ⏭️ Skipped duplicates: ${skippedDuplicates.length}`);
+
+    // Show duplicate skip results
+    if (skippedDuplicates.length > 0) {
+      console.log(`⏭️ Skipped ${skippedDuplicates.length} duplicate rows with matching embedment:`, skippedDuplicates);
+      toast.info(`ℹ️ Skipped ${skippedDuplicates.length} duplicate(s) - same pile number + embedment already exists`);
+    }
+
     // Show validation results
     if (invalidRows.length > 0) {
       console.warn(`⚠️ Skipping ${invalidRows.length} invalid rows:`, invalidRows);
-      
+
       // Group errors by type for better user feedback
       const errorSummary = invalidRows.reduce((acc, invalidRow) => {
         invalidRow.errors.forEach(error => {
@@ -616,14 +684,14 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
         });
         return acc;
       }, {} as Record<string, number>);
-      
+
       const errorMessages = Object.entries(errorSummary)
         .map(([error, count]) => `${error} (${count} rows)`)
         .join(', ');
-      
+
       toast.warning(`⚠️ Skipped ${invalidRows.length} invalid rows: ${errorMessages}`);
     }
-    
+
     if (validRows.length === 0) {
       throw new Error("No valid rows found to upload. Please check your data and try again.");
     }
@@ -654,6 +722,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
         count: validRows.length,
         validRows: validRows.length,
         invalidRows: invalidRows.length,
+        skippedDuplicates: skippedDuplicates.length,
         totalRows: rows.length,
         errorDetails: invalidRows
       },
@@ -1826,6 +1895,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                   <li>✅ <strong>Auto-extracts:</strong> Block from pile name (e.g., "A1" from "A1.005.03")</li>
                   <li>✅ Columns can be in any order - case-insensitive matching</li>
                   <li>✅ <strong>Skips invalid rows</strong> - uploads valid data even if some rows have errors</li>
+                  <li>✅ <strong>Skips duplicates</strong> - piles with same number + embedment won't be uploaded twice</li>
                   <li>⚠️ Minimum required columns: Name (or Pile ID), Machine, Start Date, Start Time, Stop Time, Duration, Start Z(Feet), End Z(Feet)</li>
                   <li>📅 Dates auto-convert from various formats (MM/DD/YYYY, Excel serial dates)</li>
                 </ul>
