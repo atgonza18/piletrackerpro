@@ -79,6 +79,9 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     regexPattern: ''
   });
 
+  // Pile Type source preference: 'csv' or 'lookup'
+  const [pileTypeSource, setPileTypeSource] = useState<'csv' | 'lookup'>('lookup');
+
   const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -266,7 +269,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       }, 500);
 
       // Process the data and insert into Supabase with user-selected mapping
-      const { data, error } = await processAndUploadData(fileData, projectId, columnMapping);
+      const { data, error } = await processAndUploadData(fileData, projectId, columnMapping, pileTypeSource);
 
       clearInterval(progressInterval);
 
@@ -502,7 +505,8 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
   const processAndUploadData = async (
     csvData: string[][],
     projectId: string,
-    userMapping: typeof columnMapping
+    userMapping: typeof columnMapping,
+    pileTypeSourcePreference: 'csv' | 'lookup'
   ) => {
     // Get header row and data rows
     const header = csvData[0];
@@ -615,7 +619,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     let unmatchedCount = 0;
 
     rows.forEach((row, index) => {
-      const validation = validateRow(row, index + 2, columnMapping, new Set(), new Set(), pileLookupMaps, pileIdPattern, blockPattern); // +2 because CSV is 1-indexed and we skip header
+      const validation = validateRow(row, index + 2, columnMapping, new Set(), new Set(), pileLookupMaps, pileIdPattern, blockPattern, pileTypeSourcePreference); // +2 because CSV is 1-indexed and we skip header
 
       if (validation.isValid && validation.pileData) {
         // Check if this pile_number + embedment combination already exists
@@ -739,7 +743,8 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     seenPileNumbers: Set<string>,
     pileLookupMaps: { exactMap: Map<string, any>, normalizedMap: Map<string, any> },
     pileIdPatternConfig: typeof pileIdPattern,
-    blockPatternConfig: typeof blockPattern
+    blockPatternConfig: typeof blockPattern,
+    pileTypeSourcePreference: 'csv' | 'lookup'
   ) => {
     const { exactMap, normalizedMap } = pileLookupMaps;
     const errors: string[] = [];
@@ -823,9 +828,18 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     }
 
     // 5. Lookup Pile Type and Design Embedment from pile lookup data
-    let pileType = getColumnValue('pile_type'); // Try to get from CSV first
+    let pileType: string | null = null;
     let designEmbedment = getNumericValue('design_embedment'); // Try to get from CSV first
     let matchedVia = null; // Track how we matched for debugging
+
+    // Handle pile type based on user preference
+    if (pileTypeSourcePreference === 'csv') {
+      // User wants pile type from CSV column
+      pileType = getColumnValue('pile_type');
+    } else {
+      // User wants pile type from pile plot plan (lookup)
+      pileType = null; // Start with null, will be filled by lookup
+    }
 
     if (pileIdValue) {
       let lookupData = null;
@@ -858,15 +872,17 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
 
       // Apply the lookup data if found
       if (lookupData) {
-        if (!pileType && lookupData.pile_type) {
+        // Only use lookup pile type if user preference is 'lookup' and we don't have it yet
+        if (pileTypeSourcePreference === 'lookup' && !pileType && lookupData.pile_type) {
           pileType = lookupData.pile_type;
         }
+        // Always use lookup for design embedment if not provided in CSV
         if (designEmbedment === null && lookupData.design_embedment !== null) {
           designEmbedment = lookupData.design_embedment;
         }
         // Log successful matches for debugging
         if (rowIndex <= 5) {
-          console.log(`✅ Matched "${pileIdValue}" via ${matchedVia}, got type: ${pileType}`);
+          console.log(`✅ Matched "${pileIdValue}" via ${matchedVia}, got type: ${pileType} (source: ${pileTypeSourcePreference})`);
         }
       }
     }
@@ -1664,28 +1680,69 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                         <p className="text-xs text-slate-500">If not selected, will be looked up from pile_lookup_data table</p>
                       </div>
 
-                      {/* Pile Type (can override lookup) */}
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
-                          Pile Type
-                          <span className="text-xs text-blue-600 font-normal">(Looked up from Pile Plot)</span>
+                      {/* Pile Type Source Selection */}
+                      <div className="space-y-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <label className="text-sm font-medium text-slate-700">
+                          Pile Type Data Source
                         </label>
-                        <Select
-                          value={columnMapping.pileType}
-                          onValueChange={(value) => setColumnMapping(prev => ({ ...prev, pileType: value }))}
-                        >
-                          <SelectTrigger className="bg-white">
-                            <SelectValue placeholder="Auto-looked up (optional override)" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">-- Auto-Lookup --</SelectItem>
-                            {headers.map((header, index) => (
-                              <SelectItem key={`piletype-${index}`} value={header}>{header}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <p className="text-xs text-slate-500">If not selected, will be looked up from pile_lookup_data table</p>
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="pileTypeSource"
+                              value="lookup"
+                              checked={pileTypeSource === 'lookup'}
+                              onChange={(e) => {
+                                setPileTypeSource('lookup');
+                                // Clear the CSV column mapping when switching to lookup
+                                setColumnMapping(prev => ({ ...prev, pileType: '' }));
+                              }}
+                              className="w-4 h-4 text-blue-600"
+                            />
+                            <span className="text-sm text-slate-700">
+                              <strong>Pile Plot Plan</strong> - Look up from pile_lookup_data table
+                            </span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="pileTypeSource"
+                              value="csv"
+                              checked={pileTypeSource === 'csv'}
+                              onChange={(e) => setPileTypeSource('csv')}
+                              className="w-4 h-4 text-blue-600"
+                            />
+                            <span className="text-sm text-slate-700">
+                              <strong>GPS CSV</strong> - Use column from uploaded file
+                            </span>
+                          </label>
+                        </div>
                       </div>
+
+                      {/* Pile Type Column Mapping (only shown when CSV source is selected) */}
+                      {pileTypeSource === 'csv' && (
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                            Pile Type Column
+                            <span className="text-xs text-green-600 font-normal">(from GPS CSV)</span>
+                          </label>
+                          <Select
+                            value={columnMapping.pileType}
+                            onValueChange={(value) => setColumnMapping(prev => ({ ...prev, pileType: value }))}
+                          >
+                            <SelectTrigger className="bg-white">
+                              <SelectValue placeholder="Select column for Pile Type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">-- None --</SelectItem>
+                              {headers.map((header, index) => (
+                                <SelectItem key={`piletype-${index}`} value={header}>{header}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-slate-500">Select the column that contains pile type in your GPS CSV</p>
+                        </div>
+                      )}
 
                       {/* Gain per 30 seconds (can override calculation) */}
                       <div className="space-y-2">
@@ -1719,7 +1776,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                       <li>• <strong>Actual Embedment (ft):</strong> Start Z - End Z</li>
                       <li>• <strong>Embedment (inches):</strong> Embedment × 12</li>
                       <li>• <strong>Gain/30 seconds:</strong> Embedment (in) / (Duration (seconds) / 30)</li>
-                      <li>• <strong>Pile Type:</strong> Looked up from pile_lookup_data by Pile ID</li>
+                      <li>• <strong>Pile Type:</strong> {pileTypeSource === 'csv' ? 'From GPS CSV column' : 'Looked up from pile_lookup_data by Pile ID'}</li>
                       <li>• <strong>Design Embedment:</strong> Looked up from pile_lookup_data by Pile ID</li>
                       <li>• <strong>Block:</strong> Auto-extracted from Pile Number (e.g., "A1" from "A1.005.03")</li>
                       <li>• <strong>Embedment w/ Tolerance:</strong> Design Embedment - 1</li>
