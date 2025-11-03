@@ -45,6 +45,7 @@ src/
 │   ├── blocks/            # Block management
 │   ├── settings/          # User/project settings
 │   ├── project-setup/     # New project creation
+│   ├── field-entry/       # Mobile-optimized field data entry form
 │   ├── icon.tsx           # App favicon (edge runtime)
 │   ├── layout.tsx         # Root layout with provider wrapping
 │   └── page.tsx           # Landing/home page
@@ -56,7 +57,8 @@ src/
 │   ├── EditPileModal.tsx
 │   ├── ProjectSelector.tsx
 │   ├── DeleteAllPilesButton.tsx
-│   └── NavigationProgress.tsx
+│   ├── NavigationProgress.tsx
+│   └── FieldEntryQRCode.tsx
 ├── context/              # React Context providers
 │   ├── AuthContext.tsx
 │   ├── ThemeContext.tsx
@@ -87,15 +89,17 @@ Database setup files:
 3. `db_migration_embedment_tolerance.sql` - Tolerance fields
 4. `db_migration_invitations.sql` - Invitation system with token security
 5. `db_email_trigger.sql` - Email trigger system
-6. `supabase-rls-fix.sql` - Row Level Security fixes
-7. `db_performance_indexes.sql` - Performance optimization indexes
-8. `db_migration_pile_lookup_table.sql` - Pile lookup table migration
-9. `db_migration_zone_to_pile_type.sql` - Zone to pile type migration
-10. `db_migration_add_pile_location.sql` - Pile location field
-11. `db_migration_remove_pile_unique_constraint.sql` - Allow duplicate pile names
-12. `db_migration_combined_piles.sql` - Combined pile data migrations
+6. `db_performance_indexes.sql` - Performance optimization indexes
+7. `db_migration_pile_lookup_table.sql` - Pile lookup table migration
+8. `db_migration_zone_to_pile_type.sql` - Zone to pile type migration
+9. `db_migration_add_pile_location.sql` - Pile location field
+10. `db_migration_remove_pile_unique_constraint.sql` - Allow duplicate pile names
+11. `db_migration_combined_piles.sql` - Combined pile data migrations
+12. `db_migration_add_inspector_name.sql` - Inspector name field for field entry
 13. `db_create_statistics_function.sql` - Statistics calculation function
 14. `db_fix_project_insert_policy.sql` - Project creation RLS fixes
+15. `db_fix_project_insert_policy_epc_only.sql` - Additional project creation fixes
+16. `db_final_project_creation_fix.sql` - Final project creation RLS policies
 
 **Important**: All tables use Row Level Security (RLS). Users can only access data for projects they're associated with via `user_projects` table. When querying blocks, use separate count queries per block for accuracy rather than filtering in-memory.
 
@@ -181,6 +185,15 @@ RESEND_API_KEY=your_resend_key                 # Option 3: Resend (production)
 - Tracks same metrics as block system: refusal, tolerance, slow drive time
 - Supports "Uncategorized" type for piles without a pile_type assigned
 - Uses separate database count queries per pile type for RLS accuracy
+
+### Field Entry System
+- Page at `src/app/field-entry/page.tsx` for mobile-optimized data entry
+- Designed for field inspectors to quickly enter pile data on mobile devices
+- QR code generation via `FieldEntryQRCode.tsx` component for easy mobile access
+- Accessed via URL parameter: `/field-entry?project={projectId}`
+- Supports all pile fields including inspector name, times, embedment, and notes
+- Form auto-populates with sensible defaults (today's date, pending status)
+- Real-time form validation with immediate feedback
 
 ## Development Guidelines
 

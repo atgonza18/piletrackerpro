@@ -4,12 +4,13 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { LogOut, List, BarChart3, Settings, User, Bell, FileText, MapPin, Box } from "lucide-react";
+import { LogOut, List, BarChart3, Settings, User, Bell, FileText, MapPin, Box, TrendingUp, CheckCircle, AlertTriangle, Clock } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAccountType } from "@/context/AccountTypeContext";
+import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface ProjectData {
   id: string;
@@ -34,10 +35,14 @@ export default function DashboardPage() {
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
   const [totalPiles, setTotalPiles] = useState(0);
   const [pendingPiles, setPendingPiles] = useState(0);
+  const [acceptedPiles, setAcceptedPiles] = useState(0);
+  const [refusalPiles, setRefusalPiles] = useState(0);
   const [completedPilesPercent, setCompletedPilesPercent] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
   const [embedmentTolerance, setEmbedmentTolerance] = useState(1);
+  const [blockData, setBlockData] = useState<any[]>([]);
+  const [timelineData, setTimelineData] = useState<any[]>([]);
 
   useEffect(() => {
     // Wait for auth to finish loading before making decisions
@@ -102,80 +107,158 @@ export default function DashboardPage() {
 
               // Optimized pile statistics loading using SQL aggregation
               const tolerance = project.embedment_tolerance || 1;
-              
+
               // Use Supabase RPC function for efficient aggregation
               console.log('Loading pile statistics for project:', project.id);
-              
+
               try {
-                const { data: stats, error: statsError } = await supabase
-                  .rpc('get_pile_statistics', {
-                    project_id_param: project.id,
-                    tolerance_param: tolerance
-                  })
-                  .single();
-                
-                if (statsError) {
-                  console.error('RPC function error:', statsError);
-                  console.log('Using fallback method for statistics');
-                  
-                  // Simplified fallback - just get total count
-                  const { count: totalCount, error: countError } = await supabase
+                // First get total count of piles
+                const { count: totalCount } = await supabase
+                  .from('piles')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('project_id', project.id);
+
+                console.log(`Total piles in database: ${totalCount}`);
+
+                // Fetch all pile data for detailed charts with pagination
+                const pageSize = 1000;
+                const totalPages = Math.ceil((totalCount || 0) / pageSize);
+                console.log(`Loading ${totalCount} piles in ${totalPages} parallel requests`);
+
+                // Create array of page numbers
+                const pageNumbers = Array.from({ length: totalPages }, (_, i) => i);
+
+                console.log('Fetching pages in parallel...');
+                // Fetch all pages in parallel
+                const pagePromises = pageNumbers.map(async (pageNum) => {
+                  const from = pageNum * pageSize;
+                  const to = from + pageSize - 1;
+
+                  const { data, error } = await supabase
                     .from('piles')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('project_id', project.id);
-                  
-                  if (countError) {
-                    console.error('Count query error:', countError);
-                    setTotalPiles(0);
-                    setPendingPiles(0);
-                    setCompletedPilesPercent(0);
-                  } else {
-                    console.log('Total piles count:', totalCount);
-                    setTotalPiles(totalCount || 0);
-                    
-                    // For embedment issues in fallback, we'll need to fetch minimal data
-                    // Only get embedment fields, not entire records
-                    const { data: embedmentData, error: embedError } = await supabase
-                      .from('piles')
-                      .select('embedment, design_embedment')
-                      .eq('project_id', project.id)
-                      .not('embedment', 'is', null)
-                      .not('design_embedment', 'is', null);
-                    
-                    if (embedError) {
-                      console.error('Embedment query error:', embedError);
-                      setPendingPiles(0);
-                    } else if (embedmentData) {
-                      // Calculate refusals in JavaScript
-                      const refusals = embedmentData.filter((pile: any) => {
-                        const emb = parseFloat(pile.embedment);
-                        const design = parseFloat(pile.design_embedment);
-                        return !isNaN(emb) && !isNaN(design) && emb < (design - tolerance);
-                      }).length;
-                      
-                      console.log('Calculated refusals:', refusals);
-                      setPendingPiles(refusals);
-                    }
-                    
-                    const completionPercent = project.total_project_piles > 0 
-                      ? Math.round(((totalCount || 0) / project.total_project_piles) * 100) 
-                      : 0;
-                    setCompletedPilesPercent(completionPercent);
+                    .select('embedment, design_embedment, block, pile_type, start_date, created_at')
+                    .eq('project_id', project.id)
+                    .range(from, to);
+
+                  if (error) {
+                    console.error(`Error fetching page ${pageNum + 1}:`, error);
+                    return [];
                   }
-                } else if (stats) {
-                  // RPC function succeeded
-                  console.log('RPC stats received:', stats);
-                  setTotalPiles(stats.total_piles || 0);
-                  setPendingPiles(stats.refusal_piles || 0);
-                  
-                  const completionPercent = project.total_project_piles > 0 
-                    ? Math.round((stats.total_piles / project.total_project_piles) * 100) 
+
+                  return data || [];
+                });
+
+                const allPagesData = await Promise.all(pagePromises);
+                const allPiles = allPagesData.flat();
+
+                console.log(`Successfully loaded ${allPiles.length} of ${totalCount} piles`);
+
+                if (allPiles.length > 0) {
+                  // Calculate pile status distribution
+                  let accepted = 0;
+                  let refusals = 0;
+                  let pending = 0;
+
+                  allPiles.forEach((pile: any) => {
+                    if (!pile.embedment || !pile.design_embedment) {
+                      pending++;
+                    } else {
+                      const emb = parseFloat(pile.embedment);
+                      const design = parseFloat(pile.design_embedment);
+
+                      if (!isNaN(emb) && !isNaN(design)) {
+                        if (emb >= design) {
+                          accepted++;
+                        } else if (emb < (design - tolerance)) {
+                          refusals++;
+                        } else {
+                          accepted++; // Within tolerance
+                        }
+                      } else {
+                        pending++;
+                      }
+                    }
+                  });
+
+                  setTotalPiles(allPiles.length);
+                  setAcceptedPiles(accepted);
+                  setRefusalPiles(refusals);
+                  setPendingPiles(pending);
+
+                  const completionPercent = project.total_project_piles > 0
+                    ? Math.round((allPiles.length / project.total_project_piles) * 100)
                     : 0;
                   setCompletedPilesPercent(completionPercent);
+
+                  // Calculate block-wise statistics
+                  const blockStats: { [key: string]: { total: number; accepted: number; refusals: number; pending: number } } = {};
+
+                  allPiles.forEach((pile: any) => {
+                    const block = pile.block || 'Uncategorized';
+                    if (!blockStats[block]) {
+                      blockStats[block] = { total: 0, accepted: 0, refusals: 0, pending: 0 };
+                    }
+                    blockStats[block].total++;
+
+                    if (!pile.embedment || !pile.design_embedment) {
+                      blockStats[block].pending++;
+                    } else {
+                      const emb = parseFloat(pile.embedment);
+                      const design = parseFloat(pile.design_embedment);
+
+                      if (!isNaN(emb) && !isNaN(design)) {
+                        if (emb >= design) {
+                          blockStats[block].accepted++;
+                        } else if (emb < (design - tolerance)) {
+                          blockStats[block].refusals++;
+                        } else {
+                          blockStats[block].accepted++; // Within tolerance
+                        }
+                      } else {
+                        blockStats[block].pending++;
+                      }
+                    }
+                  });
+
+                  // Convert to array for chart
+                  const blockChartData = Object.entries(blockStats)
+                    .map(([name, stats]) => ({
+                      name,
+                      ...stats
+                    }))
+                    .sort((a, b) => b.total - a.total)
+                    .slice(0, 10); // Top 10 blocks
+
+                  setBlockData(blockChartData);
+
+                  // Calculate timeline data (piles installed per week)
+                  const timelineStats: { [key: string]: number } = {};
+
+                  allPiles.forEach((pile: any) => {
+                    const date = pile.start_date || pile.created_at;
+                    if (date) {
+                      const d = new Date(date);
+                      const weekStart = new Date(d.setDate(d.getDate() - d.getDay()));
+                      const weekKey = weekStart.toISOString().split('T')[0];
+                      timelineStats[weekKey] = (timelineStats[weekKey] || 0) + 1;
+                    }
+                  });
+
+                  const timelineChartData = Object.entries(timelineStats)
+                    .map(([date, count]) => ({
+                      date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                      piles: count
+                    }))
+                    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                    .slice(-12); // Last 12 weeks
+
+                  setTimelineData(timelineChartData);
                 }
               } catch (err) {
                 console.error('Unexpected error loading statistics:', err);
                 setTotalPiles(0);
+                setAcceptedPiles(0);
+                setRefusalPiles(0);
                 setPendingPiles(0);
                 setCompletedPilesPercent(0);
               } finally {
@@ -220,67 +303,148 @@ export default function DashboardPage() {
     try {
       const tolerance = embedmentTolerance;
       console.log('Refreshing dashboard data for project:', projectData.id);
-      
-      // Try to use RPC function for efficient aggregation
-      const { data: stats, error: statsError } = await supabase
-        .rpc('get_pile_statistics', {
-          project_id_param: projectData.id,
-          tolerance_param: tolerance
-        })
-        .single();
-      
-      if (statsError) {
-        console.error('RPC error on refresh:', statsError);
-        console.log('Using fallback method for refresh');
-        
-        // Simplified fallback
-        const { count: totalCount, error: countError } = await supabase
+
+      // First get total count of piles
+      const { count: totalCount } = await supabase
+        .from('piles')
+        .select('*', { count: 'exact', head: true })
+        .eq('project_id', projectData.id);
+
+      console.log(`Total piles in database: ${totalCount}`);
+
+      // Fetch all pile data for detailed charts with pagination
+      const pageSize = 1000;
+      const totalPages = Math.ceil((totalCount || 0) / pageSize);
+      console.log(`Loading ${totalCount} piles in ${totalPages} parallel requests`);
+
+      // Create array of page numbers
+      const pageNumbers = Array.from({ length: totalPages }, (_, i) => i);
+
+      console.log('Fetching pages in parallel...');
+      // Fetch all pages in parallel
+      const pagePromises = pageNumbers.map(async (pageNum) => {
+        const from = pageNum * pageSize;
+        const to = from + pageSize - 1;
+
+        const { data, error } = await supabase
           .from('piles')
-          .select('*', { count: 'exact', head: true })
-          .eq('project_id', projectData.id);
-        
-        if (countError) {
-          console.error('Count error on refresh:', countError);
-          return;
-        }
-        
-        setTotalPiles(totalCount || 0);
-        
-        // Get minimal embedment data for calculations
-        const { data: embedmentData, error: embedError } = await supabase
-          .from('piles')
-          .select('embedment, design_embedment')
+          .select('embedment, design_embedment, block, pile_type, start_date, created_at')
           .eq('project_id', projectData.id)
-          .not('embedment', 'is', null)
-          .not('design_embedment', 'is', null);
-        
-        if (embedError) {
-          console.error('Embedment query error on refresh:', embedError);
-          setPendingPiles(0);
-        } else if (embedmentData) {
-          const refusals = embedmentData.filter((pile: any) => {
+          .range(from, to);
+
+        if (error) {
+          console.error(`Error fetching page ${pageNum + 1}:`, error);
+          return [];
+        }
+
+        return data || [];
+      });
+
+      const allPagesData = await Promise.all(pagePromises);
+      const allPiles = allPagesData.flat();
+
+      console.log(`Successfully loaded ${allPiles.length} of ${totalCount} piles for refresh`);
+
+      if (allPiles.length > 0) {
+        // Calculate pile status distribution
+        let accepted = 0;
+        let refusals = 0;
+        let pending = 0;
+
+        allPiles.forEach((pile: any) => {
+          if (!pile.embedment || !pile.design_embedment) {
+            pending++;
+          } else {
             const emb = parseFloat(pile.embedment);
             const design = parseFloat(pile.design_embedment);
-            return !isNaN(emb) && !isNaN(design) && emb < (design - tolerance);
-          }).length;
-          
-          setPendingPiles(refusals);
-        }
-        
-        const completionPercent = projectData.total_project_piles > 0 
-          ? Math.round(((totalCount || 0) / projectData.total_project_piles) * 100) 
+
+            if (!isNaN(emb) && !isNaN(design)) {
+              if (emb >= design) {
+                accepted++;
+              } else if (emb < (design - tolerance)) {
+                refusals++;
+              } else {
+                accepted++; // Within tolerance
+              }
+            } else {
+              pending++;
+            }
+          }
+        });
+
+        setTotalPiles(allPiles.length);
+        setAcceptedPiles(accepted);
+        setRefusalPiles(refusals);
+        setPendingPiles(pending);
+
+        const completionPercent = projectData.total_project_piles > 0
+          ? Math.round((allPiles.length / projectData.total_project_piles) * 100)
           : 0;
         setCompletedPilesPercent(completionPercent);
-      } else if (stats) {
-        // RPC succeeded
-        console.log('Refresh stats received:', stats);
-        setTotalPiles(stats.total_piles || 0);
-        setPendingPiles(stats.refusal_piles || 0);
-        
-        const completionPercent = projectData.total_project_piles > 0 
-          ? Math.round((stats.total_piles / projectData.total_project_piles) * 100) 
-          : 0;
-        setCompletedPilesPercent(completionPercent);
+
+        // Calculate block-wise statistics
+        const blockStats: { [key: string]: { total: number; accepted: number; refusals: number; pending: number } } = {};
+
+        allPiles.forEach((pile: any) => {
+          const block = pile.block || 'Uncategorized';
+          if (!blockStats[block]) {
+            blockStats[block] = { total: 0, accepted: 0, refusals: 0, pending: 0 };
+          }
+          blockStats[block].total++;
+
+          if (!pile.embedment || !pile.design_embedment) {
+            blockStats[block].pending++;
+          } else {
+            const emb = parseFloat(pile.embedment);
+            const design = parseFloat(pile.design_embedment);
+
+            if (!isNaN(emb) && !isNaN(design)) {
+              if (emb >= design) {
+                blockStats[block].accepted++;
+              } else if (emb < (design - tolerance)) {
+                blockStats[block].refusals++;
+              } else {
+                blockStats[block].accepted++; // Within tolerance
+              }
+            } else {
+              blockStats[block].pending++;
+            }
+          }
+        });
+
+        // Convert to array for chart
+        const blockChartData = Object.entries(blockStats)
+          .map(([name, stats]) => ({
+            name,
+            ...stats
+          }))
+          .sort((a, b) => b.total - a.total)
+          .slice(0, 10); // Top 10 blocks
+
+        setBlockData(blockChartData);
+
+        // Calculate timeline data (piles installed per week)
+        const timelineStats: { [key: string]: number } = {};
+
+        allPiles.forEach((pile: any) => {
+          const date = pile.start_date || pile.created_at;
+          if (date) {
+            const d = new Date(date);
+            const weekStart = new Date(d.setDate(d.getDate() - d.getDay()));
+            const weekKey = weekStart.toISOString().split('T')[0];
+            timelineStats[weekKey] = (timelineStats[weekKey] || 0) + 1;
+          }
+        });
+
+        const timelineChartData = Object.entries(timelineStats)
+          .map(([date, count]) => ({
+            date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            piles: count
+          }))
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+          .slice(-12); // Last 12 weeks
+
+        setTimelineData(timelineChartData);
       }
     } catch (error) {
       console.error("Error refreshing dashboard data:", error);
@@ -457,123 +621,314 @@ export default function DashboardPage() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
               <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
                 <CardHeader className="pb-1 p-3">
-                  <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">Project Name</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 pt-0">
-                  <div className="text-sm font-bold text-slate-900 dark:text-white">{projectData?.project_name || "Loading..."}</div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{projectData?.project_location || ""}</p>
-                </CardContent>
-              </Card>
-              
-              <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
-                <CardHeader className="pb-1 p-3">
-                  <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">Total Piles</CardTitle>
+                  <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                    <CheckCircle size={12} />
+                    Accepted Piles
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="p-3 pt-0">
                   {statsLoading ? (
                     <>
-                      <div className="h-5 w-20 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
+                      <div className="h-6 w-16 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
+                      <div className="h-3 w-20 bg-slate-200 dark:bg-slate-700 rounded animate-pulse mt-1"></div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{acceptedPiles}</div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        {totalPiles > 0 ? Math.round((acceptedPiles / totalPiles) * 100) : 0}% of total
+                      </p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+                <CardHeader className="pb-1 p-3">
+                  <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                    <AlertTriangle size={12} />
+                    Refusal Piles
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 pt-0">
+                  {statsLoading ? (
+                    <>
+                      <div className="h-6 w-16 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
+                      <div className="h-3 w-20 bg-slate-200 dark:bg-slate-700 rounded animate-pulse mt-1"></div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-xl font-bold text-purple-500 dark:text-purple-400">{refusalPiles}</div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        {totalPiles > 0 ? Math.round((refusalPiles / totalPiles) * 100) : 0}% of total
+                      </p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+                <CardHeader className="pb-1 p-3">
+                  <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                    <Clock size={12} />
+                    Pending Piles
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 pt-0">
+                  {statsLoading ? (
+                    <>
+                      <div className="h-6 w-16 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
+                      <div className="h-3 w-20 bg-slate-200 dark:bg-slate-700 rounded animate-pulse mt-1"></div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-xl font-bold text-amber-600 dark:text-amber-400">{pendingPiles}</div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        {totalPiles > 0 ? Math.round((pendingPiles / totalPiles) * 100) : 0}% of total
+                      </p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+                <CardHeader className="pb-1 p-3">
+                  <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                    <TrendingUp size={12} />
+                    Progress
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3 pt-0">
+                  {statsLoading ? (
+                    <>
+                      <div className="h-6 w-16 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
                       <div className="h-3 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse mt-1"></div>
                     </>
                   ) : (
                     <>
-                      <div className="text-sm font-bold text-slate-900 dark:text-white">{totalPiles} / {projectData?.total_project_piles || "..."}</div>
+                      <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{completedPilesPercent}%</div>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        {completedPilesPercent}% of planned piles
+                        {totalPiles} / {projectData?.total_project_piles || 0} piles
                       </p>
                     </>
                   )}
-                </CardContent>
-              </Card>
-              
-              <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
-                <CardHeader className="pb-1 p-3">
-                  <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">Embedment Issues</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 pt-0">
-                  {statsLoading ? (
-                    <>
-                      <div className="h-5 w-12 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
-                      <div className="h-3 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse mt-1"></div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="text-sm font-bold text-amber-500">{pendingPiles}</div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        Piles with shallow embedment
-                      </p>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-              
-              <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
-                <CardHeader className="pb-1 p-3">
-                  <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">Geotechnical Company</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 pt-0">
-                  <div className="text-sm font-bold text-slate-900 dark:text-white">{projectData?.geotech_company || "Loading..."}</div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    {projectData?.role || ""}
-                  </p>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Content panels */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-              <div className="lg:col-span-2">
-                <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
-                  <CardHeader className="p-3">
-                    <CardTitle className="text-sm">Recent Activity</CardTitle>
-                    <CardDescription className="text-xs">Latest updates to your piles</CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-3 pt-0">
-                    <div className="space-y-2">
-                      <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-700/40">
-                        <div className="text-slate-900 dark:text-white font-medium text-xs">No recent activity</div>
-                        <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5">
-                          When you make changes to your piles, they&apos;ll appear here.
-                        </p>
-                      </div>
+            {/* Charts and Analytics */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3">
+              {/* Pile Status Distribution - Pie Chart */}
+              <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+                <CardHeader className="p-3">
+                  <CardTitle className="text-sm">Pile Status Distribution</CardTitle>
+                  <CardDescription className="text-xs">Breakdown by status</CardDescription>
+                </CardHeader>
+                <CardContent className="p-3 pt-0">
+                  {statsLoading ? (
+                    <div className="h-48 flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
-              
-              <div>
-                <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
-                  <CardHeader className="p-3">
-                    <CardTitle className="text-sm">Quick Actions</CardTitle>
-                    <CardDescription className="text-xs">Common tasks you can perform</CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-3 pt-0">
-                    <div className="space-y-2">
+                  ) : totalPiles > 0 ? (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: 'Accepted', value: acceptedPiles, color: '#3b82f6' },
+                            { name: 'Refusal', value: refusalPiles, color: '#a855f7' },
+                            { name: 'Pending', value: pendingPiles, color: '#f59e0b' }
+                          ]}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={80}
+                          paddingAngle={2}
+                          dataKey="value"
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          labelLine={false}
+                        >
+                          {[
+                            { name: 'Accepted', value: acceptedPiles, color: '#3b82f6' },
+                            { name: 'Refusal', value: refusalPiles, color: '#a855f7' },
+                            { name: 'Pending', value: pendingPiles, color: '#f59e0b' }
+                          ].map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            border: 'none',
+                            borderRadius: '8px',
+                            color: 'white'
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-48 flex items-center justify-center text-slate-400 text-xs">
+                      No pile data available
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Installation Timeline - Line Chart */}
+              <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800 lg:col-span-2">
+                <CardHeader className="p-3">
+                  <CardTitle className="text-sm">Installation Timeline</CardTitle>
+                  <CardDescription className="text-xs">Piles installed over time</CardDescription>
+                </CardHeader>
+                <CardContent className="p-3 pt-0">
+                  {statsLoading ? (
+                    <div className="h-48 flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                  ) : timelineData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <LineChart data={timelineData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis
+                          dataKey="date"
+                          tick={{ fontSize: 10 }}
+                          stroke="#64748b"
+                        />
+                        <YAxis
+                          tick={{ fontSize: 10 }}
+                          stroke="#64748b"
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            border: 'none',
+                            borderRadius: '8px',
+                            color: 'white',
+                            fontSize: '12px'
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="piles"
+                          stroke="#3b82f6"
+                          strokeWidth={2}
+                          dot={{ fill: '#3b82f6', r: 4 }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-48 flex items-center justify-center text-slate-400 text-xs">
+                      No timeline data available
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Block Statistics - Bar Chart */}
+            <div className="grid grid-cols-1 gap-3">
+              <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+                <CardHeader className="p-3">
+                  <CardTitle className="text-sm">Block Performance</CardTitle>
+                  <CardDescription className="text-xs">Top blocks by pile count and status</CardDescription>
+                </CardHeader>
+                <CardContent className="p-3 pt-0">
+                  {statsLoading ? (
+                    <div className="h-64 flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                    </div>
+                  ) : blockData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={blockData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis
+                          dataKey="name"
+                          tick={{ fontSize: 10 }}
+                          stroke="#64748b"
+                        />
+                        <YAxis
+                          tick={{ fontSize: 10 }}
+                          stroke="#64748b"
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            border: 'none',
+                            borderRadius: '8px',
+                            color: 'white',
+                            fontSize: '12px'
+                          }}
+                        />
+                        <Legend
+                          wrapperStyle={{ fontSize: '11px' }}
+                        />
+                        <Bar dataKey="accepted" name="Accepted" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="refusals" name="Refusal" fill="#a855f7" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="pending" name="Pending" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-64 flex items-center justify-center text-slate-400 text-xs">
+                      No block data available
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mt-3">
+              <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+                <CardHeader className="p-3">
+                  <CardTitle className="text-sm">Quick Actions</CardTitle>
+                  <CardDescription className="text-xs">Common tasks you can perform</CardDescription>
+                </CardHeader>
+                <CardContent className="p-3 pt-0">
+                  <div className="space-y-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 h-7 text-xs"
+                      onClick={() => handleNavigation('/my-piles')}
+                    >
+                      <List className="mr-1 h-3 w-3" />
+                      View All Piles
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 h-7 text-xs"
+                      onClick={() => handleNavigation('/blocks')}
+                    >
+                      <Box className="mr-1 h-3 w-3" />
+                      View Blocks
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-start text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 h-7 text-xs"
+                      onClick={() => handleNavigation('/zones')}
+                    >
+                      <MapPin className="mr-1 h-3 w-3" />
+                      View Pile Types
+                    </Button>
+
+                    {canEdit && (
                       <Button
                         variant="outline"
                         size="sm"
                         className="w-full justify-start text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 h-7 text-xs"
-                        onClick={() => handleNavigation('/my-piles')}
+                        onClick={() => handleNavigation('/settings')}
                       >
-                        <List className="mr-1 h-3 w-3" />
-                        View All Piles
+                        <Settings className="mr-1 h-3 w-3" />
+                        Project Settings
                       </Button>
-
-                      {canEdit && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full justify-start text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 h-7 text-xs"
-                          onClick={() => handleNavigation('/settings')}
-                        >
-                          <Settings className="mr-1 h-3 w-3" />
-                          Project Settings
-                        </Button>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </div>
         </main>

@@ -125,8 +125,8 @@ export default function ProjectSettingsPage() {
           setEmbedmentTolerance(projectData.embedment_tolerance.toString());
         }
 
-        // Load pile lookup count
-        loadPileLookupCount();
+        // Load pile lookup count (pass projectId directly since state isn't updated yet)
+        loadPileLookupCount(projectData.id);
       } catch (error) {
         console.error("Error loading project settings:", error);
         toast.error("Failed to load project settings");
@@ -138,14 +138,15 @@ export default function ProjectSettingsPage() {
     loadProjectSettings();
   }, [user, router, authLoading]);
 
-  const loadPileLookupCount = async () => {
-    if (!projectId) return;
+  const loadPileLookupCount = async (pId?: string) => {
+    const idToUse = pId || projectId;
+    if (!idToUse) return;
 
     try {
       const { count, error } = await supabase
         .from('pile_lookup_data')
         .select('*', { count: 'exact', head: true })
-        .eq('project_id', projectId);
+        .eq('project_id', idToUse);
 
       if (error) {
         console.error('Error loading pile lookup count:', error);

@@ -106,6 +106,7 @@ export default function MyPilesPage() {
   const [refusalPiles, setRefusalPiles] = useState(0);
   const [pendingPiles, setPendingPiles] = useState(0);
   const [duplicatePileIds, setDuplicatePileIds] = useState<Set<string>>(new Set());
+  const [superDuplicatePileIds, setSuperDuplicatePileIds] = useState<Set<string>>(new Set());
   const [isDeleteDuplicatesDialogOpen, setIsDeleteDuplicatesDialogOpen] = useState(false);
   const [isDeletingDuplicates, setIsDeletingDuplicates] = useState(false);
   const [isDeleteLowerDuplicatesDialogOpen, setIsDeleteLowerDuplicatesDialogOpen] = useState(false);
@@ -123,6 +124,7 @@ export default function MyPilesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [blockFilter, setBlockFilter] = useState("all");
   const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
+  const [showSuperDuplicatesOnly, setShowSuperDuplicatesOnly] = useState(false);
   const [showMissingPilesOnly, setShowMissingPilesOnly] = useState(false);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
@@ -359,9 +361,10 @@ export default function MyPilesPage() {
               setProjectData(project);
               
               // Load embedment tolerance from project settings if available
-              if (project.embedment_tolerance !== undefined && project.embedment_tolerance !== null) {
-                setEmbedmentTolerance(project.embedment_tolerance);
-              }
+              const projectTolerance = (project.embedment_tolerance !== undefined && project.embedment_tolerance !== null)
+                ? project.embedment_tolerance
+                : 1; // Default to 1 if not set
+              setEmbedmentTolerance(projectTolerance);
               
               // Get piles data - first get the count
               const { count, error: countError } = await supabase
@@ -457,19 +460,19 @@ export default function MyPilesPage() {
                 )).sort();
                 setUniqueBlocks(blocks);
                 
-                // Calculate status counts based on embedment criteria
-                const accepted = uniquePiles.filter((pile: PileData) => 
-                  getPileStatus(pile) === 'accepted'
+                // Calculate status counts based on embedment criteria using the project tolerance
+                const accepted = uniquePiles.filter((pile: PileData) =>
+                  getPileStatus(pile, projectTolerance) === 'accepted'
                 ).length;
-                
-                const refusals = uniquePiles.filter((pile: PileData) => 
-                  getPileStatus(pile) === 'refusal'
+
+                const refusals = uniquePiles.filter((pile: PileData) =>
+                  getPileStatus(pile, projectTolerance) === 'refusal'
                 ).length;
-                
-                const pending = uniquePiles.filter((pile: PileData) => 
-                  getPileStatus(pile) === 'pending'
+
+                const pending = uniquePiles.filter((pile: PileData) =>
+                  getPileStatus(pile, projectTolerance) === 'pending'
                 ).length;
-                
+
                 setAcceptedPiles(accepted);
                 setRefusalPiles(refusals);
                 setPendingPiles(pending);
@@ -590,23 +593,32 @@ export default function MyPilesPage() {
   }, [user, router, authLoading]);
 
   useEffect(() => {
-    // Find duplicate pile IDs
+    // Find duplicate pile IDs and super duplicate pile IDs (3+ instances)
     const findDuplicates = () => {
       const pileIdCounts: Record<string, number> = {};
       const duplicates = new Set<string>();
-      
+      const superDuplicates = new Set<string>();
+
       piles.forEach(pile => {
         if (pile.pile_id) {
           pileIdCounts[pile.pile_id] = (pileIdCounts[pile.pile_id] || 0) + 1;
-          if (pileIdCounts[pile.pile_id] > 1) {
-            duplicates.add(pile.pile_id);
-          }
         }
       });
-      
+
+      // Identify duplicates (2+) and super duplicates (3+)
+      Object.entries(pileIdCounts).forEach(([pileId, count]) => {
+        if (count > 1) {
+          duplicates.add(pileId);
+        }
+        if (count > 2) {
+          superDuplicates.add(pileId);
+        }
+      });
+
       setDuplicatePileIds(duplicates);
+      setSuperDuplicatePileIds(superDuplicates);
     };
-    
+
     findDuplicates();
   }, [piles]);
 
@@ -696,6 +708,9 @@ export default function MyPilesPage() {
     // Apply missing piles filter - use pre-computed placeholders
     if (showMissingPilesOnly && missingPilePlaceholders.length > 0) {
       filtered = missingPilePlaceholders;
+    } else if (showSuperDuplicatesOnly) {
+      // Apply super duplicates filter (3+ duplicates, mutually exclusive with other filters)
+      filtered = filtered.filter(pile => pile.pile_id && superDuplicatePileIds.has(pile.pile_id));
     } else if (showDuplicatesOnly) {
       // Apply duplicates filter (mutually exclusive with missing piles filter)
       filtered = filtered.filter(pile => pile.pile_id && duplicatePileIds.has(pile.pile_id));
@@ -749,9 +764,9 @@ export default function MyPilesPage() {
       );
     }
     
-    // Only sort and group duplicates if showing duplicates or no other filters are active
+    // Only sort and group duplicates if showing duplicates or super duplicates
     // This prevents the sorting from disrupting block/status filtering
-    if (showDuplicatesOnly) {
+    if (showDuplicatesOnly || showSuperDuplicatesOnly) {
       filtered = sortAndGroupDuplicates(filtered);
     } else {
       // For normal filtering, just sort by pile_id to keep consistent ordering
@@ -765,35 +780,54 @@ export default function MyPilesPage() {
     setFilteredPiles(filtered);
     // Reset to first page when filters change
     setCurrentPage(1);
-  }, [piles, searchQuery, statusFilter, blockFilter, startDate, endDate, embedmentTolerance, duplicatePileIds, showDuplicatesOnly, showMissingPilesOnly, missingPileIds, pileLookupData]);
+  }, [piles, searchQuery, statusFilter, blockFilter, startDate, endDate, embedmentTolerance, duplicatePileIds, superDuplicatePileIds, showDuplicatesOnly, showSuperDuplicatesOnly, showMissingPilesOnly, missingPileIds, pileLookupData]);
 
   // Update statistics based on filtered piles
   useEffect(() => {
     // Only update stats if filters are actually active, otherwise keep total stats
     const hasActiveFilters = statusFilter !== "all" || blockFilter !== "all" ||
-                            showDuplicatesOnly || showMissingPilesOnly || searchQuery || startDate || endDate;
-    
+                            showDuplicatesOnly || showSuperDuplicatesOnly || showMissingPilesOnly || searchQuery || startDate || endDate;
+
     if (hasActiveFilters) {
       // Count piles by status within the filtered set
-      const accepted = filteredPiles.filter(pile => 
+      const accepted = filteredPiles.filter(pile =>
         getPileStatus(pile) === 'accepted'
       ).length;
-      
-      const refusals = filteredPiles.filter(pile => 
+
+      const refusals = filteredPiles.filter(pile =>
         getPileStatus(pile) === 'refusal'
       ).length;
-      
-      const pending = filteredPiles.filter(pile => 
+
+      const pending = filteredPiles.filter(pile =>
         getPileStatus(pile) === 'pending'
       ).length;
-      
+
       // Update the stats with filtered counts
       setAcceptedPiles(accepted);
       setRefusalPiles(refusals);
       setPendingPiles(pending);
+    } else {
+      // When no filters are active, recalculate total statistics from all piles
+      // This ensures stats update when embedmentTolerance changes
+      if (piles.length > 0) {
+        const accepted = piles.filter(pile =>
+          getPileStatus(pile) === 'accepted'
+        ).length;
+
+        const refusals = piles.filter(pile =>
+          getPileStatus(pile) === 'refusal'
+        ).length;
+
+        const pending = piles.filter(pile =>
+          getPileStatus(pile) === 'pending'
+        ).length;
+
+        setAcceptedPiles(accepted);
+        setRefusalPiles(refusals);
+        setPendingPiles(pending);
+      }
     }
-    // When no filters are active, keep the total statistics from initial load
-  }, [filteredPiles, statusFilter, blockFilter, showDuplicatesOnly, showMissingPilesOnly, searchQuery, startDate, endDate]);
+  }, [filteredPiles, statusFilter, blockFilter, showDuplicatesOnly, showSuperDuplicatesOnly, showMissingPilesOnly, searchQuery, startDate, endDate, embedmentTolerance, piles]);
 
   const handleLogout = async () => {
     try {
@@ -811,12 +845,14 @@ export default function MyPilesPage() {
   };
 
   // Function to determine pile status based on embedment
-  const getPileStatus = (pile: PileData) => {
+  const getPileStatus = (pile: PileData, tolerance?: number) => {
     if (!pile.embedment || !pile.design_embedment) return 'pending';
-    
+
+    const toleranceValue = tolerance !== undefined ? tolerance : embedmentTolerance;
+
     if (Number(pile.embedment) >= Number(pile.design_embedment)) {
       return 'accepted';
-    } else if (Number(pile.embedment) < (Number(pile.design_embedment) - embedmentTolerance)) {
+    } else if (Number(pile.embedment) < (Number(pile.design_embedment) - toleranceValue)) {
       return 'refusal';
     } else {
       return 'accepted'; // Within tolerance
@@ -1204,6 +1240,7 @@ export default function MyPilesPage() {
       if (blockFilter !== 'all') activeFilters.push({ label: 'Block', value: blockFilter });
       if (statusFilter !== 'all') activeFilters.push({ label: 'Status', value: statusFilter });
       if (showDuplicatesOnly) activeFilters.push({ label: 'Filter', value: 'Duplicates Only' });
+      if (showSuperDuplicatesOnly) activeFilters.push({ label: 'Filter', value: 'Super Duplicates Only (3+)' });
       if (showMissingPilesOnly) activeFilters.push({ label: 'Filter', value: 'Missing Piles Only' });
       if (startDate) activeFilters.push({ label: 'Start Date', value: new Date(startDate).toLocaleDateString() });
       if (endDate) activeFilters.push({ label: 'End Date', value: new Date(endDate).toLocaleDateString() });
@@ -1443,9 +1480,12 @@ export default function MyPilesPage() {
       const basePile = sortedPiles[0];
       const pilesToDelete = sortedPiles.slice(1);
 
-      // Calculate summed values
-      const totalEmbedment = duplicatePiles.reduce((sum, pile) => sum + (pile.embedment || 0), 0);
-      const totalGainPer30 = duplicatePiles.reduce((sum, pile) => sum + (pile.gain_per_30_seconds || 0), 0);
+      // Calculate summed values - only sum UNIQUE values
+      const uniqueEmbedments = [...new Set(duplicatePiles.map(pile => pile.embedment || 0))];
+      const totalEmbedment = uniqueEmbedments.reduce((sum, value) => sum + value, 0);
+
+      const uniqueGainPer30 = [...new Set(duplicatePiles.map(pile => pile.gain_per_30_seconds || 0))];
+      const totalGainPer30 = uniqueGainPer30.reduce((sum, value) => sum + value, 0);
 
       // Get date range
       const dates = duplicatePiles
@@ -1552,9 +1592,12 @@ export default function MyPilesPage() {
           const basePile = sortedPiles[0];
           const pilesToDelete = sortedPiles.slice(1);
 
-          // Calculate summed values
-          const totalEmbedment = duplicatePiles.reduce((sum, pile) => sum + (pile.embedment || 0), 0);
-          const totalGainPer30 = duplicatePiles.reduce((sum, pile) => sum + (pile.gain_per_30_seconds || 0), 0);
+          // Calculate summed values - only sum UNIQUE values
+          const uniqueEmbedments = [...new Set(duplicatePiles.map(pile => pile.embedment || 0))];
+          const totalEmbedment = uniqueEmbedments.reduce((sum, value) => sum + value, 0);
+
+          const uniqueGainPer30 = [...new Set(duplicatePiles.map(pile => pile.gain_per_30_seconds || 0))];
+          const totalGainPer30 = uniqueGainPer30.reduce((sum, value) => sum + value, 0);
 
           // Get date range
           const dates = duplicatePiles
@@ -2170,7 +2213,10 @@ export default function MyPilesPage() {
                       checked={showDuplicatesOnly}
                       onCheckedChange={(checked) => {
                         setShowDuplicatesOnly(checked);
-                        if (checked) setShowMissingPilesOnly(false); // Mutually exclusive
+                        if (checked) {
+                          setShowMissingPilesOnly(false);
+                          setShowSuperDuplicatesOnly(false);
+                        }
                       }}
                       className="data-[state=checked]:bg-blue-600"
                     />
@@ -2218,10 +2264,33 @@ export default function MyPilesPage() {
 
                   <div className="flex items-center gap-2">
                     <Switch
+                      checked={showSuperDuplicatesOnly}
+                      onCheckedChange={(checked) => {
+                        setShowSuperDuplicatesOnly(checked);
+                        if (checked) {
+                          setShowDuplicatesOnly(false);
+                          setShowMissingPilesOnly(false);
+                        }
+                      }}
+                      className="data-[state=checked]:bg-purple-600"
+                    />
+                    <Label className="text-sm font-medium">Show Super Duplicates (3+)</Label>
+                    {showSuperDuplicatesOnly && superDuplicatePileIds.size > 0 && (
+                      <span className="ml-2 px-2 py-0.5 bg-purple-50 text-purple-700 text-xs font-medium rounded-full border border-purple-200">
+                        {superDuplicatePileIds.size} pile IDs
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Switch
                       checked={showMissingPilesOnly}
                       onCheckedChange={(checked) => {
                         setShowMissingPilesOnly(checked);
-                        if (checked) setShowDuplicatesOnly(false); // Mutually exclusive
+                        if (checked) {
+                          setShowDuplicatesOnly(false);
+                          setShowSuperDuplicatesOnly(false);
+                        }
                       }}
                       className="data-[state=checked]:bg-orange-600"
                     />
@@ -2241,7 +2310,7 @@ export default function MyPilesPage() {
               </div>
 
               {/* Active filters display */}
-              {(searchQuery || statusFilter !== "all" || blockFilter !== "all" || showDuplicatesOnly || showMissingPilesOnly || startDate || endDate) && (
+              {(searchQuery || statusFilter !== "all" || blockFilter !== "all" || showDuplicatesOnly || showSuperDuplicatesOnly || showMissingPilesOnly || startDate || endDate) && (
                 <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
                   <span className="text-sm text-slate-500">Active filters:</span>
                   
@@ -2703,7 +2772,7 @@ export default function MyPilesPage() {
 
       {/* Pile Detail Dialog */}
       <Dialog open={isPileDetailOpen} onOpenChange={setIsPileDetailOpen}>
-        <DialogContent className="sm:max-w-[750px] p-0 overflow-hidden bg-white dark:bg-slate-800 rounded-xl shadow-xl border-none max-h-[90vh]">
+        <DialogContent className="sm:max-w-[750px] p-0 overflow-hidden bg-white dark:bg-slate-800 rounded-xl shadow-xl border-none max-h-[95vh]">
           <div className="sticky top-0 z-10 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 px-6 py-4 transition-all duration-200">
             <DialogHeader className="mb-1">
               <div className="flex items-center justify-between">
@@ -2961,7 +3030,7 @@ export default function MyPilesPage() {
           </div>
           
           {selectedPile && (
-            <div className="p-5 pt-2 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 120px)' }}>
+            <div className="p-5 pt-2 pb-8 overflow-y-auto" style={{ maxHeight: 'calc(95vh - 180px)' }}>
               {/* Main content grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Left column - Primary details */}
@@ -3126,14 +3195,14 @@ export default function MyPilesPage() {
                     </div>
                   </div>
                   
-                  <div>
+                  <div className="mb-4">
                     <h3 className="text-sm font-medium text-slate-700 dark:text-slate-200 mb-3">Z Measurements</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg border border-slate-100 dark:border-slate-600">
                         <div className="text-xs text-slate-500 dark:text-slate-400">Start Z</div>
                         <div className="font-medium text-slate-800 dark:text-slate-200">{selectedPile.start_z || "N/A"}</div>
                       </div>
-                      
+
                       <div className="space-y-1 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg border border-slate-100 dark:border-slate-600">
                         <div className="text-xs text-slate-500 dark:text-slate-400">End Z</div>
                         <div className="font-medium text-slate-800 dark:text-slate-200">{selectedPile.end_z || "N/A"}</div>
