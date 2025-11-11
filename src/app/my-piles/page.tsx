@@ -16,6 +16,7 @@ import { ManualPileModal } from "@/components/ManualPileModal";
 import { EditPileModal } from "@/components/EditPileModal";
 import { DeleteAllPilesButton } from "@/components/DeleteAllPilesButton";
 import { FieldEntryQRCode } from "@/components/FieldEntryQRCode";
+import { CollapsibleSidebar } from "@/components/CollapsibleSidebar";
 import {
   Dialog,
   DialogContent,
@@ -470,7 +471,7 @@ export default function MyPilesPage() {
                 ).length;
 
                 const pending = uniquePiles.filter((pile: PileData) =>
-                  getPileStatus(pile, projectTolerance) === 'pending'
+                  getPileStatus(pile, projectTolerance) === 'na'
                 ).length;
 
                 setAcceptedPiles(accepted);
@@ -799,7 +800,7 @@ export default function MyPilesPage() {
       ).length;
 
       const pending = filteredPiles.filter(pile =>
-        getPileStatus(pile) === 'pending'
+        getPileStatus(pile) === 'na'
       ).length;
 
       // Update the stats with filtered counts
@@ -819,7 +820,7 @@ export default function MyPilesPage() {
         ).length;
 
         const pending = piles.filter(pile =>
-          getPileStatus(pile) === 'pending'
+          getPileStatus(pile) === 'na'
         ).length;
 
         setAcceptedPiles(accepted);
@@ -846,7 +847,7 @@ export default function MyPilesPage() {
 
   // Function to determine pile status based on embedment
   const getPileStatus = (pile: PileData, tolerance?: number) => {
-    if (!pile.embedment || !pile.design_embedment) return 'pending';
+    if (!pile.embedment || !pile.design_embedment) return 'na';
 
     const toleranceValue = tolerance !== undefined ? tolerance : embedmentTolerance;
 
@@ -883,12 +884,12 @@ export default function MyPilesPage() {
             Not Yet Installed
           </span>
         );
-      case 'pending':
+      case 'na':
       default:
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
             <Clock size={12} />
-            Pending
+            N/A
           </span>
         );
     }
@@ -1002,8 +1003,8 @@ export default function MyPilesPage() {
           getPileStatus(pile) === 'refusal'
         ).length;
         
-        const pending = uniquePiles.filter((pile: PileData) => 
-          getPileStatus(pile) === 'pending'
+        const pending = uniquePiles.filter((pile: PileData) =>
+          getPileStatus(pile) === 'na'
         ).length;
         
         setAcceptedPiles(accepted);
@@ -1811,83 +1812,14 @@ export default function MyPilesPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-900">
-      {/* Sidebar - Hidden on mobile */}
-      <div className="fixed inset-y-0 left-0 w-56 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 hidden lg:flex flex-col z-10">
-        <div className="p-3 border-b border-slate-100 dark:border-slate-700">
-          <div className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-xs">
-              PT
-            </div>
-            <h1 className="text-base font-bold text-slate-900 dark:text-white truncate">
-              {projectData?.project_name || "PileTrackerPro"}
-            </h1>
-          </div>
-        </div>
-
-        <nav className="p-2 flex-1">
-          <div className="space-y-1">
-            {[
-              { name: 'Dashboard', icon: BarChart3, href: '/dashboard', active: false },
-              { name: 'My Piles', icon: List, href: '/my-piles', active: true },
-              { name: 'Pile Types', icon: MapPin, href: '/zones', active: false },
-              { name: 'Blocks', icon: Box, href: '/blocks', active: false },
-              { name: 'Notes', icon: FileText, href: '/notes', active: false },
-            ].map((item) => (
-              <button
-                key={item.name}
-                onClick={() => item.href && router.push(item.href as any)}
-                className={`flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-lg transition-colors ${
-                  item.active
-                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'
-                }`}
-              >
-                <item.icon size={14} />
-                {item.name}
-              </button>
-            ))}
-          </div>
-          
-          <div className="mt-4 pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1">
-            {canEdit && [
-              { name: 'Settings', icon: Settings, href: '/settings', active: false },
-              { name: 'Account', icon: User, href: '#', active: false },
-            ].map((item) => (
-              <button
-                key={item.name}
-                onClick={() => item.href && router.push(item.href as any)}
-                className={`flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-lg transition-colors ${
-                  item.active
-                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'
-                }`}
-              >
-                <item.icon size={14} />
-                {item.name}
-              </button>
-            ))}
-          </div>
-
-          {/* Dark mode toggle */}
-          <div className="flex items-center justify-between px-2 py-1.5">
-            <span className="text-xs text-slate-600 dark:text-slate-300">Theme</span>
-            <ThemeToggle />
-          </div>
-
-          <div className="mt-auto pt-2">
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-lg transition-colors text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-            >
-              <LogOut size={14} />
-              Log Out
-            </button>
-          </div>
-        </nav>
-      </div>
+      {/* Collapsible Sidebar - Hidden on mobile */}
+      <CollapsibleSidebar
+        projectName={projectData?.project_name}
+        currentPage="my-piles"
+      />
 
       {/* Main content */}
-      <div className="lg:pl-56">
+      <div className="lg:pl-16">
 
         {/* My Piles content */}
         <main className="p-3">
@@ -2055,44 +1987,45 @@ export default function MyPilesPage() {
           </div>
           
           {/* Filters */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-4 mb-6">
-            <div className="flex flex-col gap-4">
-              {/* Search and quick filters */}
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="relative flex-grow">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                  <Input 
-                    placeholder="Search piles..." 
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 border-slate-200"
-                  />
-                  {searchQuery && (
-                    <button 
-                      onClick={() => setSearchQuery("")}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    >
-                      <X size={16} />
-                    </button>
-                  )}
-                </div>
-                
-                {/* Primary filters */}
-                <div className="flex flex-wrap gap-2">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-5 mb-6">
+            <div className="flex flex-col gap-5">
+              {/* Search Bar - Full Width */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <Input
+                  placeholder="Search piles by ID, number, location, block, or type..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 h-10 border-slate-200 dark:border-slate-600"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+
+              {/* Filter Controls Row */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap">Filter by:</span>
                   <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[140px] border-slate-200">
+                    <SelectTrigger className="w-[140px] h-9 border-slate-200 dark:border-slate-600">
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Status</SelectItem>
                       <SelectItem value="accepted">Accepted</SelectItem>
                       <SelectItem value="refusal">Refusal</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="na">N/A</SelectItem>
                     </SelectContent>
                   </Select>
-                  
+
                   <Select value={blockFilter} onValueChange={setBlockFilter}>
-                    <SelectTrigger className="w-[140px] border-slate-200">
+                    <SelectTrigger className="w-[140px] h-9 border-slate-200 dark:border-slate-600">
                       <SelectValue placeholder="Block" />
                     </SelectTrigger>
                     <SelectContent>
@@ -2102,14 +2035,14 @@ export default function MyPilesPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  
+
                   {/* Date Range Filter */}
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className={`border-slate-200 ${startDate || endDate ? 'bg-blue-50 border-blue-200 text-blue-700' : ''}`}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={`h-9 border-slate-200 dark:border-slate-600 ${startDate || endDate ? 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400' : ''}`}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {startDate && endDate ? (
@@ -2205,22 +2138,35 @@ export default function MyPilesPage() {
                       </div>
                     </PopoverContent>
                   </Popover>
-                  
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={showDuplicatesOnly}
-                      onCheckedChange={(checked) => {
-                        setShowDuplicatesOnly(checked);
-                        if (checked) {
-                          setShowMissingPilesOnly(false);
-                          setShowSuperDuplicatesOnly(false);
-                        }
-                      }}
-                      className="data-[state=checked]:bg-blue-600"
-                    />
-                    <Label className="text-sm font-medium">Show Duplicates</Label>
-                    {showDuplicatesOnly && duplicatePileIds.size > 0 && (
-                      <div className="flex items-center gap-2 ml-2">
+                </div>
+              </div>
+
+              {/* View Options - Toggle Switches */}
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
+                <div className="flex flex-col gap-4">
+                  <span className="text-sm font-medium text-slate-600 dark:text-slate-400">View Options:</span>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    {/* Show Duplicates Toggle */}
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center gap-3">
+                        <Switch
+                          checked={showDuplicatesOnly}
+                          onCheckedChange={(checked) => {
+                            setShowDuplicatesOnly(checked);
+                            if (checked) {
+                              setShowMissingPilesOnly(false);
+                              setShowSuperDuplicatesOnly(false);
+                            }
+                          }}
+                          className="data-[state=checked]:bg-blue-600"
+                        />
+                        <Label className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
+                          Show Duplicates
+                        </Label>
+                      </div>
+                      {showDuplicatesOnly && duplicatePileIds.size > 0 && (
+                        <div className="flex flex-wrap items-center gap-2 ml-1">
                         <Button
                           variant="default"
                           size="sm"
@@ -2256,139 +2202,160 @@ export default function MyPilesPage() {
                           <AlertTriangle size={14} className="mr-1" />
                           <span className="font-medium">Delete Lower Duplicates</span>
                         </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Show Super Duplicates Toggle */}
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center gap-3">
+                        <Switch
+                          checked={showSuperDuplicatesOnly}
+                          onCheckedChange={(checked) => {
+                            setShowSuperDuplicatesOnly(checked);
+                            if (checked) {
+                              setShowDuplicatesOnly(false);
+                              setShowMissingPilesOnly(false);
+                            }
+                          }}
+                          className="data-[state=checked]:bg-purple-600"
+                        />
+                        <Label className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
+                          Show Super Duplicates (3+)
+                        </Label>
                       </div>
-                    )}
-                  </div>
+                      {showSuperDuplicatesOnly && superDuplicatePileIds.size > 0 && (
+                        <span className="ml-1 px-2.5 py-1 bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-400 text-xs font-medium rounded-full border border-purple-200 dark:border-purple-800">
+                          {superDuplicatePileIds.size} pile IDs
+                        </span>
+                      )}
+                    </div>
 
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={showSuperDuplicatesOnly}
-                      onCheckedChange={(checked) => {
-                        setShowSuperDuplicatesOnly(checked);
-                        if (checked) {
-                          setShowDuplicatesOnly(false);
-                          setShowMissingPilesOnly(false);
-                        }
-                      }}
-                      className="data-[state=checked]:bg-purple-600"
-                    />
-                    <Label className="text-sm font-medium">Show Super Duplicates (3+)</Label>
-                    {showSuperDuplicatesOnly && superDuplicatePileIds.size > 0 && (
-                      <span className="ml-2 px-2 py-0.5 bg-purple-50 text-purple-700 text-xs font-medium rounded-full border border-purple-200">
-                        {superDuplicatePileIds.size} pile IDs
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={showMissingPilesOnly}
-                      onCheckedChange={(checked) => {
-                        setShowMissingPilesOnly(checked);
-                        if (checked) {
-                          setShowDuplicatesOnly(false);
-                          setShowSuperDuplicatesOnly(false);
-                        }
-                      }}
-                      className="data-[state=checked]:bg-orange-600"
-                    />
-                    <Label className="text-sm font-medium">Show Missing Piles</Label>
-                    {showMissingPilesOnly && missingPileIds.size > 0 && (
-                      <span className="ml-2 px-2 py-0.5 bg-orange-50 text-orange-700 text-xs font-medium rounded-full border border-orange-200">
-                        {missingPileIds.size} missing
-                      </span>
-                    )}
-                    {showMissingPilesOnly && missingPileIds.size === 0 && pileLookupData.length === 0 && (
-                      <span className="ml-2 text-xs text-slate-500 italic">
-                        (No pile plot data uploaded)
-                      </span>
-                    )}
+                    {/* Show Missing Piles Toggle */}
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center gap-3">
+                        <Switch
+                          checked={showMissingPilesOnly}
+                          onCheckedChange={(checked) => {
+                            setShowMissingPilesOnly(checked);
+                            if (checked) {
+                              setShowDuplicatesOnly(false);
+                              setShowSuperDuplicatesOnly(false);
+                            }
+                          }}
+                          className="data-[state=checked]:bg-orange-600"
+                        />
+                        <Label className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
+                          Show Missing Piles
+                        </Label>
+                      </div>
+                      {showMissingPilesOnly && missingPileIds.size > 0 && (
+                        <span className="ml-1 px-2.5 py-1 bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-400 text-xs font-medium rounded-full border border-orange-200 dark:border-orange-800">
+                          {missingPileIds.size} missing
+                        </span>
+                      )}
+                      {showMissingPilesOnly && missingPileIds.size === 0 && pileLookupData.length === 0 && (
+                        <span className="ml-1 text-xs text-slate-500 dark:text-slate-400 italic">
+                          (No pile plot data uploaded)
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Active filters display */}
               {(searchQuery || statusFilter !== "all" || blockFilter !== "all" || showDuplicatesOnly || showSuperDuplicatesOnly || showMissingPilesOnly || startDate || endDate) && (
-                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
-                  <span className="text-sm text-slate-500">Active filters:</span>
+                <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-slate-200 dark:border-slate-700">
+                  <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Active filters:</span>
                   
                   {searchQuery && (
-                    <div className="flex items-center gap-1 bg-blue-50 text-blue-700 text-xs px-2 py-1 rounded">
+                    <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 text-xs px-2.5 py-1.5 rounded-md border border-blue-200 dark:border-blue-800">
                       <span>Search: {searchQuery}</span>
-                      <button onClick={() => setSearchQuery("")} className="hover:text-blue-900">
+                      <button onClick={() => setSearchQuery("")} className="hover:text-blue-900 dark:hover:text-blue-300">
                         <X size={12} />
                       </button>
                     </div>
                   )}
-                  
+
                   {statusFilter !== "all" && (
-                    <div className="flex items-center gap-1 bg-green-50 text-green-700 text-xs px-2 py-1 rounded">
+                    <div className="flex items-center gap-1.5 bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-400 text-xs px-2.5 py-1.5 rounded-md border border-green-200 dark:border-green-800">
                       <span>Status: {statusFilter}</span>
-                      <button onClick={() => setStatusFilter("all")} className="hover:text-green-900">
+                      <button onClick={() => setStatusFilter("all")} className="hover:text-green-900 dark:hover:text-green-300">
                         <X size={12} />
                       </button>
                     </div>
                   )}
-                  
+
                   {blockFilter !== "all" && (
-                    <div className="flex items-center gap-1 bg-purple-50 text-purple-700 text-xs px-2 py-1 rounded">
+                    <div className="flex items-center gap-1.5 bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-400 text-xs px-2.5 py-1.5 rounded-md border border-purple-200 dark:border-purple-800">
                       <span>Block: {blockFilter}</span>
-                      <button onClick={() => setBlockFilter("all")} className="hover:text-purple-900">
+                      <button onClick={() => setBlockFilter("all")} className="hover:text-purple-900 dark:hover:text-purple-300">
                         <X size={12} />
                       </button>
                     </div>
                   )}
-                  
+
                   {(startDate || endDate) && (
-                    <div className="flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs px-2 py-1 rounded">
+                    <div className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 text-xs px-2.5 py-1.5 rounded-md border border-indigo-200 dark:border-indigo-800">
                       <span>
-                        Date: {startDate ? format(startDate, 'MM/dd/yyyy') : 'Any'} 
-                        {' - '} 
+                        Date: {startDate ? format(startDate, 'MM/dd/yyyy') : 'Any'}
+                        {' - '}
                         {endDate ? format(endDate, 'MM/dd/yyyy') : 'Any'}
                       </span>
-                      <button 
+                      <button
                         onClick={() => {
                           setStartDate(null);
                           setEndDate(null);
-                        }} 
-                        className="hover:text-indigo-900"
+                        }}
+                        className="hover:text-indigo-900 dark:hover:text-indigo-300"
                       >
                         <X size={12} />
                       </button>
                     </div>
                   )}
-                  
+
                   {showDuplicatesOnly && (
-                    <div className="flex items-center gap-1 bg-amber-50 text-amber-700 text-xs px-2 py-1 rounded">
+                    <div className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 text-xs px-2.5 py-1.5 rounded-md border border-amber-200 dark:border-amber-800">
                       <span>Duplicates only</span>
-                      <button onClick={() => setShowDuplicatesOnly(false)} className="hover:text-amber-900">
+                      <button onClick={() => setShowDuplicatesOnly(false)} className="hover:text-amber-900 dark:hover:text-amber-300">
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )}
+
+                  {showSuperDuplicatesOnly && (
+                    <div className="flex items-center gap-1.5 bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-400 text-xs px-2.5 py-1.5 rounded-md border border-purple-200 dark:border-purple-800">
+                      <span>Super duplicates only</span>
+                      <button onClick={() => setShowSuperDuplicatesOnly(false)} className="hover:text-purple-900 dark:hover:text-purple-300">
                         <X size={12} />
                       </button>
                     </div>
                   )}
 
                   {showMissingPilesOnly && (
-                    <div className="flex items-center gap-1 bg-orange-50 text-orange-700 text-xs px-2 py-1 rounded">
+                    <div className="flex items-center gap-1.5 bg-orange-50 dark:bg-orange-950 text-orange-700 dark:text-orange-400 text-xs px-2.5 py-1.5 rounded-md border border-orange-200 dark:border-orange-800">
                       <span>Missing piles only</span>
-                      <button onClick={() => setShowMissingPilesOnly(false)} className="hover:text-orange-900">
+                      <button onClick={() => setShowMissingPilesOnly(false)} className="hover:text-orange-900 dark:hover:text-orange-300">
                         <X size={12} />
                       </button>
                     </div>
                   )}
 
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => {
                       setSearchQuery("");
                       setStatusFilter("all");
                       setBlockFilter("all");
                       setShowDuplicatesOnly(false);
+                      setShowSuperDuplicatesOnly(false);
                       setShowMissingPilesOnly(false);
                       setStartDate(null);
                       setEndDate(null);
                     }}
-                    className="ml-auto text-xs"
+                    className="ml-auto text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
                   >
                     Clear all filters
                   </Button>
@@ -2628,11 +2595,11 @@ export default function MyPilesPage() {
                               }`}>
                                 {getPileStatus(pile) === 'accepted' && <Check size={8} />}
                                 {getPileStatus(pile) === 'refusal' && <AlertTriangle size={8} />}
-                                {getPileStatus(pile) === 'pending' && <Clock size={8} />}
+                                {getPileStatus(pile) === 'na' && <Clock size={8} />}
                                 <span className="hidden sm:inline">
                                   {getPileStatus(pile) === 'accepted' && 'OK'}
                                   {getPileStatus(pile) === 'refusal' && 'REF'}
-                                  {getPileStatus(pile) === 'pending' && 'PEN'}
+                                  {getPileStatus(pile) === 'na' && 'N/A'}
                                 </span>
                               </span>
                             </td>
@@ -2910,7 +2877,7 @@ export default function MyPilesPage() {
                         ) : (
                           <span className="flex items-center text-slate-600 dark:text-slate-300 gap-1.5 font-medium">
                             <Clock size={14} />
-                            Pending
+                            N/A
                           </span>
                         )}
                         {canEdit && (
@@ -2935,7 +2902,7 @@ export default function MyPilesPage() {
                           <SelectContent className="dark:bg-slate-800 dark:border-slate-700">
                             <SelectItem value="accepted" className="text-green-600 dark:text-green-400 focus:text-white focus:bg-green-600 dark:focus:bg-green-700">Accepted</SelectItem>
                             <SelectItem value="refusal" className="text-red-600 dark:text-red-400 focus:text-white focus:bg-red-600 dark:focus:bg-red-700">Refusal</SelectItem>
-                            <SelectItem value="pending" className="text-amber-600 dark:text-amber-400 focus:text-white focus:bg-amber-600 dark:focus:bg-amber-700">Pending</SelectItem>
+                            <SelectItem value="na" className="text-amber-600 dark:text-amber-400 focus:text-white focus:bg-amber-600 dark:focus:bg-amber-700">N/A</SelectItem>
                           </SelectContent>
                         </Select>
                         <Button 
@@ -2974,7 +2941,7 @@ export default function MyPilesPage() {
                         ) : (
                           <span className="flex items-center text-slate-600 dark:text-slate-300 gap-1.5 font-medium">
                             <Clock size={14} />
-                            Pending
+                            N/A
                           </span>
                         )}
                         {canEdit && (
@@ -2999,7 +2966,7 @@ export default function MyPilesPage() {
                           <SelectContent className="dark:bg-slate-800 dark:border-slate-700">
                             <SelectItem value="accepted" className="text-green-600 dark:text-green-400 focus:text-white focus:bg-green-600 dark:focus:bg-green-700">Accepted</SelectItem>
                             <SelectItem value="refusal" className="text-red-600 dark:text-red-400 focus:text-white focus:bg-red-600 dark:focus:bg-red-700">Refusal</SelectItem>
-                            <SelectItem value="pending" className="text-amber-600 dark:text-amber-400 focus:text-white focus:bg-amber-600 dark:focus:bg-amber-700">Pending</SelectItem>
+                            <SelectItem value="na" className="text-amber-600 dark:text-amber-400 focus:text-white focus:bg-amber-600 dark:focus:bg-amber-700">N/A</SelectItem>
                           </SelectContent>
                         </Select>
                         <Button 

@@ -309,3 +309,5 @@ supabase functions logs send-invitation-email
 - Exports a single ImageResponse component for favicon generation
 - Edge runtime required for Next.js 15 icon generation
 - to memorize recent code changes
+- to memorize recent code changes
+- to memorize recent code changes

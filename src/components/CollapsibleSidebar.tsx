@@ -1,0 +1,165 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { LogOut, BarChart3, List, MapPin, Box, FileText, Settings, User } from "lucide-react";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { useAccountType } from "@/context/AccountTypeContext";
+import { useAuth } from "@/context/AuthContext";
+import { toast } from "sonner";
+
+interface NavItem {
+  name: string;
+  icon: React.ElementType;
+  href: string;
+  active: boolean;
+}
+
+interface CollapsibleSidebarProps {
+  projectName?: string;
+  currentPage: string;
+}
+
+export function CollapsibleSidebar({ projectName = "PileTrackerPro", currentPage }: CollapsibleSidebarProps) {
+  const router = useRouter();
+  const [isExpanded, setIsExpanded] = useState(false);
+  const { canEdit } = useAccountType();
+  const { signOut } = useAuth();
+
+  const handleNavigation = (path: string) => {
+    router.push(path as any);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      toast.success("Logged out successfully");
+    } catch (error) {
+      console.error("Error signing out:", error);
+      toast.error("Failed to log out. Please try again.");
+    }
+  };
+
+  const mainNavItems: NavItem[] = [
+    { name: 'Dashboard', icon: BarChart3, href: '/dashboard', active: currentPage === 'dashboard' },
+    { name: 'My Piles', icon: List, href: '/my-piles', active: currentPage === 'my-piles' },
+    { name: 'Pile Types', icon: MapPin, href: '/zones', active: currentPage === 'zones' },
+    { name: 'Blocks', icon: Box, href: '/blocks', active: currentPage === 'blocks' },
+    { name: 'Notes', icon: FileText, href: '/notes', active: currentPage === 'notes' },
+  ];
+
+  const settingsNavItems: NavItem[] = canEdit ? [
+    { name: 'Settings', icon: Settings, href: '/settings', active: currentPage === 'settings' },
+    { name: 'Account', icon: User, href: '/settings', active: false },
+  ] : [];
+
+  return (
+    <div
+      className={`fixed inset-y-0 left-0 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 hidden lg:flex flex-col z-10 transition-all duration-300 ease-in-out ${
+        isExpanded ? 'w-56' : 'w-16'
+      }`}
+      onMouseEnter={() => setIsExpanded(true)}
+      onMouseLeave={() => setIsExpanded(false)}
+    >
+      {/* Header */}
+      <div className="p-3 border-b border-slate-100 dark:border-slate-700 h-14 flex items-center overflow-hidden">
+        <div className="flex items-center gap-2 min-w-max">
+          <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+            PT
+          </div>
+          <h1
+            className={`text-base font-bold text-slate-900 dark:text-white truncate transition-opacity duration-300 ${
+              isExpanded ? 'opacity-100' : 'opacity-0 w-0'
+            }`}
+          >
+            {projectName}
+          </h1>
+        </div>
+      </div>
+
+      {/* Main Navigation */}
+      <nav className="p-2 flex-1 overflow-y-auto">
+        <div className="space-y-1">
+          {mainNavItems.map((item) => (
+            <button
+              key={item.name}
+              onClick={() => handleNavigation(item.href)}
+              className={`flex items-center gap-2 w-full px-2 py-2 text-sm rounded-lg transition-all ${
+                item.active
+                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'
+              } ${!isExpanded ? 'justify-center' : ''}`}
+              title={!isExpanded ? item.name : undefined}
+            >
+              <item.icon size={18} className="flex-shrink-0" />
+              <span
+                className={`transition-all duration-300 whitespace-nowrap ${
+                  isExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0 overflow-hidden'
+                }`}
+              >
+                {item.name}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Settings Section */}
+        {settingsNavItems.length > 0 && (
+          <div className="mt-4 pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1">
+            {settingsNavItems.map((item) => (
+              <button
+                key={item.name}
+                onClick={() => handleNavigation(item.href)}
+                className={`flex items-center gap-2 w-full px-2 py-2 text-sm rounded-lg transition-all ${
+                  item.active
+                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'
+                } ${!isExpanded ? 'justify-center' : ''}`}
+                title={!isExpanded ? item.name : undefined}
+              >
+                <item.icon size={18} className="flex-shrink-0" />
+                <span
+                  className={`transition-all duration-300 whitespace-nowrap ${
+                    isExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0 overflow-hidden'
+                  }`}
+                >
+                  {item.name}
+                </span>
+              </button>
+            ))}
+
+            {/* Dark mode toggle */}
+            <div className={`flex items-center gap-2 px-2 py-2 ${!isExpanded ? 'justify-center' : 'justify-between'}`}>
+              {isExpanded && (
+                <span className="text-xs text-slate-600 dark:text-slate-300 transition-opacity duration-300">
+                  Theme
+                </span>
+              )}
+              <ThemeToggle />
+            </div>
+          </div>
+        )}
+
+        {/* Logout Button */}
+        <div className="mt-auto pt-2">
+          <button
+            onClick={handleLogout}
+            className={`flex items-center gap-2 w-full px-2 py-2 text-sm rounded-lg transition-all text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 ${
+              !isExpanded ? 'justify-center' : ''
+            }`}
+            title={!isExpanded ? 'Log Out' : undefined}
+          >
+            <LogOut size={18} className="flex-shrink-0" />
+            <span
+              className={`transition-all duration-300 whitespace-nowrap ${
+                isExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0 overflow-hidden'
+              }`}
+            >
+              Log Out
+            </span>
+          </button>
+        </div>
+      </nav>
+    </div>
+  );
+}

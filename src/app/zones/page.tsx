@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CircularProgressbar, buildStyles } from 'react-circular-progressbar';
 import 'react-circular-progressbar/dist/styles.css';
+import { CollapsibleSidebar } from "@/components/CollapsibleSidebar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format } from "date-fns";
 
@@ -509,8 +510,8 @@ export default function PileTypesPage() {
             return { ...pile, status: 'refusal' };
           }
         } else {
-          // Default to pending if we don't have complete data
-          return { ...pile, status: 'pending' };
+          // Default to N/A if we don't have complete data
+          return { ...pile, status: 'na' };
         }
       });
       
@@ -562,12 +563,12 @@ export default function PileTypesPage() {
             Refusal
           </span>
         );
-      case 'pending':
+      case 'na':
       default:
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
             <Clock size={12} />
-            Pending
+            N/A
           </span>
         );
     }
@@ -579,76 +580,11 @@ export default function PileTypesPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
-      {/* Sidebar - Hidden on mobile */}
-      <div className="fixed inset-y-0 left-0 w-56 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 hidden lg:flex flex-col z-10">
-        <div className="p-3 border-b border-slate-100 dark:border-slate-700">
-          <div className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-xs">
-              PT
-            </div>
-            <h1 className="text-base font-bold text-slate-900 dark:text-white truncate">
-              {projectData?.project_name || "PileTrackerPro"}
-            </h1>
-          </div>
-        </div>
-        <nav className="p-2 flex-1">
-          <div className="space-y-1">
-            {[
-              { name: 'Dashboard', icon: BarChart3, href: '/dashboard', active: false },
-              { name: 'My Piles', icon: List, href: '/my-piles', active: false },
-              { name: 'Pile Types', icon: MapPin, href: '/pileTypes', active: true },
-              { name: 'Blocks', icon: Box, href: '/blocks', active: false },
-              { name: 'Notes', icon: FileText, href: '/notes', active: false },
-            ].map((item) => (
-              <button
-                key={item.name}
-                onClick={() => item.href && router.push(item.href as any)}
-                className={`flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-lg transition-colors ${
-                  item.active
-                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'
-                }`}
-              >
-                <item.icon size={14} />
-                {item.name}
-              </button>
-            ))}
-          </div>
-          <div className="mt-4 pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1">
-            {[
-              { name: 'Settings', icon: Settings, href: '/settings', active: false },
-              { name: 'Account', icon: User, href: '#', active: false },
-            ].map((item) => (
-              <button
-                key={item.name}
-                onClick={() => item.href && router.push(item.href as any)}
-                className={`flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-lg transition-colors ${
-                  item.active
-                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium'
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'
-                }`}
-              >
-                <item.icon size={14} />
-                {item.name}
-              </button>
-            ))}
-          </div>
-          {/* Dark mode toggle */}
-          <div className="flex items-center justify-between px-2 py-1.5">
-            <span className="text-xs text-slate-600 dark:text-slate-300">Theme</span>
-            <ThemeToggle />
-          </div>
-          <div className="mt-auto pt-2">
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-lg transition-colors text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-            >
-              <LogOut size={14} />
-              Log Out
-            </button>
-          </div>
-        </nav>
-      </div>
+      {/* Collapsible Sidebar - Hidden on mobile */}
+      <CollapsibleSidebar
+        projectName={projectData?.project_name}
+        currentPage="zones"
+      />
 
       {/* Mobile header */}
       <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
@@ -673,7 +609,7 @@ export default function PileTypesPage() {
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-56">
+      <div className="lg:pl-16">
         <main className="p-3">
           <div className="max-w-7xl mx-auto">
             {/* Page header */}
