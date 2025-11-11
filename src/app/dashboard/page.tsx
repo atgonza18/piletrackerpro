@@ -42,7 +42,9 @@ export default function DashboardPage() {
   const [statsLoading, setStatsLoading] = useState(true);
   const [embedmentTolerance, setEmbedmentTolerance] = useState(1);
   const [blockData, setBlockData] = useState<any[]>([]);
-  const [timelineData, setTimelineData] = useState<any[]>([]);
+  const [weeklyTimelineData, setWeeklyTimelineData] = useState<any[]>([]);
+  const [monthlyTimelineData, setMonthlyTimelineData] = useState<any[]>([]);
+  const [timelineView, setTimelineView] = useState<'weekly' | 'monthly'>('weekly');
 
   useEffect(() => {
     // Wait for auth to finish loading before making decisions
@@ -220,39 +222,66 @@ export default function DashboardPage() {
                     }
                   });
 
-                  // Convert to array for chart
+                  // Convert to array for chart with alphanumeric sorting
                   const blockChartData = Object.entries(blockStats)
                     .map(([name, stats]) => ({
                       name,
                       ...stats
                     }))
-                    .sort((a, b) => b.total - a.total)
-                    .slice(0, 10); // Top 10 blocks
+                    .sort((a, b) => {
+                      // Natural sort for alphanumeric strings (e.g., A1, A2, A10, B1)
+                      return a.name.localeCompare(b.name, undefined, {
+                        numeric: true,
+                        sensitivity: 'base'
+                      });
+                    });
 
                   setBlockData(blockChartData);
 
-                  // Calculate timeline data (piles installed per week)
-                  const timelineStats: { [key: string]: number } = {};
+                  // Calculate timeline data (piles installed per week and month)
+                  const weeklyStats: { [key: string]: number } = {};
+                  const monthlyStats: { [key: string]: number } = {};
 
                   allPiles.forEach((pile: any) => {
                     const date = pile.start_date || pile.created_at;
                     if (date) {
                       const d = new Date(date);
-                      const weekStart = new Date(d.setDate(d.getDate() - d.getDay()));
+
+                      // Weekly calculation
+                      const weekStart = new Date(d);
+                      weekStart.setDate(d.getDate() - d.getDay());
                       const weekKey = weekStart.toISOString().split('T')[0];
-                      timelineStats[weekKey] = (timelineStats[weekKey] || 0) + 1;
+                      weeklyStats[weekKey] = (weeklyStats[weekKey] || 0) + 1;
+
+                      // Monthly calculation
+                      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+                      monthlyStats[monthKey] = (monthlyStats[monthKey] || 0) + 1;
                     }
                   });
 
-                  const timelineChartData = Object.entries(timelineStats)
+                  // Format weekly data
+                  const weeklyChartData = Object.entries(weeklyStats)
                     .map(([date, count]) => ({
                       date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                      rawDate: date,
                       piles: count
                     }))
-                    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                    .sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime())
                     .slice(-12); // Last 12 weeks
 
-                  setTimelineData(timelineChartData);
+                  // Format monthly data
+                  const monthlyChartData = Object.entries(monthlyStats)
+                    .map(([date, count]) => ({
+                      date: new Date(date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+                      rawDate: date,
+                      piles: count
+                    }))
+                    .sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime())
+                    .slice(-12); // Last 12 months
+
+                  // Store both weekly and monthly data
+                  setWeeklyTimelineData(weeklyChartData);
+                  setMonthlyTimelineData(monthlyChartData);
                 }
               } catch (err) {
                 console.error('Unexpected error loading statistics:', err);
@@ -412,39 +441,66 @@ export default function DashboardPage() {
           }
         });
 
-        // Convert to array for chart
+        // Convert to array for chart with alphanumeric sorting
         const blockChartData = Object.entries(blockStats)
           .map(([name, stats]) => ({
             name,
             ...stats
           }))
-          .sort((a, b) => b.total - a.total)
-          .slice(0, 10); // Top 10 blocks
+          .sort((a, b) => {
+            // Natural sort for alphanumeric strings (e.g., A1, A2, A10, B1)
+            return a.name.localeCompare(b.name, undefined, {
+              numeric: true,
+              sensitivity: 'base'
+            });
+          });
 
         setBlockData(blockChartData);
 
-        // Calculate timeline data (piles installed per week)
-        const timelineStats: { [key: string]: number } = {};
+        // Calculate timeline data (piles installed per week and month)
+        const weeklyStats: { [key: string]: number } = {};
+        const monthlyStats: { [key: string]: number } = {};
 
         allPiles.forEach((pile: any) => {
           const date = pile.start_date || pile.created_at;
           if (date) {
             const d = new Date(date);
-            const weekStart = new Date(d.setDate(d.getDate() - d.getDay()));
+
+            // Weekly calculation
+            const weekStart = new Date(d);
+            weekStart.setDate(d.getDate() - d.getDay());
             const weekKey = weekStart.toISOString().split('T')[0];
-            timelineStats[weekKey] = (timelineStats[weekKey] || 0) + 1;
+            weeklyStats[weekKey] = (weeklyStats[weekKey] || 0) + 1;
+
+            // Monthly calculation
+            const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+            monthlyStats[monthKey] = (monthlyStats[monthKey] || 0) + 1;
           }
         });
 
-        const timelineChartData = Object.entries(timelineStats)
+        // Format weekly data
+        const weeklyChartData = Object.entries(weeklyStats)
           .map(([date, count]) => ({
             date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            rawDate: date,
             piles: count
           }))
-          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+          .sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime())
           .slice(-12); // Last 12 weeks
 
-        setTimelineData(timelineChartData);
+        // Format monthly data
+        const monthlyChartData = Object.entries(monthlyStats)
+          .map(([date, count]) => ({
+            date: new Date(date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+            rawDate: date,
+            piles: count
+          }))
+          .sort((a, b) => new Date(a.rawDate).getTime() - new Date(b.rawDate).getTime())
+          .slice(-12); // Last 12 months
+
+        // Store both weekly and monthly data
+        setWeeklyTimelineData(weeklyChartData);
+        setMonthlyTimelineData(monthlyChartData);
       }
     } catch (error) {
       console.error("Error refreshing dashboard data:", error);
@@ -776,17 +832,43 @@ export default function DashboardPage() {
               {/* Installation Timeline - Line Chart */}
               <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800 lg:col-span-2">
                 <CardHeader className="p-3">
-                  <CardTitle className="text-sm">Installation Timeline</CardTitle>
-                  <CardDescription className="text-xs">Piles installed over time</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-sm">Installation Timeline</CardTitle>
+                      <CardDescription className="text-xs">Piles installed over time</CardDescription>
+                    </div>
+                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700 rounded-lg p-0.5">
+                      <button
+                        onClick={() => setTimelineView('weekly')}
+                        className={`px-2 py-1 text-xs rounded transition-colors ${
+                          timelineView === 'weekly'
+                            ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 font-medium shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        Weekly
+                      </button>
+                      <button
+                        onClick={() => setTimelineView('monthly')}
+                        className={`px-2 py-1 text-xs rounded transition-colors ${
+                          timelineView === 'monthly'
+                            ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 font-medium shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        Monthly
+                      </button>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent className="p-3 pt-0">
                   {statsLoading ? (
                     <div className="h-48 flex items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     </div>
-                  ) : timelineData.length > 0 ? (
+                  ) : (timelineView === 'weekly' ? weeklyTimelineData : monthlyTimelineData).length > 0 ? (
                     <ResponsiveContainer width="100%" height={200}>
-                      <LineChart data={timelineData}>
+                      <LineChart data={timelineView === 'weekly' ? weeklyTimelineData : monthlyTimelineData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                         <XAxis
                           dataKey="date"
@@ -830,7 +912,7 @@ export default function DashboardPage() {
               <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
                 <CardHeader className="p-3">
                   <CardTitle className="text-sm">Block Performance</CardTitle>
-                  <CardDescription className="text-xs">Top blocks by pile count and status</CardDescription>
+                  <CardDescription className="text-xs">All blocks by pile count and status</CardDescription>
                 </CardHeader>
                 <CardContent className="p-3 pt-0">
                   {statsLoading ? (
@@ -838,35 +920,75 @@ export default function DashboardPage() {
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     </div>
                   ) : blockData.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={blockData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis
-                          dataKey="name"
-                          tick={{ fontSize: 10 }}
-                          stroke="#64748b"
-                        />
-                        <YAxis
-                          tick={{ fontSize: 10 }}
-                          stroke="#64748b"
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                            border: 'none',
-                            borderRadius: '8px',
-                            color: 'white',
-                            fontSize: '12px'
-                          }}
-                        />
-                        <Legend
-                          wrapperStyle={{ fontSize: '11px' }}
-                        />
-                        <Bar dataKey="accepted" name="Accepted" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="refusals" name="Refusal" fill="#a855f7" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="pending" name="Pending" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    <div
+                      className="w-full overflow-x-auto overflow-y-hidden scrollbar-modern"
+                      style={{ maxHeight: '500px' }}
+                    >
+                      <style jsx>{`
+                        .scrollbar-modern::-webkit-scrollbar {
+                          height: 8px;
+                        }
+                        .scrollbar-modern::-webkit-scrollbar-track {
+                          background: transparent;
+                        }
+                        .scrollbar-modern::-webkit-scrollbar-thumb {
+                          background: rgba(148, 163, 184, 0.3);
+                          border-radius: 4px;
+                        }
+                        .scrollbar-modern::-webkit-scrollbar-thumb:hover {
+                          background: rgba(148, 163, 184, 0.5);
+                        }
+                        .dark .scrollbar-modern::-webkit-scrollbar-thumb {
+                          background: rgba(148, 163, 184, 0.2);
+                        }
+                        .dark .scrollbar-modern::-webkit-scrollbar-thumb:hover {
+                          background: rgba(148, 163, 184, 0.4);
+                        }
+                        /* For Firefox */
+                        .scrollbar-modern {
+                          scrollbar-width: thin;
+                          scrollbar-color: rgba(148, 163, 184, 0.3) transparent;
+                        }
+                        .dark .scrollbar-modern {
+                          scrollbar-color: rgba(148, 163, 184, 0.2) transparent;
+                        }
+                      `}</style>
+                      <div style={{ minWidth: Math.max(1200, blockData.length * 60) }}>
+                        <ResponsiveContainer width="100%" height={350}>
+                          <BarChart data={blockData} margin={{ bottom: 80, left: 20, right: 20, top: 20 }} barGap={4} barCategoryGap="10%">
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                            <XAxis
+                              dataKey="name"
+                              tick={{ fontSize: 10 }}
+                              stroke="#64748b"
+                              angle={-45}
+                              textAnchor="end"
+                              height={80}
+                              interval={0}
+                            />
+                            <YAxis
+                              tick={{ fontSize: 10 }}
+                              stroke="#64748b"
+                            />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                                border: 'none',
+                                borderRadius: '8px',
+                                color: 'white',
+                                fontSize: '12px'
+                              }}
+                            />
+                            <Legend
+                              wrapperStyle={{ fontSize: '11px' }}
+                            />
+                            <Bar dataKey="accepted" name="Accepted" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={40} />
+                            <Bar dataKey="refusals" name="Refusal" fill="#a855f7" radius={[4, 4, 0, 0]} barSize={40} />
+                            <Bar dataKey="pending" name="Pending" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={40} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
                   ) : (
                     <div className="h-64 flex items-center justify-center text-slate-400 text-xs">
                       No block data available

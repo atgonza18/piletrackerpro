@@ -326,18 +326,18 @@ export default function NotesPage() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       {/* Sidebar - Hidden on mobile */}
-      <div className="fixed inset-y-0 left-0 w-72 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 hidden lg:flex flex-col z-10">        
-        <div className="p-6 border-b border-slate-100 dark:border-slate-700">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-sm">
+      <div className="fixed inset-y-0 left-0 w-56 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 hidden lg:flex flex-col z-10">
+        <div className="p-3 border-b border-slate-100 dark:border-slate-700">
+          <div className="flex items-center gap-2">
+            <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-xs">
               PT
             </div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white truncate">
+            <h1 className="text-base font-bold text-slate-900 dark:text-white truncate">
               PileTrackerPro
             </h1>
           </div>
         </div>
-        <nav className="p-4 flex-1">
+        <nav className="p-2 flex-1">
           <div className="space-y-1">
             {[
               { name: 'Dashboard', icon: BarChart3, href: '/dashboard', active: false },
@@ -349,18 +349,18 @@ export default function NotesPage() {
               <button
                 key={item.name}
                 onClick={() => item.href && router.push(item.href as any)}
-                className={`flex items-center gap-3 w-full px-3 py-2 text-sm rounded-lg transition-colors ${
-                  item.active 
-                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium' 
+                className={`flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-lg transition-colors ${
+                  item.active
+                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'
                 }`}
               >
-                <item.icon size={18} />
+                <item.icon size={14} />
                 {item.name}
               </button>
             ))}
           </div>
-          <div className="mt-8 pt-4 border-t border-slate-200 dark:border-slate-700 space-y-1">
+          <div className="mt-4 pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1">
             {[
               { name: 'Settings', icon: Settings, href: '/settings', active: false },
               { name: 'Account', icon: User, href: '#', active: false },
@@ -368,30 +368,28 @@ export default function NotesPage() {
               <button
                 key={item.name}
                 onClick={() => item.href && router.push(item.href as any)}
-                className={`flex items-center gap-3 w-full px-3 py-2 text-sm rounded-lg transition-colors ${
-                  item.active 
-                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium' 
+                className={`flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-lg transition-colors ${
+                  item.active
+                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'
                 }`}
               >
-                <item.icon size={18} />
+                <item.icon size={14} />
                 {item.name}
               </button>
             ))}
           </div>
           {/* Dark mode toggle */}
-          <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-            <div className="flex items-center justify-between px-3 py-2">
-              <span className="text-sm text-slate-600 dark:text-slate-300">Theme</span>
-              <ThemeToggle />
-            </div>
+          <div className="flex items-center justify-between px-2 py-1.5">
+            <span className="text-xs text-slate-600 dark:text-slate-300">Theme</span>
+            <ThemeToggle />
           </div>
-          <div className="mt-auto pt-4">
+          <div className="mt-auto pt-2">
             <button
               onClick={handleLogout}
-              className="flex items-center gap-3 w-full px-3 py-2 text-sm rounded-lg transition-colors text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+              className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-lg transition-colors text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
             >
-              <LogOut size={18} />
+              <LogOut size={14} />
               Log Out
             </button>
           </div>
@@ -399,7 +397,7 @@ export default function NotesPage() {
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-72">
+      <div className="lg:pl-56">
         {/* Mobile header */}
         <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-4 flex items-center justify-between lg:hidden">
           <div className="flex items-center gap-3">
@@ -435,12 +433,12 @@ export default function NotesPage() {
         </header>
 
         {/* Notes content */}
-        <main className="p-4 md:p-6 lg:p-8">
+        <main className="p-3">
           <div className="max-w-7xl mx-auto">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
               <div>
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Pile Notes</h1>
-                <p className="text-slate-500 dark:text-slate-400 mt-1">View and manage piles with added notes</p>
+                <h1 className="text-lg font-bold text-slate-900 dark:text-white">Pile Notes</h1>
+                <p className="text-slate-500 dark:text-slate-400 mt-0.5 text-xs">View and manage piles with added notes</p>
               </div>
               <div className="flex items-center gap-2">
                 <div className="relative">

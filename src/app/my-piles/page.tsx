@@ -1812,19 +1812,19 @@ export default function MyPilesPage() {
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-900">
       {/* Sidebar - Hidden on mobile */}
-      <div className="fixed inset-y-0 left-0 w-72 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 hidden lg:flex flex-col z-10">
-        <div className="p-6 border-b border-slate-100 dark:border-slate-700">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-sm">
+      <div className="fixed inset-y-0 left-0 w-56 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 hidden lg:flex flex-col z-10">
+        <div className="p-3 border-b border-slate-100 dark:border-slate-700">
+          <div className="flex items-center gap-2">
+            <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-xs">
               PT
             </div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white truncate">
+            <h1 className="text-base font-bold text-slate-900 dark:text-white truncate">
               {projectData?.project_name || "PileTrackerPro"}
             </h1>
           </div>
         </div>
-        
-        <nav className="p-4 flex-1">
+
+        <nav className="p-2 flex-1">
           <div className="space-y-1">
             {[
               { name: 'Dashboard', icon: BarChart3, href: '/dashboard', active: false },
@@ -1836,19 +1836,19 @@ export default function MyPilesPage() {
               <button
                 key={item.name}
                 onClick={() => item.href && router.push(item.href as any)}
-                className={`flex items-center gap-3 w-full px-3 py-2 text-sm rounded-lg transition-colors ${
-                  item.active 
-                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium' 
+                className={`flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-lg transition-colors ${
+                  item.active
+                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'
                 }`}
               >
-                <item.icon size={18} />
+                <item.icon size={14} />
                 {item.name}
               </button>
             ))}
           </div>
           
-          <div className="mt-8 pt-4 border-t border-slate-200 dark:border-slate-700 space-y-1">
+          <div className="mt-4 pt-2 border-t border-slate-200 dark:border-slate-700 space-y-1">
             {canEdit && [
               { name: 'Settings', icon: Settings, href: '/settings', active: false },
               { name: 'Account', icon: User, href: '#', active: false },
@@ -1856,32 +1856,30 @@ export default function MyPilesPage() {
               <button
                 key={item.name}
                 onClick={() => item.href && router.push(item.href as any)}
-                className={`flex items-center gap-3 w-full px-3 py-2 text-sm rounded-lg transition-colors ${
-                  item.active 
-                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium' 
+                className={`flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-lg transition-colors ${
+                  item.active
+                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'
                 }`}
               >
-                <item.icon size={18} />
+                <item.icon size={14} />
                 {item.name}
               </button>
             ))}
           </div>
-          
+
           {/* Dark mode toggle */}
-          <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-            <div className="flex items-center justify-between px-3 py-2">
-              <span className="text-sm text-slate-600 dark:text-slate-300">Theme</span>
-              <ThemeToggle />
-            </div>
+          <div className="flex items-center justify-between px-2 py-1.5">
+            <span className="text-xs text-slate-600 dark:text-slate-300">Theme</span>
+            <ThemeToggle />
           </div>
-          
-          <div className="mt-auto pt-4">
+
+          <div className="mt-auto pt-2">
             <button
               onClick={handleLogout}
-              className="flex items-center gap-3 w-full px-3 py-2 text-sm rounded-lg transition-colors text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+              className="flex items-center gap-2 w-full px-2 py-1.5 text-sm rounded-lg transition-colors text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
             >
-              <LogOut size={18} />
+              <LogOut size={14} />
               Log Out
             </button>
           </div>
@@ -1889,15 +1887,15 @@ export default function MyPilesPage() {
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-72">
-        
+      <div className="lg:pl-56">
+
         {/* My Piles content */}
-        <main className="p-4 sm:p-6 lg:p-8 pt-8">
-          <div className="mb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <main className="p-3">
+          <div className="mb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">My Piles</h2>
-                <p className="text-slate-500 mt-1">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">My Piles</h2>
+                <p className="text-slate-500 dark:text-slate-400 mt-0.5 text-xs">
                   {projectData ? `Project: ${projectData.project_name} | ${filteredPiles.length} of ${totalPiles} piles shown` : 'Loading project data...'}
                 </p>
                 {!canEdit && (
@@ -1987,20 +1985,20 @@ export default function MyPilesPage() {
           </div>
           
           {/* Stats cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <Card className="border-none shadow-md">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-slate-500">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-3">
+            <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+              <CardHeader className="pb-1 p-3">
+                <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">
                   {showMissingPilesOnly ? "Missing Piles" : "Total Piles"}
                   {(statusFilter !== "all" || blockFilter !== "all" || showDuplicatesOnly || searchQuery) && (
                     <span className="ml-2 text-xs text-blue-600 font-normal">(Filtered)</span>
                   )}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-3 pt-0">
                 <div className="flex items-baseline">
-                  <div className="text-3xl font-bold">{filteredPiles.length}</div>
-                  <div className="ml-2 text-sm text-slate-500">
+                  <div className="text-xl font-bold text-slate-900 dark:text-white">{filteredPiles.length}</div>
+                  <div className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                     {showMissingPilesOnly
                       ? `from pile plot plan`
                       : (statusFilter !== "all" || blockFilter !== "all" || showDuplicatesOnly || searchQuery)
@@ -2013,19 +2011,19 @@ export default function MyPilesPage() {
               </CardContent>
             </Card>
             
-            <Card className="border-none shadow-md">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-slate-500">
+            <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+              <CardHeader className="pb-1 p-3">
+                <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">
                   Accepted Piles
                   {(statusFilter !== "all" || blockFilter !== "all" || showDuplicatesOnly || searchQuery) && (
                     <span className="ml-2 text-xs text-blue-600 font-normal">(Filtered)</span>
                   )}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-3 pt-0">
                 <div className="flex items-baseline">
-                  <div className="text-3xl font-bold">{acceptedPiles}</div>
-                  <div className="ml-2 text-sm text-slate-500">
+                  <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{acceptedPiles}</div>
+                  <div className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                     {filteredPiles.length > 0
                       ? `${Math.round((acceptedPiles / filteredPiles.length) * 100)}% accepted`
                       : "No piles in filter"}
@@ -2034,19 +2032,19 @@ export default function MyPilesPage() {
               </CardContent>
             </Card>
             
-            <Card className="border-none shadow-md">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-slate-500">
+            <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+              <CardHeader className="pb-1 p-3">
+                <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">
                   Refusal Piles
                   {(statusFilter !== "all" || blockFilter !== "all" || showDuplicatesOnly || searchQuery) && (
                     <span className="ml-2 text-xs text-blue-600 font-normal">(Filtered)</span>
                   )}
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-3 pt-0">
                 <div className="flex items-baseline">
-                  <div className="text-3xl font-bold">{refusalPiles}</div>
-                  <div className="ml-2 text-sm text-slate-500">
+                  <div className="text-xl font-bold text-purple-500 dark:text-purple-400">{refusalPiles}</div>
+                  <div className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                     {filteredPiles.length > 0
                       ? `${Math.round((refusalPiles / filteredPiles.length) * 100)}% refusal`
                       : "No refusal piles in filter"}

@@ -308,3 +308,4 @@ supabase functions logs send-invitation-email
 - App icon defined in `src/app/icon.tsx` using edge runtime
 - Exports a single ImageResponse component for favicon generation
 - Edge runtime required for Next.js 15 icon generation
+- to memorize recent code changes
