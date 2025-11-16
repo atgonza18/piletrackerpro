@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { useAccountType } from "@/context/AccountTypeContext";
 import { CollapsibleSidebar } from "@/components/CollapsibleSidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -26,6 +27,7 @@ import {
 export default function SOPPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
+  const { canEdit } = useAccountType();
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -73,13 +75,27 @@ export default function SOPPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-sm text-slate-700 dark:text-slate-300">
-                <p className="mb-2">
-                  This guide will walk you through the complete workflow of managing your pile tracking project.
-                  Follow these steps in order for the best experience.
-                </p>
-                <p className="font-medium">
-                  Recommended workflow: Upload Pile Plot Plan → Upload Pile Data → Monitor & Analyze
-                </p>
+                {canEdit ? (
+                  <>
+                    <p className="mb-2">
+                      This guide will walk you through the complete workflow of managing your pile tracking project.
+                      Follow these steps in order for the best experience.
+                    </p>
+                    <p className="font-medium">
+                      Recommended workflow: Upload Pile Plot Plan → Upload Pile Data → Monitor & Analyze
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="mb-2">
+                      This guide will help you navigate and understand the pile tracking data for your project.
+                      As a viewer, you have access to all project data and reports.
+                    </p>
+                    <p className="font-medium">
+                      Learn to: View Data → Interpret Status → Generate Reports
+                    </p>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -90,35 +106,40 @@ export default function SOPPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <a href="#step1" className="flex items-center gap-2 p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                    <div className="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-bold text-slate-600 dark:text-slate-400">1</span>
-                    </div>
-                    <span className="text-sm font-medium">Upload Pile Plot Plan</span>
-                  </a>
-                  <a href="#step2" className="flex items-center gap-2 p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                    <div className="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-bold text-slate-600 dark:text-slate-400">2</span>
-                    </div>
-                    <span className="text-sm font-medium">Upload Pile Data</span>
-                  </a>
+                  {canEdit && (
+                    <>
+                      <a href="#step1" className="flex items-center gap-2 p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                        <div className="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                          <span className="text-sm font-bold text-slate-600 dark:text-slate-400">1</span>
+                        </div>
+                        <span className="text-sm font-medium">Upload Pile Plot Plan</span>
+                      </a>
+                      <a href="#step2" className="flex items-center gap-2 p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                        <div className="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                          <span className="text-sm font-bold text-slate-600 dark:text-slate-400">2</span>
+                        </div>
+                        <span className="text-sm font-medium">Upload Pile Data</span>
+                      </a>
+                    </>
+                  )}
                   <a href="#step3" className="flex items-center gap-2 p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                     <div className="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-bold text-slate-600 dark:text-slate-400">3</span>
+                      <span className="text-sm font-bold text-slate-600 dark:text-slate-400">{canEdit ? '3' : '1'}</span>
                     </div>
                     <span className="text-sm font-medium">Understanding Pages</span>
                   </a>
                   <a href="#step4" className="flex items-center gap-2 p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                     <div className="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-bold text-slate-600 dark:text-slate-400">4</span>
+                      <span className="text-sm font-bold text-slate-600 dark:text-slate-400">{canEdit ? '4' : '2'}</span>
                     </div>
-                    <span className="text-sm font-medium">Advanced Features</span>
+                    <span className="text-sm font-medium">{canEdit ? 'Advanced Features' : 'Viewing & Reporting'}</span>
                   </a>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Step 1: Upload Pile Plot Plan */}
+            {/* Step 1: Upload Pile Plot Plan - Only for EPC users */}
+            {canEdit && (
             <div id="step1" className="mb-6 scroll-mt-4">
               <Card>
                 <CardHeader className="bg-gradient-to-r from-slate-100 to-slate-200 dark:from-slate-800/50 dark:to-slate-700/50">
@@ -197,8 +218,10 @@ export default function SOPPage() {
                 </CardContent>
               </Card>
             </div>
+            )}
 
-            {/* Step 2: Upload Pile Data */}
+            {/* Step 2: Upload Pile Data - Only for EPC users */}
+            {canEdit && (
             <div id="step2" className="mb-6 scroll-mt-4">
               <Card>
                 <CardHeader className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20">
@@ -326,6 +349,7 @@ export default function SOPPage() {
                 </CardContent>
               </Card>
             </div>
+            )}
 
             {/* Step 3: Understanding the App */}
             <div id="step3" className="mb-6 scroll-mt-4">
@@ -378,19 +402,25 @@ export default function SOPPage() {
                         </div>
                         <div>
                           <h4 className="font-semibold text-slate-900 dark:text-white">My Piles</h4>
-                          <p className="text-sm text-slate-500 dark:text-slate-400">Complete list and management of all piles</p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            {canEdit ? 'Complete list and management of all piles' : 'View all pile records and data'}
+                          </p>
                         </div>
                       </div>
                       <div className="ml-11 space-y-2 text-sm text-slate-600 dark:text-slate-400">
-                        <p><strong className="text-slate-900 dark:text-white">Purpose:</strong> View, search, filter, and manage all pile records.</p>
+                        <p><strong className="text-slate-900 dark:text-white">Purpose:</strong> {canEdit ? 'View, search, filter, and manage all pile records.' : 'View, search, and filter all pile records.'}</p>
                         <p><strong className="text-slate-900 dark:text-white">Key features:</strong></p>
                         <ul className="list-disc list-inside ml-2 space-y-1">
                           <li>Searchable table with all pile data</li>
                           <li>Filter by status (Accepted, Refusal, Tolerance, N/A)</li>
-                          <li>Add individual piles manually</li>
-                          <li>Bulk import via CSV upload</li>
-                          <li>Upload pile plot plan (pile lookup)</li>
-                          <li>Edit or delete individual piles</li>
+                          {canEdit && (
+                            <>
+                              <li>Add individual piles manually</li>
+                              <li>Bulk import via CSV upload</li>
+                              <li>Upload pile plot plan (pile lookup)</li>
+                              <li>Edit or delete individual piles</li>
+                            </>
+                          )}
                           <li>Export data to Excel or PDF</li>
                           <li>Color-coded status indicators (Green = Accepted, Purple = Refusal, Amber = N/A)</li>
                         </ul>
@@ -474,18 +504,18 @@ export default function SOPPage() {
               </Card>
             </div>
 
-            {/* Step 4: Advanced Features */}
+            {/* Step 4: Advanced Features / Viewing & Reporting */}
             <div id="step4" className="mb-6 scroll-mt-4">
               <Card>
                 <CardHeader className="bg-gradient-to-r from-green-50 to-teal-50 dark:from-green-900/20 dark:to-teal-900/20">
                   <div className="flex items-start gap-3">
                     <div className="h-10 w-10 rounded-full bg-green-600 flex items-center justify-center flex-shrink-0">
-                      <span className="text-lg font-bold text-white">4</span>
+                      <span className="text-lg font-bold text-white">{canEdit ? '4' : '2'}</span>
                     </div>
                     <div>
-                      <CardTitle className="text-xl">Advanced Features & Tips</CardTitle>
+                      <CardTitle className="text-xl">{canEdit ? 'Advanced Features & Tips' : 'Viewing & Reporting'}</CardTitle>
                       <CardDescription className="mt-1">
-                        Power user features to maximize your productivity
+                        {canEdit ? 'Power user features to maximize your productivity' : 'Understanding pile status and generating reports'}
                       </CardDescription>
                     </div>
                   </div>
@@ -545,7 +575,8 @@ export default function SOPPage() {
                       </div>
                     </div>
 
-                    {/* Field Entry */}
+                    {/* Field Entry - Only for EPC users */}
+                    {canEdit && (
                     <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
                       <h4 className="font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
                         <FileSpreadsheet className="h-5 w-5 text-indigo-600" />
@@ -562,8 +593,10 @@ export default function SOPPage() {
                         </ul>
                       </div>
                     </div>
+                    )}
 
-                    {/* Settings */}
+                    {/* Settings - Only for EPC users */}
+                    {canEdit && (
                     <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
                       <h4 className="font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
                         <Settings className="h-5 w-5 text-slate-600" />
@@ -579,8 +612,10 @@ export default function SOPPage() {
                         </ul>
                       </div>
                     </div>
+                    )}
 
-                    {/* Data Management */}
+                    {/* Data Management - Only for EPC users */}
+                    {canEdit && (
                     <div className="border border-slate-200 dark:border-slate-700 rounded-lg p-4">
                       <h4 className="font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
                         <Table2 className="h-5 w-5 text-purple-600" />
@@ -596,6 +631,7 @@ export default function SOPPage() {
                         </ul>
                       </div>
                     </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -611,54 +647,109 @@ export default function SOPPage() {
               </CardHeader>
               <CardContent className="pt-6">
                 <div className="space-y-3 text-sm">
-                  <div className="flex items-start gap-3">
-                    <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-xs font-bold text-slate-600 dark:text-slate-400">1</span>
-                    </div>
-                    <p className="text-slate-700 dark:text-slate-300">
-                      <strong>Upload pile plot plan first</strong> to establish baseline expectations before importing actual pile data
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-xs font-bold text-slate-600 dark:text-slate-400">2</span>
-                    </div>
-                    <p className="text-slate-700 dark:text-slate-300">
-                      <strong>Review column mappings carefully</strong> during CSV upload to ensure data accuracy
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-xs font-bold text-slate-600 dark:text-slate-400">3</span>
-                    </div>
-                    <p className="text-slate-700 dark:text-slate-300">
-                      <strong>Set embedment tolerance</strong> in Settings to match your project requirements
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-xs font-bold text-slate-600 dark:text-slate-400">4</span>
-                    </div>
-                    <p className="text-slate-700 dark:text-slate-300">
-                      <strong>Use consistent naming</strong> for blocks and pile types across your dataset
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-xs font-bold text-slate-600 dark:text-slate-400">5</span>
-                    </div>
-                    <p className="text-slate-700 dark:text-slate-300">
-                      <strong>Regular exports</strong> create backups of your data for peace of mind
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-xs font-bold text-slate-600 dark:text-slate-400">6</span>
-                    </div>
-                    <p className="text-slate-700 dark:text-slate-300">
-                      <strong>Check Dashboard regularly</strong> to monitor project progress and identify issues early
-                    </p>
-                  </div>
+                  {canEdit ? (
+                    <>
+                      <div className="flex items-start gap-3">
+                        <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-400">1</span>
+                        </div>
+                        <p className="text-slate-700 dark:text-slate-300">
+                          <strong>Upload pile plot plan first</strong> to establish baseline expectations before importing actual pile data
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-400">2</span>
+                        </div>
+                        <p className="text-slate-700 dark:text-slate-300">
+                          <strong>Review column mappings carefully</strong> during CSV upload to ensure data accuracy
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-400">3</span>
+                        </div>
+                        <p className="text-slate-700 dark:text-slate-300">
+                          <strong>Set embedment tolerance</strong> in Settings to match your project requirements
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-400">4</span>
+                        </div>
+                        <p className="text-slate-700 dark:text-slate-300">
+                          <strong>Use consistent naming</strong> for blocks and pile types across your dataset
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-400">5</span>
+                        </div>
+                        <p className="text-slate-700 dark:text-slate-300">
+                          <strong>Regular exports</strong> create backups of your data for peace of mind
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-400">6</span>
+                        </div>
+                        <p className="text-slate-700 dark:text-slate-300">
+                          <strong>Check Dashboard regularly</strong> to monitor project progress and identify issues early
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-start gap-3">
+                        <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-400">1</span>
+                        </div>
+                        <p className="text-slate-700 dark:text-slate-300">
+                          <strong>Understand pile status classifications</strong> - Learn what Accepted, Refusal, Tolerance, and N/A mean for project progress
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-400">2</span>
+                        </div>
+                        <p className="text-slate-700 dark:text-slate-300">
+                          <strong>Use filters effectively</strong> to focus on specific pile statuses or categories that need attention
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-400">3</span>
+                        </div>
+                        <p className="text-slate-700 dark:text-slate-300">
+                          <strong>Export reports regularly</strong> in Excel or PDF format for your records and analysis
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-400">4</span>
+                        </div>
+                        <p className="text-slate-700 dark:text-slate-300">
+                          <strong>Review the Dashboard</strong> for a comprehensive overview of project progress and key metrics
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-400">5</span>
+                        </div>
+                        <p className="text-slate-700 dark:text-slate-300">
+                          <strong>Check Blocks and Pile Types</strong> pages to identify which areas may need attention
+                        </p>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-xs font-bold text-slate-600 dark:text-slate-400">6</span>
+                        </div>
+                        <p className="text-slate-700 dark:text-slate-300">
+                          <strong>Use the search function</strong> to quickly find specific piles by name or location
+                        </p>
+                      </div>
+                    </>
+                  )}
                 </div>
               </CardContent>
             </Card>
