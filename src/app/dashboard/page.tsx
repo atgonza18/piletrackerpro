@@ -533,11 +533,14 @@ export default function DashboardPage() {
       />
 
       {/* Main content */}
-      <div className="lg:pl-16 h-full w-full">
+      <div
+        className="h-full w-full transition-all duration-300 ease-in-out max-lg:!pl-0"
+        style={{ paddingLeft: 'var(--sidebar-width, 0px)' }}
+      >
         {/* Mobile header */}
         <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-2 flex items-center justify-between lg:hidden w-full">
           <div className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-xs">
+            <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-slate-700 to-slate-800 text-white flex items-center justify-center font-bold text-xs">
               PT
             </div>
             <h1 className="text-base font-bold text-slate-900 dark:text-white truncate max-w-[200px]">
@@ -564,7 +567,7 @@ export default function DashboardPage() {
                 className="rounded-full overflow-hidden border-slate-200 dark:border-slate-700 h-7 w-7 p-0"
                 onClick={() => handleNavigation('/settings')}
               >
-                <div className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 h-full w-full flex items-center justify-center text-xs font-medium">
+                <div className="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 h-full w-full flex items-center justify-center text-xs font-medium">
                   {userInitials}
                 </div>
               </Button>
@@ -589,14 +592,14 @@ export default function DashboardPage() {
                   <Bell className="h-3 w-3" />
                   Notifications
                   {notifications > 0 && (
-                    <span className="flex h-3 w-3 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 text-xs font-medium">
+                    <span className="flex h-3 w-3 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium">
                       {notifications}
                     </span>
                   )}
                 </Button>
                 <Button 
                   size="sm"
-                  className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1 h-7 text-xs"
+                  className="bg-slate-700 hover:bg-slate-800 text-white flex items-center gap-1 h-7 text-xs"
                   onClick={() => handleNavigation('/my-piles')}
                 >
                   <List className="h-3 w-3" />
@@ -622,7 +625,7 @@ export default function DashboardPage() {
                     </>
                   ) : (
                     <>
-                      <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{acceptedPiles}</div>
+                      <div className="text-xl font-bold text-slate-600 dark:text-slate-400">{acceptedPiles}</div>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         {totalPiles > 0 ? Math.round((acceptedPiles / totalPiles) * 100) : 0}% of total
                       </p>
@@ -694,7 +697,7 @@ export default function DashboardPage() {
                     </>
                   ) : (
                     <>
-                      <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{completedPilesPercent}%</div>
+                      <div className="text-xl font-bold text-slate-600 dark:text-slate-400">{completedPilesPercent}%</div>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         {totalPiles} / {projectData?.total_project_piles || 0} piles
                       </p>
@@ -715,7 +718,7 @@ export default function DashboardPage() {
                 <CardContent className="p-3 pt-0">
                   {statsLoading ? (
                     <div className="h-48 flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-600"></div>
                     </div>
                   ) : totalPiles > 0 ? (
                     <ResponsiveContainer width="100%" height={200}>
@@ -774,7 +777,7 @@ export default function DashboardPage() {
                         onClick={() => setTimelineView('weekly')}
                         className={`px-2 py-1 text-xs rounded transition-colors ${
                           timelineView === 'weekly'
-                            ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 font-medium shadow-sm'
+                            ? 'bg-white dark:bg-slate-600 text-slate-600 dark:text-slate-400 font-medium shadow-sm'
                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                         }`}
                       >
@@ -784,7 +787,7 @@ export default function DashboardPage() {
                         onClick={() => setTimelineView('monthly')}
                         className={`px-2 py-1 text-xs rounded transition-colors ${
                           timelineView === 'monthly'
-                            ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-blue-400 font-medium shadow-sm'
+                            ? 'bg-white dark:bg-slate-600 text-slate-600 dark:text-slate-400 font-medium shadow-sm'
                             : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                         }`}
                       >
@@ -796,7 +799,7 @@ export default function DashboardPage() {
                 <CardContent className="p-3 pt-0">
                   {statsLoading ? (
                     <div className="h-48 flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-600"></div>
                     </div>
                   ) : (timelineView === 'weekly' ? weeklyTimelineData : monthlyTimelineData).length > 0 ? (
                     <ResponsiveContainer width="100%" height={200}>
@@ -849,7 +852,7 @@ export default function DashboardPage() {
                 <CardContent className="p-3 pt-0">
                   {statsLoading ? (
                     <div className="h-64 flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-600"></div>
                     </div>
                   ) : blockData.length > 0 ? (
                     <div

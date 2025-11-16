@@ -401,11 +401,11 @@ export function PileLookupUploadModal({ isOpen, onClose, projectId }: PileLookup
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-4"
               >
-                <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 flex items-start gap-3">
-                  <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm text-blue-700">
+                <div className="bg-slate-100 border border-slate-300 rounded-lg p-4 flex items-start gap-3">
+                  <Info className="w-5 h-5 text-slate-500 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-slate-700">
                     <p className="font-medium mb-1">Map Your Columns</p>
-                    <p className="text-blue-600 text-xs">
+                    <p className="text-slate-600 text-xs">
                       Select which columns in your file correspond to each field. We've pre-selected our best guesses, but you can adjust them as needed.
                     </p>
                   </div>
@@ -560,7 +560,7 @@ export function PileLookupUploadModal({ isOpen, onClose, projectId }: PileLookup
                   <div className="space-y-2">
                     <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-blue-500 rounded-full transition-all"
+                        className="h-full bg-slate-1000 rounded-full transition-all"
                         style={{ width: `${uploadProgress}%` }}
                       />
                     </div>
@@ -603,7 +603,7 @@ export function PileLookupUploadModal({ isOpen, onClose, projectId }: PileLookup
                 exit={{ opacity: 0 }}
                 className={cn(
                   "border rounded-xl bg-white transition-all overflow-hidden",
-                  isDragging ? "border-blue-400 bg-blue-50/50" : "border-slate-200"
+                  isDragging ? "border-slate-400 bg-slate-100/50" : "border-slate-200"
                 )}
               >
                 <div
@@ -620,8 +620,8 @@ export function PileLookupUploadModal({ isOpen, onClose, projectId }: PileLookup
                       className="w-full space-y-4"
                     >
                       <div className="flex items-center gap-4 mx-auto max-w-[260px] bg-white p-4 rounded-lg border border-slate-100 shadow-sm">
-                        <div className="bg-blue-50 rounded-lg p-3 flex-shrink-0">
-                          <FileText className="w-6 h-6 text-blue-500" />
+                        <div className="bg-slate-100 rounded-lg p-3 flex-shrink-0">
+                          <FileText className="w-6 h-6 text-slate-500" />
                         </div>
                         <div className="text-left flex-1 min-w-0">
                           <p className="font-medium text-sm text-slate-800 truncate">{file.name}</p>
@@ -640,7 +640,7 @@ export function PileLookupUploadModal({ isOpen, onClose, projectId }: PileLookup
                         <div className="space-y-2 w-full max-w-[260px] mx-auto">
                           <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                             <div
-                              className="h-full bg-blue-500 rounded-full transition-all"
+                              className="h-full bg-slate-1000 rounded-full transition-all"
                               style={{ width: `${uploadProgress}%` }}
                             />
                           </div>
@@ -656,8 +656,8 @@ export function PileLookupUploadModal({ isOpen, onClose, projectId }: PileLookup
                       animate={{ opacity: 1 }}
                       className="space-y-4"
                     >
-                      <div className="bg-blue-50 rounded-full p-4 mx-auto">
-                        <UploadCloud className="w-8 h-8 text-blue-500" />
+                      <div className="bg-slate-100 rounded-full p-4 mx-auto">
+                        <UploadCloud className="w-8 h-8 text-slate-500" />
                       </div>
                       <div className="space-y-2">
                         <p className="text-base font-medium text-slate-800">
@@ -671,7 +671,7 @@ export function PileLookupUploadModal({ isOpen, onClose, projectId }: PileLookup
                         variant="outline"
                         size="sm"
                         onClick={() => fileInputRef.current?.click()}
-                        className="mt-2 border-blue-200 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                        className="mt-2 border-slate-300 text-slate-600 hover:bg-slate-100 hover:text-slate-700"
                       >
                         Browse files
                       </Button>
@@ -689,22 +689,22 @@ export function PileLookupUploadModal({ isOpen, onClose, projectId }: PileLookup
             )}
           </AnimatePresence>
 
-          <div className="mt-4 flex gap-3 p-4 bg-blue-50 rounded-lg">
-            <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-blue-700">
+          <div className="mt-4 flex gap-3 p-4 bg-slate-100 rounded-lg">
+            <Info className="w-5 h-5 text-slate-500 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-slate-700">
               <p className="font-medium mb-1">What is this?</p>
-              <p className="text-blue-600 text-xs leading-relaxed">
+              <p className="text-slate-600 text-xs leading-relaxed">
                 Upload your "pile plot" Excel file (the one with pile tags, types, and design embedments).
                 This allows the app to automatically lookup Pile Type and Design Embedment values when you upload GPS CSV files.
               </p>
               <div className="mt-2">
-                <p className="text-blue-600 text-xs font-medium">Required columns:</p>
-                <ul className="text-blue-600 text-xs list-disc ml-4 space-y-1 mt-1">
+                <p className="text-slate-600 text-xs font-medium">Required columns:</p>
+                <ul className="text-slate-600 text-xs list-disc ml-4 space-y-1 mt-1">
                   <li><strong>TAG or Name:</strong> Pile identifier (e.g., "A1.005.03")</li>
                   <li><strong>TYPE or Pile Type:</strong> Pile type (e.g., "2A2B.INTARRAY")</li>
                   <li><strong>Embedment:</strong> Design embedment value</li>
                 </ul>
-                <p className="text-blue-600 text-xs mt-2">
+                <p className="text-slate-600 text-xs mt-2">
                   ℹ️ This data will be replaced each time you upload a new pile plot file.
                 </p>
               </div>

@@ -632,7 +632,7 @@ export default function BlocksPage() {
       {/* Mobile header */}
       <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-sm">
+          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-700 to-slate-800 text-white flex items-center justify-center font-bold text-sm">
             PT
           </div>
           <h1 className="text-lg font-bold text-slate-900 dark:text-white">
@@ -652,7 +652,10 @@ export default function BlocksPage() {
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-16">
+      <div
+        className="transition-all duration-300 ease-in-out max-lg:!pl-0"
+        style={{ paddingLeft: 'var(--sidebar-width, 0px)' }}
+      >
         <main className="p-3">
           <div className="max-w-7xl mx-auto">
             {/* Page header */}
@@ -771,7 +774,7 @@ export default function BlocksPage() {
                   <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">Blocks with Slow Drive Time</CardTitle>
                 </CardHeader>
                 <CardContent className="p-3 pt-0">
-                  <div className="text-xl font-bold text-blue-600 dark:text-blue-500">
+                  <div className="text-xl font-bold text-slate-600 dark:text-slate-400">
                     {blocks.filter(b => b.slowDriveTimeCount > 0).length}
                   </div>
                 </CardContent>
@@ -809,7 +812,7 @@ export default function BlocksPage() {
 
             {isLoading ? (
               <div className="flex justify-center items-center min-h-[400px]">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-600"></div>
               </div>
             ) : filteredBlocks.length === 0 ? (
               <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
@@ -906,7 +909,7 @@ export default function BlocksPage() {
                             />
                           </div>
                           <div className="text-xs text-slate-500 dark:text-slate-400">Drive Time</div>
-                          <div className={`text-sm font-medium ${block.slowDriveTimeCount > 0 ? 'text-blue-600 dark:text-blue-500' : 'text-green-600 dark:text-green-500'}`}>
+                          <div className={`text-sm font-medium ${block.slowDriveTimeCount > 0 ? 'text-slate-600 dark:text-slate-400' : 'text-green-600 dark:text-green-500'}`}>
                             {block.slowDriveTimeCount} of {block.totalPiles}
                           </div>
                         </div>
@@ -962,7 +965,7 @@ export default function BlocksPage() {
 
           {isLoadingPiles ? (
             <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-600"></div>
             </div>
           ) : blockPiles.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">

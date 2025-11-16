@@ -1050,7 +1050,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       start_z: startZ,
       stop_time: stopTime,
       notes: getColumnValue('notes'),
-      pile_status: 'pending' // Default status for all imported piles
+      pile_status: 'N/A' // Default status for all imported piles
       // Note: 'zone' column is excluded - it was replaced by 'pile_type' in the schema
     };
 
@@ -1159,11 +1159,11 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-4"
               >
-                <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 flex items-start gap-3">
-                  <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-                  <div className="text-sm text-blue-700">
+                <div className="bg-slate-100 border border-slate-300 rounded-lg p-4 flex items-start gap-3">
+                  <Info className="w-5 h-5 text-slate-500 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-slate-700">
                     <p className="font-medium mb-1">Map Your GPS Data Columns</p>
-                    <p className="text-blue-600 text-xs">
+                    <p className="text-slate-600 text-xs">
                       Select which columns contain the raw data from your GPS file. The app will automatically calculate derived fields (like actual embedment from Start Z - End Z) and lookup fields (like Pile Type from your pile plot data).
                     </p>
                   </div>
@@ -1233,7 +1233,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                             </div>
 
                             <div className="text-xs text-slate-600">
-                              Result: <span className="font-mono bg-white px-2 py-1 rounded font-medium text-blue-600">
+                              Result: <span className="font-mono bg-white px-2 py-1 rounded font-medium text-slate-600">
                                 {fileData[1][headers.indexOf(columnMapping.pileNumber)]?.substring(pileIdPattern.startIndex, pileIdPattern.endIndex || undefined)}
                               </span>
                             </div>
@@ -1505,7 +1505,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                                 </div>
 
                                 <div className="text-xs text-slate-600">
-                                  Result: <span className="font-mono bg-white px-2 py-1 rounded font-medium text-blue-600">
+                                  Result: <span className="font-mono bg-white px-2 py-1 rounded font-medium text-slate-600">
                                     {fileData[1][headers.indexOf(columnMapping.block)]?.substring(blockPattern.startIndex, blockPattern.endIndex || undefined)}
                                   </span>
                                 </div>
@@ -1661,7 +1661,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
                           Design Embedment
-                          <span className="text-xs text-blue-600 font-normal">(Looked up from Pile Plot)</span>
+                          <span className="text-xs text-slate-600 font-normal">(Looked up from Pile Plot)</span>
                         </label>
                         <Select
                           value={columnMapping.designEmbedment}
@@ -1681,7 +1681,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                       </div>
 
                       {/* Pile Type Source Selection */}
-                      <div className="space-y-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="space-y-3 p-3 bg-slate-100 border border-slate-300 rounded-lg">
                         <label className="text-sm font-medium text-slate-700">
                           Pile Type Data Source
                         </label>
@@ -1697,7 +1697,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                                 // Clear the CSV column mapping when switching to lookup
                                 setColumnMapping(prev => ({ ...prev, pileType: '' }));
                               }}
-                              className="w-4 h-4 text-blue-600"
+                              className="w-4 h-4 text-slate-600"
                             />
                             <span className="text-sm text-slate-700">
                               <strong>Pile Plot Plan</strong> - Look up from pile_lookup_data table
@@ -1710,7 +1710,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                               value="csv"
                               checked={pileTypeSource === 'csv'}
                               onChange={(e) => setPileTypeSource('csv')}
-                              className="w-4 h-4 text-blue-600"
+                              className="w-4 h-4 text-slate-600"
                             />
                             <span className="text-sm text-slate-700">
                               <strong>GPS CSV</strong> - Use column from uploaded file
@@ -1789,7 +1789,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                   <div className="space-y-2">
                     <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-blue-500 rounded-full transition-all"
+                        className="h-full bg-slate-1000 rounded-full transition-all"
                         style={{ width: `${uploadProgress}%` }}
                       />
                     </div>
@@ -1832,7 +1832,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                 exit={{ opacity: 0 }}
                 className={cn(
                   "border rounded-xl bg-white transition-all overflow-hidden",
-                  isDragging ? "border-blue-400 bg-blue-50/50" : "border-slate-200"
+                  isDragging ? "border-slate-400 bg-slate-100/50" : "border-slate-200"
                 )}
               >
                 <div
@@ -1849,8 +1849,8 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                       className="w-full space-y-4"
                     >
                       <div className="flex items-center gap-4 mx-auto max-w-[260px] bg-white p-4 rounded-lg border border-slate-100 shadow-sm">
-                        <div className="bg-blue-50 rounded-lg p-3 flex-shrink-0">
-                          <FileText className="w-6 h-6 text-blue-500" />
+                        <div className="bg-slate-100 rounded-lg p-3 flex-shrink-0">
+                          <FileText className="w-6 h-6 text-slate-500" />
                         </div>
                         <div className="text-left flex-1 min-w-0">
                           <p className="font-medium text-sm text-slate-800 truncate">{file.name}</p>
@@ -1869,7 +1869,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                         <div className="space-y-2 w-full max-w-[260px] mx-auto">
                           <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                             <div 
-                              className="h-full bg-blue-500 rounded-full transition-all" 
+                              className="h-full bg-slate-1000 rounded-full transition-all" 
                               style={{ width: `${uploadProgress}%` }}
                             />
                           </div>
@@ -1885,8 +1885,8 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                       animate={{ opacity: 1 }}
                       className="space-y-4"
                     >
-                      <div className="bg-blue-50 rounded-full p-4 mx-auto">
-                        <UploadCloud className="w-8 h-8 text-blue-500" />
+                      <div className="bg-slate-100 rounded-full p-4 mx-auto">
+                        <UploadCloud className="w-8 h-8 text-slate-500" />
                       </div>
                       <div className="space-y-2">
                         <p className="text-base font-medium text-slate-800">
@@ -1900,7 +1900,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                         variant="outline"
                         size="sm"
                         onClick={() => fileInputRef.current?.click()}
-                        className="mt-2 border-blue-200 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                        className="mt-2 border-slate-300 text-slate-600 hover:bg-slate-100 hover:text-slate-700"
                       >
                         Browse files
                       </Button>
@@ -1918,19 +1918,19 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
             )}
           </AnimatePresence>
           
-          <div className="mt-4 flex gap-3 p-4 bg-blue-50 rounded-lg">
-            <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-blue-700">
+          <div className="mt-4 flex gap-3 p-4 bg-slate-100 rounded-lg">
+            <Info className="w-5 h-5 text-slate-500 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-slate-700">
               <p className="font-medium mb-1">Format Requirements</p>
-              <p className="text-blue-600 text-xs leading-relaxed">
+              <p className="text-slate-600 text-xs leading-relaxed">
                 🎉 <strong>GPS CSV Support!</strong> Upload CSV/XLSX files directly from your GPS pile driver. The app will automatically calculate Embedment, Gain/30, Pile Type, Design Embedment, and more!
               </p>
               <div className="mt-2 space-y-1">
-                <p className="text-blue-600 text-xs">
+                <p className="text-slate-600 text-xs">
                   <span className="font-medium">Supported Column Names (case-insensitive):</span>
                 </p>
                 <div className="grid grid-cols-1 gap-1">
-                  <ul className="text-blue-600 text-xs list-disc ml-4 space-y-1">
+                  <ul className="text-slate-600 text-xs list-disc ml-4 space-y-1">
                     <li><strong>Pile Identifier:</strong> "Pile ID", "Pile Number", "ID", "Pile_ID" (at least one required)</li>
                     <li><strong>Block:</strong> "Block", "Pile Block" (alternative identifier)</li>
                     <li><strong>Design Embedment:</strong> "Design Embedment", "Target Embedment"</li>
@@ -1942,10 +1942,10 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                     <li><strong>Other:</strong> "Pile Type", "Pile Color", "Gain per 30 seconds"</li>
                   </ul>
                 </div>
-                <p className="text-blue-600 text-xs mt-2">
+                <p className="text-slate-600 text-xs mt-2">
                   <span className="font-medium">🔍 Smart Features:</span>
                 </p>
-                <ul className="text-blue-600 text-xs list-disc ml-4 space-y-1">
+                <ul className="text-slate-600 text-xs list-disc ml-4 space-y-1">
                   <li>✅ Accepts CSV and XLSX files (direct from GPS pile driver)</li>
                   <li>✅ <strong>Auto-calculates:</strong> Embedment, Embedment (in), Duration (int), Gain/30, Embedment w/ Tolerance, Embedment Difference</li>
                   <li>✅ <strong>Auto-lookups:</strong> Pile Type and Design Embedment (if pile lookup data uploaded)</li>

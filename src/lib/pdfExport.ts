@@ -94,7 +94,7 @@ export const exportToPDF = (
     pile.Status?.toLowerCase() === 'tolerance'
   ).length;
   const pendingCount = data.filter((pile: any) =>
-    pile.Status?.toLowerCase() === 'pending'
+    pile.Status?.toLowerCase() === 'na'
   ).length;
 
   doc.setFontSize(9);
@@ -117,7 +117,7 @@ export const exportToPDF = (
   yPosition += 4;
 
   doc.setTextColor(133, 77, 14); // yellow-brown
-  doc.text(`  Pending: ${pendingCount} (${totalPiles > 0 ? ((pendingCount / totalPiles) * 100).toFixed(1) : 0}%)`, 14, yPosition);
+  doc.text(`  N/A: ${pendingCount} (${totalPiles > 0 ? ((pendingCount / totalPiles) * 100).toFixed(1) : 0}%)`, 14, yPosition);
   yPosition += 6;
 
   // Add active filters if any
@@ -207,7 +207,7 @@ export const exportToPDF = (
           data.cell.styles.fillColor = [224, 231, 255]; // indigo-100
           data.cell.styles.textColor = [55, 48, 163]; // indigo-800
           data.cell.styles.fontStyle = 'bold';
-        } else if (status === 'pending') {
+        } else if (status === 'na' || status === 'n/a') {
           data.cell.styles.fillColor = [254, 249, 195]; // yellow-100
           data.cell.styles.textColor = [133, 77, 14]; // yellow-800
           data.cell.styles.fontStyle = 'bold';

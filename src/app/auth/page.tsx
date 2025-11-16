@@ -386,20 +386,20 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-blue-50 w-full">
+    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-slate-50 w-full">
       {/* Left panel with logo - hidden on mobile */}
-      <div className="hidden lg:flex lg:w-1/2 bg-blue-600 text-white p-12 flex-col justify-between relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-700 opacity-90"></div>
+      <div className="hidden lg:flex lg:w-1/2 bg-slate-600 text-white p-12 flex-col justify-between relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-700 to-slate-800 opacity-90"></div>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.2)_0%,transparent_60%)]"></div>
         
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-12">
-            <div className="h-10 w-10 rounded-lg bg-white text-blue-600 flex items-center justify-center font-bold text-xl">PT</div>
+            <div className="h-10 w-10 rounded-lg bg-white text-slate-600 flex items-center justify-center font-bold text-xl">PT</div>
             <h1 className="text-2xl font-bold">PileTrackerPro</h1>
           </div>
         </div>
         
-        <div className="relative z-10 text-sm text-blue-200">
+        <div className="relative z-10 text-sm text-slate-300">
           &copy; {new Date().getFullYear()} PileTrackerPro. All rights reserved.
         </div>
       </div>
@@ -407,7 +407,7 @@ export default function AuthPage() {
       {/* Right panel with auth forms */}
       <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-4 sm:p-8 lg:p-12 min-h-screen">
         <div className="lg:hidden mb-10 flex flex-col items-center">
-          <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white font-bold text-2xl mb-3 shadow-lg">
+          <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center text-white font-bold text-2xl mb-3 shadow-lg">
             PT
           </div>
           <h1 className="text-2xl font-bold text-slate-900">PileTrackerPro</h1>
@@ -421,28 +421,28 @@ export default function AuthPage() {
               onClick={() => setActiveTab("login")}
               className={`flex-1 text-center py-4 px-5 text-sm font-medium transition-colors relative
                 ${activeTab === "login" 
-                  ? "text-blue-600" 
+                  ? "text-slate-600" 
                   : "text-slate-500 hover:text-slate-800"
                 }`}
               type="button"
             >
               Log In
               {activeTab === "login" && (
-                <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600"></div>
+                <div className="absolute bottom-0 left-0 w-full h-0.5 bg-slate-600"></div>
               )}
             </button>
             <button
               onClick={() => setActiveTab("register")}
               className={`flex-1 text-center py-4 px-5 text-sm font-medium transition-colors relative
                 ${activeTab === "register" 
-                  ? "text-blue-600" 
+                  ? "text-slate-600" 
                   : "text-slate-500 hover:text-slate-800"
                 }`}
               type="button"
             >
               Sign Up
               {activeTab === "register" && (
-                <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600"></div>
+                <div className="absolute bottom-0 left-0 w-full h-0.5 bg-slate-600"></div>
               )}
             </button>
           </div>
@@ -459,8 +459,8 @@ export default function AuthPage() {
               
               <CardContent className="space-y-5 px-6">
                 {emailConfirmationSent && (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-md mb-4">
-                    <p className="text-sm text-blue-700">
+                  <div className="p-3 bg-slate-100 border border-slate-300 rounded-md mb-4">
+                    <p className="text-sm text-slate-700">
                       <strong>Check your email!</strong> We've sent a confirmation link to {email}. 
                       Please verify your email address before logging in.
                     </p>
@@ -474,7 +474,7 @@ export default function AuthPage() {
                     id="login-email" 
                     type="email" 
                     placeholder="name@example.com" 
-                    className={`h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-black placeholder:text-gray-600 ${
+                    className={`h-11 border-slate-200 focus:border-slate-500 focus:ring-slate-500 text-black placeholder:text-gray-600 ${
                       formErrors.email ? "border-red-500" : ""
                     }`}
                     value={email}
@@ -491,7 +491,7 @@ export default function AuthPage() {
                     <Label htmlFor="login-password" className="text-sm font-medium text-slate-700">
                       Password
                     </Label>
-                    <Link href="/auth/forgot-password" className="text-sm text-blue-600 hover:text-blue-800 transition-colors font-medium">
+                    <Link href="/auth/forgot-password" className="text-sm text-slate-600 hover:text-slate-800 transition-colors font-medium">
                       Forgot password?
                     </Link>
                   </div>
@@ -500,7 +500,7 @@ export default function AuthPage() {
                       id="login-password" 
                       type={showPassword ? "text" : "password"} 
                       placeholder="••••••••" 
-                      className={`h-11 pr-10 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-black placeholder:text-gray-600 ${
+                      className={`h-11 pr-10 border-slate-200 focus:border-slate-500 focus:ring-slate-500 text-black placeholder:text-gray-600 ${
                         formErrors.password ? "border-red-500" : ""
                       }`}
                       value={password}
@@ -525,7 +525,7 @@ export default function AuthPage() {
                   <input
                     type="checkbox"
                     id="remember"
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    className="h-4 w-4 rounded border-slate-300 text-slate-600 focus:ring-slate-500"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
                   />
@@ -538,7 +538,7 @@ export default function AuthPage() {
               <CardFooter className="flex flex-col px-6 pb-6">
                 <Button 
                   type="submit" 
-                  className="w-full h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md transition-all" 
+                  className="w-full h-11 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-800 hover:to-slate-900 text-white shadow-md transition-all" 
                   disabled={isLoading}
                 >
                   {isLoading ? (
@@ -560,7 +560,7 @@ export default function AuthPage() {
                   Don&apos;t have an account?{" "}
                   <button 
                     type="button" 
-                    className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                    className="text-slate-600 hover:text-slate-800 font-medium transition-colors"
                     onClick={() => setActiveTab("register")}
                   >
                     Sign up
@@ -623,16 +623,16 @@ export default function AuthPage() {
               <CardContent className="space-y-4 px-6">
                 {/* Show invitation banner if user has valid invitation */}
                 {invitationData && (
-                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="p-4 bg-slate-100 border border-slate-300 rounded-lg">
                     <div className="flex items-start gap-3">
                       <div className="flex-shrink-0">
-                        <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-5 h-5 text-slate-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                         </svg>
                       </div>
                       <div className="flex-1">
-                        <h3 className="text-sm font-medium text-blue-900">Project Invitation</h3>
-                        <p className="text-sm text-blue-700 mt-1">
+                        <h3 className="text-sm font-medium text-slate-900">Project Invitation</h3>
+                        <p className="text-sm text-slate-700 mt-1">
                           You'll automatically be added to <strong>{invitationData.projects.project_name}</strong> once you complete signup.
                         </p>
                       </div>
@@ -645,7 +645,7 @@ export default function AuthPage() {
                     <Input 
                       id="firstName" 
                       placeholder="John"
-                      className="h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-black placeholder:text-gray-600" 
+                      className="h-11 border-slate-200 focus:border-slate-500 focus:ring-slate-500 text-black placeholder:text-gray-600" 
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
                       required 
@@ -656,7 +656,7 @@ export default function AuthPage() {
                     <Input 
                       id="lastName" 
                       placeholder="Doe"
-                      className="h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-black placeholder:text-gray-600" 
+                      className="h-11 border-slate-200 focus:border-slate-500 focus:ring-slate-500 text-black placeholder:text-gray-600" 
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
                       required 
@@ -672,7 +672,7 @@ export default function AuthPage() {
                     id="register-email" 
                     type="email" 
                     placeholder="name@example.com" 
-                    className={`h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-black ${
+                    className={`h-11 border-slate-200 focus:border-slate-500 focus:ring-slate-500 text-black ${
                       formErrors.email ? "border-red-500" : ""
                     } ${invitationData ? "bg-slate-50" : ""} text-black placeholder:text-gray-600`}
                     value={email}
@@ -692,7 +692,7 @@ export default function AuthPage() {
                       id="register-password" 
                       type={showPassword ? "text" : "password"} 
                       placeholder="••••••••" 
-                      className={`h-11 pr-10 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-black placeholder:text-gray-600 ${
+                      className={`h-11 pr-10 border-slate-200 focus:border-slate-500 focus:ring-slate-500 text-black placeholder:text-gray-600 ${
                         formErrors.password ? "border-red-500" : ""
                       }`}
                       value={password}
@@ -747,7 +747,7 @@ export default function AuthPage() {
                     id="confirmPassword" 
                     type={showPassword ? "text" : "password"} 
                     placeholder="••••••••" 
-                    className={`h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-black placeholder:text-gray-600 ${
+                    className={`h-11 border-slate-200 focus:border-slate-500 focus:ring-slate-500 text-black placeholder:text-gray-600 ${
                       formErrors.confirmPassword ? "border-red-500" : ""
                     }`}
                     value={confirmPassword}
@@ -777,19 +777,19 @@ export default function AuthPage() {
                       />
                       <Label
                         htmlFor="epc"
-                        className="relative flex flex-col items-center justify-between rounded-md border-2 border-slate-200 bg-white p-3 cursor-pointer transition-all hover:border-slate-300 hover:bg-slate-50 [&:has([data-state=checked])]:border-blue-600 [&:has([data-state=checked])]:bg-gradient-to-br [&:has([data-state=checked])]:from-blue-50 [&:has([data-state=checked])]:to-indigo-50 [&:has([data-state=checked])]:shadow-md"
+                        className="relative flex flex-col items-center justify-between rounded-md border-2 border-slate-200 bg-white p-3 cursor-pointer transition-all hover:border-slate-300 hover:bg-slate-50 [&:has([data-state=checked])]:border-slate-600 [&:has([data-state=checked])]:bg-gradient-to-br [&:has([data-state=checked])]:from-slate-100 [&:has([data-state=checked])]:to-slate-200 [&:has([data-state=checked])]:shadow-md"
                       >
                         {accountType === "epc" && (
-                          <div className="absolute -top-2 -right-2 bg-blue-600 text-white rounded-full p-1">
+                          <div className="absolute -top-2 -right-2 bg-slate-600 text-white rounded-full p-1">
                             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
                           </div>
                         )}
-                        <Building2 className={`mb-2 h-6 w-6 transition-colors ${accountType === "epc" ? "text-blue-600" : "text-slate-400"}`} />
+                        <Building2 className={`mb-2 h-6 w-6 transition-colors ${accountType === "epc" ? "text-slate-600" : "text-slate-400"}`} />
                         <div className="space-y-1 text-center">
-                          <h3 className={`font-semibold transition-colors ${accountType === "epc" ? "text-blue-900" : "text-black"}`}>EPC Account</h3>
-                          <p className={`text-sm transition-colors ${accountType === "epc" ? "text-blue-700" : "text-slate-500"}`}>
+                          <h3 className={`font-semibold transition-colors ${accountType === "epc" ? "text-slate-900" : "text-black"}`}>EPC Account</h3>
+                          <p className={`text-sm transition-colors ${accountType === "epc" ? "text-slate-700" : "text-slate-500"}`}>
                             Full access to manage and edit projects
                           </p>
                         </div>
@@ -804,19 +804,19 @@ export default function AuthPage() {
                       />
                       <Label
                         htmlFor="owner"
-                        className="relative flex flex-col items-center justify-between rounded-md border-2 border-slate-200 bg-white p-3 cursor-pointer transition-all hover:border-slate-300 hover:bg-slate-50 [&:has([data-state=checked])]:border-blue-600 [&:has([data-state=checked])]:bg-gradient-to-br [&:has([data-state=checked])]:from-blue-50 [&:has([data-state=checked])]:to-indigo-50 [&:has([data-state=checked])]:shadow-md"
+                        className="relative flex flex-col items-center justify-between rounded-md border-2 border-slate-200 bg-white p-3 cursor-pointer transition-all hover:border-slate-300 hover:bg-slate-50 [&:has([data-state=checked])]:border-slate-600 [&:has([data-state=checked])]:bg-gradient-to-br [&:has([data-state=checked])]:from-slate-100 [&:has([data-state=checked])]:to-slate-200 [&:has([data-state=checked])]:shadow-md"
                       >
                         {accountType === "owner" && (
-                          <div className="absolute -top-2 -right-2 bg-blue-600 text-white rounded-full p-1">
+                          <div className="absolute -top-2 -right-2 bg-slate-600 text-white rounded-full p-1">
                             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
                           </div>
                         )}
-                        <Eye className={`mb-2 h-6 w-6 transition-colors ${accountType === "owner" ? "text-blue-600" : "text-slate-400"}`} />
+                        <Eye className={`mb-2 h-6 w-6 transition-colors ${accountType === "owner" ? "text-slate-600" : "text-slate-400"}`} />
                         <div className="space-y-1 text-center">
-                          <h3 className={`font-semibold transition-colors ${accountType === "owner" ? "text-blue-900" : "text-black"}`}>Owner's Rep</h3>
-                          <p className={`text-sm transition-colors ${accountType === "owner" ? "text-blue-700" : "text-slate-500"}`}>
+                          <h3 className={`font-semibold transition-colors ${accountType === "owner" ? "text-slate-900" : "text-black"}`}>Owner's Rep</h3>
+                          <p className={`text-sm transition-colors ${accountType === "owner" ? "text-slate-700" : "text-slate-500"}`}>
                             View-only access to monitor progress
                           </p>
                         </div>
@@ -854,7 +854,7 @@ export default function AuthPage() {
                       type="checkbox"
                       id="terms"
                       required
-                      className={`h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 ${
+                      className={`h-4 w-4 rounded border-slate-300 text-slate-600 focus:ring-slate-500 ${
                         formErrors.terms ? "border-red-500" : ""
                       }`}
                       checked={agreeToTerms}
@@ -865,7 +865,7 @@ export default function AuthPage() {
                     <label htmlFor="terms" className={`text-slate-600 ${
                       formErrors.terms ? "text-red-500" : ""
                     }`}>
-                      I agree to the <a href="#" className="text-blue-600 hover:text-blue-800 font-medium">Terms of Service</a> and <a href="#" className="text-blue-600 hover:text-blue-800 font-medium">Privacy Policy</a>
+                      I agree to the <a href="#" className="text-slate-600 hover:text-slate-800 font-medium">Terms of Service</a> and <a href="#" className="text-slate-600 hover:text-slate-800 font-medium">Privacy Policy</a>
                     </label>
                   </div>
                 </div>
@@ -877,7 +877,7 @@ export default function AuthPage() {
               <CardFooter className="flex flex-col px-6 pb-6">
                 <Button 
                   type="submit" 
-                  className="w-full h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md transition-all" 
+                  className="w-full h-11 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-800 hover:to-slate-900 text-white shadow-md transition-all" 
                   disabled={isLoading}
                 >
                   {isLoading ? (
@@ -899,7 +899,7 @@ export default function AuthPage() {
                   Already have an account?{" "}
                   <button 
                     type="button" 
-                    className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                    className="text-slate-600 hover:text-slate-800 font-medium transition-colors"
                     onClick={() => setActiveTab("login")}
                   >
                     Log in

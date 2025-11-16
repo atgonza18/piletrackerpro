@@ -98,15 +98,15 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
+  --chart-1: oklch(0.65 0 0);
+  --chart-2: oklch(0.55 0 0);
+  --chart-3: oklch(0.45 0 0);
+  --chart-4: oklch(0.75 0 0);
+  --chart-5: oklch(0.35 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.708 0 0);
+  --sidebar-primary-foreground: oklch(0.145 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
@@ -118,17 +118,57 @@
     height: 100%;
     overflow-x: hidden;
   }
-  
+
   * {
     @apply border-border outline-ring/50;
   }
-  
+
   body {
     @apply bg-background text-foreground;
     min-height: 100vh;
     height: 100%;
     overflow-x: hidden;
     width: 100%;
+  }
+
+  /* Modern subtle scrollbars - Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.8 0 0 / 0.3) transparent;
+  }
+
+  .dark * {
+    scrollbar-color: oklch(0.4 0 0 / 0.3) transparent;
+  }
+
+  /* Modern subtle scrollbars - Webkit (Chrome, Safari, Edge) */
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: oklch(0.8 0 0 / 0.3);
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: oklch(0.7 0 0 / 0.5);
+  }
+
+  /* Dark mode scrollbars */
+  .dark *::-webkit-scrollbar-thumb {
+    background-color: oklch(0.4 0 0 / 0.3);
+  }
+
+  .dark *::-webkit-scrollbar-thumb:hover {
+    background-color: oklch(0.5 0 0 / 0.5);
   }
 }
 
@@ -221,7 +261,7 @@
   pointer-events: none;
   transform: translate(-50%, -50%) scale(0);
   opacity: 0;
-  background-color: rgba(59, 130, 246, 0.1);
+  background-color: rgba(115, 115, 115, 0.1);
   transition: transform 0.5s, opacity 0.5s;
 }
 
@@ -253,7 +293,7 @@
 }
 
 #nprogress .bar {
-  background: #3b82f6; /* Blue-500 */
+  background: #737373; /* Neutral-500 */
   position: fixed;
   z-index: 9999;
   top: 0;
@@ -268,15 +308,15 @@
   right: 0px;
   width: 100px;
   height: 100%;
-  box-shadow: 0 0 10px #3b82f6, 0 0 5px #3b82f6;
+  box-shadow: 0 0 10px #737373, 0 0 5px #737373;
   opacity: 1.0;
   transform: rotate(3deg) translate(0px, -4px);
 }
 
 .dark #nprogress .bar {
-  background: #60a5fa; /* Blue-400 for dark mode */
+  background: #a3a3a3; /* Neutral-400 for dark mode */
 }
 
 .dark #nprogress .peg {
-  box-shadow: 0 0 10px #60a5fa, 0 0 5px #60a5fa;
+  box-shadow: 0 0 10px #a3a3a3, 0 0 5px #a3a3a3;
 }

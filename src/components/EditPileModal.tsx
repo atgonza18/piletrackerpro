@@ -49,7 +49,7 @@ export function EditPileModal({ isOpen, onClose, pile, onUpdate }: EditPileModal
     block: "",
     pile_type: "",
     pile_size: "",
-    pile_status: "Pending",
+    pile_status: "N/A",
     installation_date: "",
     start_time: "",
     stop_time: "",
@@ -73,7 +73,7 @@ export function EditPileModal({ isOpen, onClose, pile, onUpdate }: EditPileModal
         block: pile.block || "",
         pile_type: pile.pile_type || "",
         pile_size: pile.pile_size || "",
-        pile_status: pile.pile_status || "Pending",
+        pile_status: pile.pile_status || "N/A",
         installation_date: pile.installation_date || "",
         start_time: pile.start_time || "",
         stop_time: pile.stop_time || "",
@@ -250,7 +250,7 @@ export function EditPileModal({ isOpen, onClose, pile, onUpdate }: EditPileModal
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Pending">Pending</SelectItem>
+                    <SelectItem value="N/A">N/A</SelectItem>
                     <SelectItem value="Accepted">Accepted</SelectItem>
                     <SelectItem value="Refusal">Refusal</SelectItem>
                   </SelectContent>

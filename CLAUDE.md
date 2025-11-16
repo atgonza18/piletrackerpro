@@ -15,7 +15,11 @@ npm run start        # Start production server
 npm run lint         # Run ESLint checks
 ```
 
-Note: The build process intentionally ignores TypeScript and ESLint errors (`NEXT_IGNORE_ESLINT=1 NEXT_IGNORE_TYPE_CHECK=1`) for rapid development.
+**Important Build Configuration**: The build process intentionally ignores TypeScript and ESLint errors for rapid development:
+- Environment variables: `NEXT_IGNORE_ESLINT=1` and `NEXT_IGNORE_TYPE_CHECK=1` in `package.json`
+- Next.js config: `ignoreDuringBuilds: true` and `ignoreBuildErrors: true` in `next.config.ts`
+- This applies to both local builds and production builds
+- Use `npm run lint` separately to check for linting issues during development
 
 ## Architecture
 
@@ -31,7 +35,12 @@ Note: The build process intentionally ignores TypeScript and ESLint errors (`NEX
 - **jsPDF + jsPDF-AutoTable** for PDF export
 - **XLSX** for Excel export
 
-**TypeScript Configuration**: Path alias `@/*` maps to `./src/*` for cleaner imports
+**TypeScript Configuration**: Path alias `@/*` maps to `./src/*` for cleaner imports. Additional aliases configured in `components.json`:
+- `@/components` → `src/components`
+- `@/lib` → `src/lib`
+- `@/ui` → `src/components/ui`
+- `@/hooks` → `src/hooks`
+- `@/utils` → `src/lib/utils`
 
 ### Directory Structure
 ```
@@ -46,6 +55,7 @@ src/
 │   ├── settings/          # User/project settings
 │   ├── project-setup/     # New project creation
 │   ├── field-entry/       # Mobile-optimized field data entry form
+│   ├── sop/               # Standard Operating Procedure guide
 │   ├── icon.tsx           # App favicon (edge runtime)
 │   ├── layout.tsx         # Root layout with provider wrapping
 │   └── page.tsx           # Landing/home page
@@ -58,14 +68,17 @@ src/
 │   ├── ProjectSelector.tsx
 │   ├── DeleteAllPilesButton.tsx
 │   ├── NavigationProgress.tsx
-│   └── FieldEntryQRCode.tsx
+│   ├── FieldEntryQRCode.tsx
+│   └── Sidebar.tsx         # Collapsible sidebar with hover expansion
 ├── context/              # React Context providers
 │   ├── AuthContext.tsx
 │   ├── ThemeContext.tsx
 │   └── AccountTypeContext.tsx
+├── hooks/                # Custom React hooks
 └── lib/                  # Utility libraries
     ├── supabase.ts       # Supabase client
     ├── emailService.ts   # Email service abstraction
+    ├── pdfExport.ts      # PDF export utilities
     └── utils.ts          # Helper utilities
 ```
 
@@ -195,6 +208,13 @@ RESEND_API_KEY=your_resend_key                 # Option 3: Resend (production)
 - Form auto-populates with sensible defaults (today's date, pending status)
 - Real-time form validation with immediate feedback
 
+### Standard Operating Procedure (SOP)
+- Page at `src/app/sop/page.tsx` provides a comprehensive user guide
+- Step-by-step workflow documentation for new users
+- Detailed explanations of each page and feature
+- Best practices for data management and project setup
+- Visual guide with color-coded sections and navigation
+
 ## Development Guidelines
 
 ### Working with Supabase Edge Functions
@@ -308,6 +328,9 @@ supabase functions logs send-invitation-email
 - App icon defined in `src/app/icon.tsx` using edge runtime
 - Exports a single ImageResponse component for favicon generation
 - Edge runtime required for Next.js 15 icon generation
-- to memorize recent code changes
-- to memorize recent code changes
-- to memorize recent code changes
+
+### Navigation and UI Layout
+- Collapsible sidebar navigation with hover expansion to maximize viewport space
+- Sidebar component at `src/components/Sidebar.tsx`
+- Consistent UI sizing and spacing standards across all pages
+- Mobile-responsive design with optimized layouts for field data entry

@@ -29,7 +29,7 @@ function FieldEntryForm({ projectId }: FieldEntryFormProps) {
     block: "",
     pile_type: "",
     pile_size: "",
-    pile_status: "Pending",
+    pile_status: "N/A",
     start_date: new Date().toISOString().split('T')[0], // Default to today
     start_time: "",
     stop_time: "",
@@ -145,7 +145,7 @@ function FieldEntryForm({ projectId }: FieldEntryFormProps) {
         block: "",
         pile_type: "",
         pile_size: "",
-        pile_status: "Pending",
+        pile_status: "N/A",
         start_date: startDate, // Keep date
         start_time: "",
         stop_time: "",
@@ -172,7 +172,7 @@ function FieldEntryForm({ projectId }: FieldEntryFormProps) {
 
   if (!projectId) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-gray-900 dark:to-gray-800">
         <Card className="w-full max-w-md">
           <CardHeader>
             <CardTitle className="text-red-600">Invalid QR Code</CardTitle>
@@ -186,15 +186,15 @@ function FieldEntryForm({ projectId }: FieldEntryFormProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800 py-4 sm:py-8 px-4 pb-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 dark:from-gray-900 dark:to-gray-800 py-4 sm:py-8 px-4 pb-8">
       <div className="max-w-2xl mx-auto mb-8">
         <Card className="mb-8">
-          <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-lg">
+          <CardHeader className="bg-gradient-to-r from-slate-700 to-slate-800 text-white rounded-t-lg">
             <div className="flex items-center gap-2">
               <ClipboardCheck className="h-6 w-6" />
               <CardTitle>Field Pile Entry</CardTitle>
             </div>
-            <CardDescription className="text-blue-100">
+            <CardDescription className="text-slate-200">
               {projectName || "Loading project..."}
             </CardDescription>
           </CardHeader>
@@ -202,7 +202,7 @@ function FieldEntryForm({ projectId }: FieldEntryFormProps) {
           <CardContent className="pt-6 pb-8">
             <form onSubmit={handleSubmit} className="space-y-6 pb-4">
               {/* Inspector Name - Prominent at top */}
-              <div className="space-y-2 bg-blue-50 dark:bg-blue-950 p-4 rounded-lg border-2 border-blue-200 dark:border-blue-800">
+              <div className="space-y-2 bg-slate-100 dark:bg-slate-800 p-4 rounded-lg border-2 border-slate-300 dark:border-slate-700">
                 <Label htmlFor="inspector_name" className="text-base font-semibold">
                   Inspector Name *
                 </Label>
@@ -296,7 +296,7 @@ function FieldEntryForm({ projectId }: FieldEntryFormProps) {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Pending">Pending</SelectItem>
+                        <SelectItem value="N/A">N/A</SelectItem>
                         <SelectItem value="Accepted">Accepted</SelectItem>
                         <SelectItem value="Refusal">Refusal</SelectItem>
                       </SelectContent>

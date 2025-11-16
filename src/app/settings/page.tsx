@@ -528,7 +528,7 @@ export default function ProjectSettingsPage() {
               : "View project configuration and preferences"}
           </p>
           {!canEdit && (
-            <div className="mt-2 p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-700">
+            <div className="mt-2 p-4 bg-slate-100 border border-slate-300 rounded-lg text-slate-700">
               <p className="flex items-center gap-2">
                 <Info size={16} />
                 You have view-only access as an Owner's Representative
@@ -732,7 +732,7 @@ export default function ProjectSettingsPage() {
                         <div className="flex items-start justify-between">
                           <div>
                             <h3 className="text-lg font-semibold flex items-center gap-2">
-                              <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                              <FileSpreadsheet className="h-5 w-5 text-slate-600" />
                               Pile Plot Plan
                             </h3>
                             <p className="text-sm text-slate-500 mt-1">

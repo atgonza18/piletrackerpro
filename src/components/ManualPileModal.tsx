@@ -27,7 +27,7 @@ export function ManualPileModal({ isOpen, onClose, projectId }: ManualPileModalP
     block: "",
     pile_type: "",
     pile_size: "",
-    pile_status: "Pending",
+    pile_status: "N/A",
     start_date: "",
     start_time: "",
     stop_time: "",
@@ -110,7 +110,7 @@ export function ManualPileModal({ isOpen, onClose, projectId }: ManualPileModalP
         block: "",
         pile_type: "",
         pile_size: "",
-        pile_status: "Pending",
+        pile_status: "N/A",
         start_date: "",
         start_time: "",
         stop_time: "",
@@ -233,7 +233,7 @@ export function ManualPileModal({ isOpen, onClose, projectId }: ManualPileModalP
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Pending">Pending</SelectItem>
+                    <SelectItem value="N/A">N/A</SelectItem>
                     <SelectItem value="Accepted">Accepted</SelectItem>
                     <SelectItem value="Refusal">Refusal</SelectItem>
                   </SelectContent>

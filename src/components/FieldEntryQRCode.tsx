@@ -262,11 +262,11 @@ export function FieldEntryQRCode({ isOpen, onClose, projectId, projectName }: Fi
           </div>
 
           {/* Instructions */}
-          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-            <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+          <div className="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-200 mb-2">
               How to Use:
             </h4>
-            <ol className="text-xs text-blue-800 dark:text-blue-200 space-y-1 list-decimal list-inside">
+            <ol className="text-xs text-slate-700 dark:text-slate-300 space-y-1 list-decimal list-inside">
               <li>Print or download this QR code</li>
               <li>Post it in the field where inspectors can access it</li>
               <li>Inspectors scan with their mobile camera</li>

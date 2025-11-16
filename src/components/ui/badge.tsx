@@ -10,7 +10,7 @@ const badgeVariants = cva(
         default:
           "bg-slate-100 text-slate-800 hover:bg-slate-200 dark:bg-slate-700/50 dark:text-slate-300",
         primary:
-          "bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400",
+          "bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-slate-800/30 dark:text-slate-400",
         secondary:
           "bg-slate-100 text-slate-800 hover:bg-slate-200 dark:bg-slate-700/50 dark:text-slate-300",
         destructive:

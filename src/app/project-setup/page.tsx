@@ -189,7 +189,7 @@ export default function ProjectSetupPage() {
               <Input 
                 id="projectName" 
                 placeholder="Enter project name"
-                className={`h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400 ${
+                className={`h-11 border-slate-200 focus:border-slate-500 focus:ring-slate-500 text-slate-900 placeholder:text-slate-400 ${
                   formErrors.projectName ? "border-red-500" : ""
                 }`}
                 value={projectName}
@@ -207,7 +207,7 @@ export default function ProjectSetupPage() {
               <Input 
                 id="projectLocation" 
                 placeholder="Enter project location"
-                className={`h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400 ${
+                className={`h-11 border-slate-200 focus:border-slate-500 focus:ring-slate-500 text-slate-900 placeholder:text-slate-400 ${
                   formErrors.projectLocation ? "border-red-500" : ""
                 }`}
                 value={projectLocation}
@@ -225,7 +225,7 @@ export default function ProjectSetupPage() {
               <Select value={role} onValueChange={setRole}>
                 <SelectTrigger 
                   id="role"
-                  className={`h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 ${
+                  className={`h-11 border-slate-200 focus:border-slate-500 focus:ring-slate-500 ${
                     formErrors.role ? "border-red-500" : ""
                   }`}
                   style={{ color: role ? "#0f172a" : "#94a3b8" }}
@@ -255,7 +255,7 @@ export default function ProjectSetupPage() {
                 type="number"
                 min="1"
                 placeholder="Enter total number of piles"
-                className={`h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400 ${
+                className={`h-11 border-slate-200 focus:border-slate-500 focus:ring-slate-500 text-slate-900 placeholder:text-slate-400 ${
                   formErrors.totalProjectPiles ? "border-red-500" : ""
                 }`}
                 value={totalProjectPiles}
@@ -273,7 +273,7 @@ export default function ProjectSetupPage() {
               <Select value={trackerSystem} onValueChange={setTrackerSystem}>
                 <SelectTrigger 
                   id="trackerSystem"
-                  className={`h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 ${
+                  className={`h-11 border-slate-200 focus:border-slate-500 focus:ring-slate-500 ${
                     formErrors.trackerSystem ? "border-red-500" : ""
                   }`}
                   style={{ color: trackerSystem ? "#0f172a" : "#94a3b8" }}
@@ -299,7 +299,7 @@ export default function ProjectSetupPage() {
               <Input 
                 id="geotechCompany" 
                 placeholder="Enter geotech company name"
-                className={`h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400 ${
+                className={`h-11 border-slate-200 focus:border-slate-500 focus:ring-slate-500 text-slate-900 placeholder:text-slate-400 ${
                   formErrors.geotechCompany ? "border-red-500" : ""
                 }`}
                 value={geotechCompany}
@@ -314,7 +314,7 @@ export default function ProjectSetupPage() {
           <CardFooter className="flex flex-col px-6 pb-6">
             <Button 
               type="submit" 
-              className="w-full h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md transition-all" 
+              className="w-full h-11 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-800 hover:to-slate-900 text-white shadow-md transition-all" 
               disabled={isLoading}
             >
               {isLoading ? (

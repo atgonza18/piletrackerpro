@@ -47,27 +47,27 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-blue-50">
+    <div className="flex min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-slate-50">
       {/* Left panel - hidden on mobile */}
-      <div className="hidden lg:flex lg:w-1/2 bg-blue-600 text-white p-12 flex-col justify-between relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-indigo-700 opacity-90"></div>
+      <div className="hidden lg:flex lg:w-1/2 bg-slate-600 text-white p-12 flex-col justify-between relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-700 to-slate-800 opacity-90"></div>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.2)_0%,transparent_60%)]"></div>
         
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-12">
-            <div className="h-10 w-10 rounded-lg bg-white text-blue-600 flex items-center justify-center font-bold text-xl">PT</div>
+            <div className="h-10 w-10 rounded-lg bg-white text-slate-600 flex items-center justify-center font-bold text-xl">PT</div>
             <h1 className="text-2xl font-bold">PileTrackerPro</h1>
           </div>
           
           <div className="max-w-md">
             <h2 className="text-4xl font-bold mb-6">Reset your password</h2>
-            <p className="text-blue-100 text-lg mb-8">
+            <p className="text-slate-200 text-lg mb-8">
               Don't worry, it happens to the best of us. Let's get you back on track.
             </p>
           </div>
         </div>
         
-        <div className="relative z-10 text-sm text-blue-200">
+        <div className="relative z-10 text-sm text-slate-300">
           &copy; {new Date().getFullYear()} PileTrackerPro. All rights reserved.
         </div>
       </div>
@@ -75,7 +75,7 @@ export default function ForgotPasswordPage() {
       {/* Right panel with form */}
       <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-4 sm:p-8 lg:p-12">
         <div className="lg:hidden mb-10 flex flex-col items-center">
-          <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white font-bold text-2xl mb-3 shadow-lg">
+          <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 flex items-center justify-center text-white font-bold text-2xl mb-3 shadow-lg">
             PT
           </div>
           <h1 className="text-2xl font-bold text-slate-900">PileTrackerPro</h1>
@@ -111,7 +111,7 @@ export default function ForgotPasswordPage() {
                       id="email" 
                       type="email" 
                       placeholder="name@example.com" 
-                      className={`h-11 pl-10 border-slate-200 focus:border-blue-500 focus:ring-blue-500 ${
+                      className={`h-11 pl-10 border-slate-200 focus:border-slate-500 focus:ring-slate-500 ${
                         formErrors.email ? "border-red-500" : ""
                       }`}
                       required 
@@ -128,7 +128,7 @@ export default function ForgotPasswordPage() {
               <CardFooter className="flex flex-col space-y-4 px-6 pb-6">
                 <Button 
                   type="submit" 
-                  className="w-full h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md transition-all" 
+                  className="w-full h-11 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-800 hover:to-slate-900 text-white shadow-md transition-all" 
                   disabled={isLoading}
                 >
                   {isLoading ? (
@@ -146,7 +146,7 @@ export default function ForgotPasswordPage() {
                   )}
                 </Button>
                 <div className="text-center">
-                  <Link href="/auth" className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
+                  <Link href="/auth" className="text-sm text-slate-600 hover:text-slate-800 font-medium transition-colors">
                     Back to login
                   </Link>
                 </div>
@@ -167,7 +167,7 @@ export default function ForgotPasswordPage() {
               </CardHeader>
               
               <CardContent className="p-0 space-y-5">
-                <div className="p-4 bg-blue-50 rounded-lg text-blue-800 text-sm">
+                <div className="p-4 bg-slate-100 rounded-lg text-slate-700 text-sm">
                   <p>
                     If you don&apos;t see it in your inbox, please check your spam folder.
                     The link will expire in 1 hour.

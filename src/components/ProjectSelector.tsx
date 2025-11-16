@@ -157,7 +157,7 @@ export function ProjectSelector({ onProjectSelect, onNewProjectCreated }: Projec
   return (
     <>
       <Select onValueChange={handleSelectChange} disabled={loading}>
-        <SelectTrigger className="w-full h-11 border-slate-200 bg-white text-black focus:border-blue-500 focus:ring-blue-500">
+        <SelectTrigger className="w-full h-11 border-slate-200 bg-white text-black focus:border-slate-500 focus:ring-slate-500">
           <SelectValue 
             placeholder={loading ? "Loading projects..." : "Select a project"} 
             className="text-black placeholder:text-gray-600"
@@ -172,7 +172,7 @@ export function ProjectSelector({ onProjectSelect, onNewProjectCreated }: Projec
           {/* Create New Project Option */}
           <SelectItem 
             value="__CREATE_NEW__"
-            className="cursor-pointer text-blue-600 hover:bg-blue-50 focus:bg-blue-50 focus:text-blue-600 border-b border-slate-100"
+            className="cursor-pointer text-slate-600 hover:bg-slate-100 focus:bg-slate-100 focus:text-slate-600 border-b border-slate-100"
           >
             <div className="flex items-center gap-2">
               <Plus className="h-4 w-4" />
@@ -190,7 +190,7 @@ export function ProjectSelector({ onProjectSelect, onNewProjectCreated }: Projec
               <SelectItem 
                 key={project.id} 
                 value={project.id}
-                className="cursor-pointer text-black hover:bg-blue-50 focus:bg-blue-50 focus:text-black"
+                className="cursor-pointer text-black hover:bg-slate-100 focus:bg-slate-100 focus:text-black"
               >
                 <div>
                   <div className="font-medium text-black">{project.project_name}</div>
@@ -219,7 +219,7 @@ export function ProjectSelector({ onProjectSelect, onNewProjectCreated }: Projec
                 placeholder="Enter project name"
                 value={newProject.name}
                 onChange={(e) => setNewProject(prev => ({ ...prev, name: e.target.value }))}
-                className={`h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400 ${
+                className={`h-11 border-slate-200 focus:border-slate-500 focus:ring-slate-500 text-slate-900 placeholder:text-slate-400 ${
                   formErrors.name ? "border-red-500" : ""
                 }`}
               />
@@ -237,7 +237,7 @@ export function ProjectSelector({ onProjectSelect, onNewProjectCreated }: Projec
                 placeholder="Enter project location"
                 value={newProject.location}
                 onChange={(e) => setNewProject(prev => ({ ...prev, location: e.target.value }))}
-                className={`h-11 border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400 ${
+                className={`h-11 border-slate-200 focus:border-slate-500 focus:ring-slate-500 text-slate-900 placeholder:text-slate-400 ${
                   formErrors.location ? "border-red-500" : ""
                 }`}
               />
@@ -262,7 +262,7 @@ export function ProjectSelector({ onProjectSelect, onNewProjectCreated }: Projec
             <Button
               onClick={handleCreateProject}
               disabled={creating}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+              className="bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-800 hover:to-slate-900"
             >
               {creating ? (
                 <div className="flex items-center gap-2">

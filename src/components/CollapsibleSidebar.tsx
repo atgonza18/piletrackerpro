@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, BarChart3, List, MapPin, Box, FileText, Settings, User } from "lucide-react";
+import { LogOut, BarChart3, List, MapPin, Box, FileText, Settings, User, BookOpen } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAccountType } from "@/context/AccountTypeContext";
 import { useAuth } from "@/context/AuthContext";
@@ -26,6 +26,12 @@ export function CollapsibleSidebar({ projectName = "PileTrackerPro", currentPage
   const { canEdit } = useAccountType();
   const { signOut } = useAuth();
 
+  // Update CSS variable when sidebar expands/collapses
+  useEffect(() => {
+    const sidebarWidth = isExpanded ? '224px' : '64px'; // w-56 = 224px, w-16 = 64px
+    document.documentElement.style.setProperty('--sidebar-width', sidebarWidth);
+  }, [isExpanded]);
+
   const handleNavigation = (path: string) => {
     router.push(path as any);
   };
@@ -46,6 +52,7 @@ export function CollapsibleSidebar({ projectName = "PileTrackerPro", currentPage
     { name: 'Pile Types', icon: MapPin, href: '/zones', active: currentPage === 'zones' },
     { name: 'Blocks', icon: Box, href: '/blocks', active: currentPage === 'blocks' },
     { name: 'Notes', icon: FileText, href: '/notes', active: currentPage === 'notes' },
+    { name: 'SOP', icon: BookOpen, href: '/sop', active: currentPage === 'sop' },
   ];
 
   const settingsNavItems: NavItem[] = canEdit ? [
@@ -64,7 +71,7 @@ export function CollapsibleSidebar({ projectName = "PileTrackerPro", currentPage
       {/* Header */}
       <div className="p-3 border-b border-slate-100 dark:border-slate-700 h-14 flex items-center overflow-hidden">
         <div className="flex items-center gap-2 min-w-max">
-          <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+          <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-slate-700 to-slate-800 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
             PT
           </div>
           <h1
@@ -86,7 +93,7 @@ export function CollapsibleSidebar({ projectName = "PileTrackerPro", currentPage
               onClick={() => handleNavigation(item.href)}
               className={`flex items-center gap-2 w-full px-2 py-2 text-sm rounded-lg transition-all ${
                 item.active
-                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium'
+                  ? 'bg-slate-100 text-slate-900 dark:bg-slate-700 dark:text-slate-100 font-medium'
                   : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'
               } ${!isExpanded ? 'justify-center' : ''}`}
               title={!isExpanded ? item.name : undefined}
@@ -112,7 +119,7 @@ export function CollapsibleSidebar({ projectName = "PileTrackerPro", currentPage
                 onClick={() => handleNavigation(item.href)}
                 className={`flex items-center gap-2 w-full px-2 py-2 text-sm rounded-lg transition-all ${
                   item.active
-                    ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-medium'
+                    ? 'bg-slate-100 text-slate-900 dark:bg-slate-700 dark:text-slate-100 font-medium'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/50'
                 } ${!isExpanded ? 'justify-center' : ''}`}
                 title={!isExpanded ? item.name : undefined}

@@ -333,11 +333,14 @@ export default function NotesPage() {
       />
 
       {/* Main content */}
-      <div className="lg:pl-16">
+      <div
+        className="transition-all duration-300 ease-in-out max-lg:!pl-0"
+        style={{ paddingLeft: 'var(--sidebar-width, 0px)' }}
+      >
         {/* Mobile header */}
         <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-4 flex items-center justify-between lg:hidden">
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-sm">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-700 to-slate-800 text-white flex items-center justify-center font-bold text-sm">
               PT
             </div>
             <h1 className="text-xl font-bold text-slate-900 dark:text-white">PileTrackerPro</h1>
@@ -361,7 +364,7 @@ export default function NotesPage() {
               className="rounded-full overflow-hidden border-slate-200 dark:border-slate-700"
               onClick={() => router.push('/settings' as any)}
             >
-              <div className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 h-full w-full flex items-center justify-center text-xs font-medium">
+              <div className="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 h-full w-full flex items-center justify-center text-xs font-medium">
                 {userInitials}
               </div>
             </Button>
@@ -395,7 +398,7 @@ export default function NotesPage() {
                   )}
                 </div>
                 <Button 
-                  className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2"
+                  className="bg-slate-700 hover:bg-slate-800 text-white flex items-center gap-2"
                   onClick={() => router.push('/my-piles')}
                 >
                   <List className="h-4 w-4" />
@@ -406,7 +409,7 @@ export default function NotesPage() {
 
             {isLoading ? (
               <div className="flex justify-center items-center py-12">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-700"></div>
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-slate-600"></div>
               </div>
             ) : filteredPiles.length === 0 ? (
               <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
@@ -520,7 +523,7 @@ export default function NotesPage() {
         <DialogContent className="sm:max-w-[550px] rounded-xl shadow-xl border-none overflow-hidden">
           <DialogHeader className="pb-2">
             <DialogTitle className="flex items-center text-xl">
-              <Pencil size={18} className="text-blue-600 mr-2" />
+              <Pencil size={18} className="text-slate-600 mr-2" />
               Edit Note
             </DialogTitle>
             <div className="text-slate-500 text-sm">
@@ -537,7 +540,7 @@ export default function NotesPage() {
               value={editedNote}
               onChange={(e) => setEditedNote(e.target.value)}
               placeholder="Enter notes about this pile..."
-              className="mt-1.5 transition-all duration-200 focus:border-blue-300"
+              className="mt-1.5 transition-all duration-200 focus:border-slate-400"
               rows={5}
             />
           </div>

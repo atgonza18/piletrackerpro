@@ -104,6 +104,7 @@ export default function MyPilesPage() {
   const [filteredPiles, setFilteredPiles] = useState<PileData[]>([]);
   const [totalPiles, setTotalPiles] = useState(0);
   const [acceptedPiles, setAcceptedPiles] = useState(0);
+  const [tolerancePiles, setTolerancePiles] = useState(0);
   const [refusalPiles, setRefusalPiles] = useState(0);
   const [pendingPiles, setPendingPiles] = useState(0);
   const [duplicatePileIds, setDuplicatePileIds] = useState<Set<string>>(new Set());
@@ -466,6 +467,10 @@ export default function MyPilesPage() {
                   getPileStatus(pile, projectTolerance) === 'accepted'
                 ).length;
 
+                const tolerance = uniquePiles.filter((pile: PileData) =>
+                  getPileStatus(pile, projectTolerance) === 'tolerance'
+                ).length;
+
                 const refusals = uniquePiles.filter((pile: PileData) =>
                   getPileStatus(pile, projectTolerance) === 'refusal'
                 ).length;
@@ -475,6 +480,7 @@ export default function MyPilesPage() {
                 ).length;
 
                 setAcceptedPiles(accepted);
+                setTolerancePiles(tolerance);
                 setRefusalPiles(refusals);
                 setPendingPiles(pending);
 
@@ -795,6 +801,10 @@ export default function MyPilesPage() {
         getPileStatus(pile) === 'accepted'
       ).length;
 
+      const tolerance = filteredPiles.filter(pile =>
+        getPileStatus(pile) === 'tolerance'
+      ).length;
+
       const refusals = filteredPiles.filter(pile =>
         getPileStatus(pile) === 'refusal'
       ).length;
@@ -805,6 +815,7 @@ export default function MyPilesPage() {
 
       // Update the stats with filtered counts
       setAcceptedPiles(accepted);
+      setTolerancePiles(tolerance);
       setRefusalPiles(refusals);
       setPendingPiles(pending);
     } else {
@@ -813,6 +824,10 @@ export default function MyPilesPage() {
       if (piles.length > 0) {
         const accepted = piles.filter(pile =>
           getPileStatus(pile) === 'accepted'
+        ).length;
+
+        const tolerance = piles.filter(pile =>
+          getPileStatus(pile) === 'tolerance'
         ).length;
 
         const refusals = piles.filter(pile =>
@@ -824,6 +839,7 @@ export default function MyPilesPage() {
         ).length;
 
         setAcceptedPiles(accepted);
+        setTolerancePiles(tolerance);
         setRefusalPiles(refusals);
         setPendingPiles(pending);
       }
@@ -856,7 +872,7 @@ export default function MyPilesPage() {
     } else if (Number(pile.embedment) < (Number(pile.design_embedment) - toleranceValue)) {
       return 'refusal';
     } else {
-      return 'accepted'; // Within tolerance
+      return 'tolerance'; // Within tolerance
     }
   };
   
@@ -868,6 +884,13 @@ export default function MyPilesPage() {
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
             <Check size={12} />
             Accepted
+          </span>
+        );
+      case 'tolerance':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-800">
+            <Info size={12} />
+            Tolerance
           </span>
         );
       case 'refusal':
@@ -1819,7 +1842,10 @@ export default function MyPilesPage() {
       />
 
       {/* Main content */}
-      <div className="lg:pl-16">
+      <div
+        className="transition-all duration-300 ease-in-out max-lg:!pl-0"
+        style={{ paddingLeft: 'var(--sidebar-width, 0px)' }}
+      >
 
         {/* My Piles content */}
         <main className="p-3">
@@ -1831,7 +1857,7 @@ export default function MyPilesPage() {
                   {projectData ? `Project: ${projectData.project_name} | ${filteredPiles.length} of ${totalPiles} piles shown` : 'Loading project data...'}
                 </p>
                 {!canEdit && (
-                  <div className="mt-2 p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-700">
+                  <div className="mt-2 p-4 bg-slate-100 border border-slate-300 rounded-lg text-slate-700">
                     <p className="flex items-center gap-2">
                       <Info size={16} />
                       You have view-only access as an Owner's Representative
@@ -1923,7 +1949,7 @@ export default function MyPilesPage() {
                 <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">
                   {showMissingPilesOnly ? "Missing Piles" : "Total Piles"}
                   {(statusFilter !== "all" || blockFilter !== "all" || showDuplicatesOnly || searchQuery) && (
-                    <span className="ml-2 text-xs text-blue-600 font-normal">(Filtered)</span>
+                    <span className="ml-2 text-xs text-slate-600 font-normal">(Filtered)</span>
                   )}
                 </CardTitle>
               </CardHeader>
@@ -1948,13 +1974,13 @@ export default function MyPilesPage() {
                 <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">
                   Accepted Piles
                   {(statusFilter !== "all" || blockFilter !== "all" || showDuplicatesOnly || searchQuery) && (
-                    <span className="ml-2 text-xs text-blue-600 font-normal">(Filtered)</span>
+                    <span className="ml-2 text-xs text-slate-600 font-normal">(Filtered)</span>
                   )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-3 pt-0">
                 <div className="flex items-baseline">
-                  <div className="text-xl font-bold text-blue-600 dark:text-blue-400">{acceptedPiles}</div>
+                  <div className="text-xl font-bold text-green-600 dark:text-green-400">{acceptedPiles}</div>
                   <div className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                     {filteredPiles.length > 0
                       ? `${Math.round((acceptedPiles / filteredPiles.length) * 100)}% accepted`
@@ -1963,19 +1989,40 @@ export default function MyPilesPage() {
                 </div>
               </CardContent>
             </Card>
-            
+
             <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
               <CardHeader className="pb-1 p-3">
                 <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                  Refusal Piles
+                  Tolerance Piles
                   {(statusFilter !== "all" || blockFilter !== "all" || showDuplicatesOnly || searchQuery) && (
-                    <span className="ml-2 text-xs text-blue-600 font-normal">(Filtered)</span>
+                    <span className="ml-2 text-xs text-slate-600 font-normal">(Filtered)</span>
                   )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-3 pt-0">
                 <div className="flex items-baseline">
-                  <div className="text-xl font-bold text-purple-500 dark:text-purple-400">{refusalPiles}</div>
+                  <div className="text-xl font-bold text-slate-600 dark:text-slate-400">{tolerancePiles}</div>
+                  <div className="ml-2 text-xs text-slate-500 dark:text-slate-400">
+                    {filteredPiles.length > 0
+                      ? `${Math.round((tolerancePiles / filteredPiles.length) * 100)}% within tolerance`
+                      : "No piles in filter"}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+              <CardHeader className="pb-1 p-3">
+                <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                  Refusal Piles
+                  {(statusFilter !== "all" || blockFilter !== "all" || showDuplicatesOnly || searchQuery) && (
+                    <span className="ml-2 text-xs text-slate-600 font-normal">(Filtered)</span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-3 pt-0">
+                <div className="flex items-baseline">
+                  <div className="text-xl font-bold text-red-600 dark:text-red-400">{refusalPiles}</div>
                   <div className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                     {filteredPiles.length > 0
                       ? `${Math.round((refusalPiles / filteredPiles.length) * 100)}% refusal`
@@ -2019,6 +2066,7 @@ export default function MyPilesPage() {
                     <SelectContent>
                       <SelectItem value="all">All Status</SelectItem>
                       <SelectItem value="accepted">Accepted</SelectItem>
+                      <SelectItem value="tolerance">Tolerance</SelectItem>
                       <SelectItem value="refusal">Refusal</SelectItem>
                       <SelectItem value="na">N/A</SelectItem>
                     </SelectContent>
@@ -2042,7 +2090,7 @@ export default function MyPilesPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className={`h-9 border-slate-200 dark:border-slate-600 ${startDate || endDate ? 'bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-400' : ''}`}
+                        className={`h-9 border-slate-200 dark:border-slate-600 ${startDate || endDate ? 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300' : ''}`}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {startDate && endDate ? (
@@ -2159,7 +2207,7 @@ export default function MyPilesPage() {
                               setShowSuperDuplicatesOnly(false);
                             }
                           }}
-                          className="data-[state=checked]:bg-blue-600"
+                          className="data-[state=checked]:bg-slate-600"
                         />
                         <Label className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
                           Show Duplicates
@@ -2171,12 +2219,12 @@ export default function MyPilesPage() {
                           variant="default"
                           size="sm"
                           onClick={() => setIsCombineAllDuplicatesDialogOpen(true)}
-                          className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-1.5 border border-blue-400/20"
+                          className="bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 text-white shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-1.5 border border-slate-400/20"
                           title="Combine all duplicate piles into single piles with summed embedment values"
                         >
                           <Link2 size={14} className="mr-1" />
                           <span className="font-medium">Combine All Duplicates</span>
-                          <span className="ml-1 px-1.5 py-0.5 bg-blue-400/20 rounded-full text-xs font-medium">
+                          <span className="ml-1 px-1.5 py-0.5 bg-slate-400/20 rounded-full text-xs font-medium">
                             {duplicatePileIds.size}
                           </span>
                         </Button>
@@ -2270,9 +2318,9 @@ export default function MyPilesPage() {
                   <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Active filters:</span>
                   
                   {searchQuery && (
-                    <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 text-xs px-2.5 py-1.5 rounded-md border border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs px-2.5 py-1.5 rounded-md border border-slate-300 dark:border-slate-700">
                       <span>Search: {searchQuery}</span>
-                      <button onClick={() => setSearchQuery("")} className="hover:text-blue-900 dark:hover:text-blue-300">
+                      <button onClick={() => setSearchQuery("")} className="hover:text-slate-900 dark:hover:text-slate-300">
                         <X size={12} />
                       </button>
                     </div>
@@ -2368,7 +2416,7 @@ export default function MyPilesPage() {
           {isLoading ? (
             <div className="bg-white rounded-lg shadow-md p-8 text-center">
               <div className="flex justify-center mb-4">
-                <svg className="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin h-8 w-8 text-slate-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
@@ -2415,7 +2463,7 @@ export default function MyPilesPage() {
                                 checked={filteredPiles.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                                   .every(pile => selectedPiles.has(pile.id))}
                                 onCheckedChange={toggleAllPilesSelection}
-                                className="data-[state=checked]:bg-blue-600"
+                                className="data-[state=checked]:bg-slate-600"
                               />
                             )}
                           </th>
@@ -2446,7 +2494,7 @@ export default function MyPilesPage() {
                             className={`border-b border-slate-200 dark:border-slate-700 cursor-pointer transition-all duration-200 ease-in-out hover:shadow-sm relative row-click-effect group ${
                               pile.pile_status === 'missing'
                                 ? 'bg-orange-50/60 dark:bg-orange-900/20 hover:bg-orange-100/80 dark:hover:bg-orange-900/30 border-l-4 border-l-orange-400'
-                                : 'hover:bg-slate-50 dark:hover:bg-blue-900/30'
+                                : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'
                             }`}
                             onClick={() => openPileDetail(pile)}
                             style={{
@@ -2458,12 +2506,12 @@ export default function MyPilesPage() {
                                 <Checkbox 
                                   checked={selectedPiles.has(pile.id)}
                                   onCheckedChange={() => togglePileSelection(pile.id)}
-                                  className="data-[state=checked]:bg-blue-600"
+                                  className="data-[state=checked]:bg-slate-600"
                                 />
                               )}
                             </td>
-                            <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
-                              <span className="group-hover:text-blue-600 transition-colors duration-200 block truncate" title={String(pile.pile_id || pile.pile_number)}>
+                            <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-slate-700 dark:group-hover:text-slate-300">
+                              <span className="group-hover:text-slate-600 transition-colors duration-200 block truncate" title={String(pile.pile_id || pile.pile_number)}>
                                 {pile.pile_id && duplicatePileIds.has(pile.pile_id) && showDuplicatesOnly ? (
                                   <div className="flex items-center">
                                     <span 
@@ -2483,22 +2531,22 @@ export default function MyPilesPage() {
                                 )}
                               </span>
                             </td>
-                            <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
+                            <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-slate-700 dark:group-hover:text-slate-300">
                               <span className="truncate block" title={pile.pile_type || "N/A"}>
                                 {pile.pile_type || "N/A"}
                               </span>
                             </td>
-                            <td className="px-2 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
+                            <td className="px-2 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-slate-700 dark:group-hover:text-slate-300">
                               <span className="truncate block" title={pile.block || "N/A"}>
                                 {pile.block || "N/A"}
                               </span>
                             </td>
-                            <td className="px-2 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 hidden md:table-cell">
+                            <td className="px-2 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-slate-700 dark:group-hover:text-slate-300 hidden md:table-cell">
                               <span className="truncate block" title={String(pile.machine || "N/A")}>
                                 {pile.machine || "N/A"}
                               </span>
                             </td>
-                            <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
+                            <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-slate-700 dark:group-hover:text-slate-300">
                               <span className="truncate block" title={pile.design_embedment ? `${String(pile.design_embedment)} ft` : "N/A"}>
                                 {pile.design_embedment ? `${pile.design_embedment}` : "N/A"}
                               </span>
@@ -2507,7 +2555,7 @@ export default function MyPilesPage() {
                               pile.embedment && pile.design_embedment && 
                               Number(pile.embedment) < (Number(pile.design_embedment) - embedmentTolerance) 
                                 ? 'relative' 
-                                : 'text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300'
+                                : 'text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-slate-700 dark:group-hover:text-slate-300'
                             }`}>
                               {pile.embedment && pile.design_embedment && 
                                Number(pile.embedment) < (Number(pile.design_embedment) - embedmentTolerance) ? (
@@ -2524,13 +2572,13 @@ export default function MyPilesPage() {
                                 <span className="truncate block" title={pile.embedment ? String(pile.embedment) : "N/A"}>{pile.embedment || "N/A"}</span>
                               )}
                             </td>
-                            <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 hidden lg:table-cell">
+                            <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-slate-700 dark:group-hover:text-slate-300 hidden lg:table-cell">
                               <span className="truncate block" title={pile.duration || "N/A"}>{pile.duration || "N/A"}</span>
                             </td>
-                            <td className="px-2 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 hidden xl:table-cell">
+                            <td className="px-2 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-slate-700 dark:group-hover:text-slate-300 hidden xl:table-cell">
                               <span className="truncate block" title={pile.start_z ? String(pile.start_z) : "N/A"}>{pile.start_z || "N/A"}</span>
                             </td>
-                            <td className="px-2 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 hidden xl:table-cell">
+                            <td className="px-2 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-slate-700 dark:group-hover:text-slate-300 hidden xl:table-cell">
                               <span className="truncate block" title={pile.end_z ? String(pile.end_z) : "N/A"}>{pile.end_z || "N/A"}</span>
                             </td>
                             <td className={`px-2 py-1.5 text-xs ${Number(pile.gain_per_30_seconds) < gainThreshold ? 'relative' : ''}`}>
@@ -2548,13 +2596,13 @@ export default function MyPilesPage() {
                                 <span className="truncate block" title={pile.gain_per_30_seconds ? String(pile.gain_per_30_seconds) : "N/A"}>{pile.gain_per_30_seconds || "N/A"}</span>
                               )}
                             </td>
-                            <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 hidden lg:table-cell">
+                            <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-slate-700 dark:group-hover:text-slate-300 hidden lg:table-cell">
                               <span className="truncate block" title={pile.pile_color || "N/A"}>{pile.pile_color || "N/A"}</span>
                             </td>
-                            <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300">
+                            <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-slate-700 dark:group-hover:text-slate-300">
                               {pile.is_combined && pile.date_range_start && pile.date_range_end && pile.date_range_start !== pile.date_range_end ? (
                                 <div className="flex flex-col">
-                                  <span className="truncate text-xs font-medium text-blue-600 dark:text-blue-400" title={`Combined ${pile.combined_count} piles from ${formatDate(pile.date_range_start)} to ${formatDate(pile.date_range_end)}`}>
+                                  <span className="truncate text-xs font-medium text-slate-600 dark:text-slate-400" title={`Combined ${pile.combined_count} piles from ${formatDate(pile.date_range_start)} to ${formatDate(pile.date_range_end)}`}>
                                     {formatDate(pile.date_range_start)} - {formatDate(pile.date_range_end)}
                                   </span>
                                   <span className="text-[10px] text-slate-500 dark:text-slate-400">({pile.combined_count} combined)</span>
@@ -2565,12 +2613,12 @@ export default function MyPilesPage() {
                                 </span>
                               )}
                             </td>
-                            <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 hidden md:table-cell">
+                            <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-slate-700 dark:group-hover:text-slate-300 hidden md:table-cell">
                               <span className="truncate block" title={formatTimeToStandard(pile.start_time)}>
                                 {formatTimeToStandard(pile.start_time)}
                               </span>
                             </td>
-                            <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-blue-700 dark:group-hover:text-blue-300 hidden lg:table-cell">
+                            <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-slate-700 dark:group-hover:text-slate-300 hidden lg:table-cell">
                               <span className="truncate block" title={formatTimeToStandard(pile.stop_time)}>
                                 {formatTimeToStandard(pile.stop_time)}
                               </span>
@@ -2580,24 +2628,27 @@ export default function MyPilesPage() {
                                 <Button 
                                   variant="outline" 
                                   size="sm" 
-                                  className="h-5 px-1 text-xs font-medium bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200 transition-all duration-200 hover:shadow-sm flex items-center gap-1"
+                                  className="h-5 px-1 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300 transition-all duration-200 hover:shadow-sm flex items-center gap-1"
                                   onClick={(e) => openNotesModal(pile, e)}
                                 >
-                                  <FileText size={10} className="text-blue-600" />
+                                  <FileText size={10} className="text-slate-600" />
                                 </Button>
                               )}
                             </td>
                             <td className="px-3 py-1.5">
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                                getPileStatus(pile) === 'accepted' ? 'bg-green-100 text-green-800' :
-                                getPileStatus(pile) === 'refusal' ? 'bg-red-100 text-red-800' :
-                                'bg-yellow-100 text-yellow-800'
+                                getPileStatus(pile) === 'accepted' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                                getPileStatus(pile) === 'tolerance' ? 'bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-300' :
+                                getPileStatus(pile) === 'refusal' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                                'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
                               }`}>
                                 {getPileStatus(pile) === 'accepted' && <Check size={8} />}
+                                {getPileStatus(pile) === 'tolerance' && <Info size={8} />}
                                 {getPileStatus(pile) === 'refusal' && <AlertTriangle size={8} />}
                                 {getPileStatus(pile) === 'na' && <Clock size={8} />}
                                 <span className="hidden sm:inline">
                                   {getPileStatus(pile) === 'accepted' && 'OK'}
+                                  {getPileStatus(pile) === 'tolerance' && 'TOL'}
                                   {getPileStatus(pile) === 'refusal' && 'REF'}
                                   {getPileStatus(pile) === 'na' && 'N/A'}
                                 </span>
@@ -2607,7 +2658,7 @@ export default function MyPilesPage() {
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
-                                className="text-slate-700 hover:text-blue-700 h-6 w-6 p-0 flex items-center justify-center"
+                                className="text-slate-700 hover:text-slate-700 h-6 w-6 p-0 flex items-center justify-center"
                                 onClick={(e) => openActionsModal(pile, e)}
                                 disabled={!canEdit}
                               >
@@ -2742,7 +2793,7 @@ export default function MyPilesPage() {
             <DialogHeader className="mb-1">
               <div className="flex items-center justify-between">
                 <DialogTitle className="text-xl font-semibold text-slate-900 dark:text-white flex items-center max-w-[70%] overflow-hidden">
-                  <span className="text-blue-600 dark:text-blue-400 mr-2 shrink-0">#</span>
+                  <span className="text-slate-600 dark:text-slate-400 mr-2 shrink-0">#</span>
                   <span className="truncate">{selectedPile?.pile_id || selectedPile?.pile_number}</span>
                 </DialogTitle>
                 {selectedPile?.pile_id && duplicatePileIds.has(selectedPile.pile_id) && (
@@ -2794,7 +2845,7 @@ export default function MyPilesPage() {
                                   <tr 
                                     key={pile.id}
                                     className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${
-                                      pile.id === selectedPile.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                                      pile.id === selectedPile.id ? 'bg-slate-100 dark:bg-slate-800/20' : ''
                                     }`}
                                   >
                                     <td className="px-4 py-3 text-sm">
@@ -2846,7 +2897,7 @@ export default function MyPilesPage() {
                                 setPileIdToCombine(selectedPile.pile_id);
                                 setIsCombineDuplicatesDialogOpen(true);
                               }}
-                              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-1.5"
+                              className="bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 text-white shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-1.5"
                             >
                               <Link2 size={14} />
                               Combine All Duplicates
@@ -2884,7 +2935,7 @@ export default function MyPilesPage() {
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            className="h-7 px-2 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400"
+                            className="h-7 px-2 text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-400"
                             onClick={() => setIsEditingStatus(true)}
                           >
                             <Pencil size={14} className="mr-1" />
@@ -2901,6 +2952,7 @@ export default function MyPilesPage() {
                           </SelectTrigger>
                           <SelectContent className="dark:bg-slate-800 dark:border-slate-700">
                             <SelectItem value="accepted" className="text-green-600 dark:text-green-400 focus:text-white focus:bg-green-600 dark:focus:bg-green-700">Accepted</SelectItem>
+                            <SelectItem value="tolerance" className="text-slate-600 dark:text-slate-400 focus:text-white focus:bg-slate-600 dark:focus:bg-slate-700">Tolerance</SelectItem>
                             <SelectItem value="refusal" className="text-red-600 dark:text-red-400 focus:text-white focus:bg-red-600 dark:focus:bg-red-700">Refusal</SelectItem>
                             <SelectItem value="na" className="text-amber-600 dark:text-amber-400 focus:text-white focus:bg-amber-600 dark:focus:bg-amber-700">N/A</SelectItem>
                           </SelectContent>
@@ -2908,7 +2960,7 @@ export default function MyPilesPage() {
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          className="h-8 px-2 bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-600 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:border-blue-700 dark:text-blue-400"
+                          className="h-8 px-2 bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-600 dark:bg-slate-800/30 dark:hover:bg-slate-800/50 dark:border-slate-700 dark:text-slate-400"
                           onClick={handleStatusUpdate}
                         >
                           <Save size={14} className="mr-1" />
@@ -2948,7 +3000,7 @@ export default function MyPilesPage() {
                           <Button 
                             variant="ghost" 
                             size="sm" 
-                            className="h-7 px-2 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400"
+                            className="h-7 px-2 text-slate-500 dark:text-slate-400 hover:text-slate-600 dark:hover:text-slate-400"
                             onClick={() => setIsEditingStatus(true)}
                           >
                             <Pencil size={14} className="mr-1" />
@@ -2965,6 +3017,7 @@ export default function MyPilesPage() {
                           </SelectTrigger>
                           <SelectContent className="dark:bg-slate-800 dark:border-slate-700">
                             <SelectItem value="accepted" className="text-green-600 dark:text-green-400 focus:text-white focus:bg-green-600 dark:focus:bg-green-700">Accepted</SelectItem>
+                            <SelectItem value="tolerance" className="text-slate-600 dark:text-slate-400 focus:text-white focus:bg-slate-600 dark:focus:bg-slate-700">Tolerance</SelectItem>
                             <SelectItem value="refusal" className="text-red-600 dark:text-red-400 focus:text-white focus:bg-red-600 dark:focus:bg-red-700">Refusal</SelectItem>
                             <SelectItem value="na" className="text-amber-600 dark:text-amber-400 focus:text-white focus:bg-amber-600 dark:focus:bg-amber-700">N/A</SelectItem>
                           </SelectContent>
@@ -2972,7 +3025,7 @@ export default function MyPilesPage() {
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          className="h-8 px-2 bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-600 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:border-blue-700 dark:text-blue-400"
+                          className="h-8 px-2 bg-slate-100 hover:bg-slate-200 border-slate-300 text-slate-600 dark:bg-slate-800/30 dark:hover:bg-slate-800/50 dark:border-slate-700 dark:text-slate-400"
                           onClick={handleStatusUpdate}
                         >
                           <Save size={14} className="mr-1" />
@@ -3229,7 +3282,7 @@ export default function MyPilesPage() {
         <DialogContent className="sm:max-w-[550px] rounded-xl shadow-xl border-none overflow-hidden">
           <DialogHeader className="pb-2">
             <DialogTitle className="flex items-center text-xl">
-              <FileText size={18} className="text-blue-600 mr-2" />
+              <FileText size={18} className="text-slate-600 mr-2" />
               Add Notes
             </DialogTitle>
             <div className="text-slate-500 text-sm">
@@ -3246,7 +3299,7 @@ export default function MyPilesPage() {
               value={noteContent}
               onChange={(e) => setNoteContent(e.target.value)}
               placeholder="Enter notes about this pile..."
-              className="mt-1.5 transition-all duration-200 focus:border-blue-300"
+              className="mt-1.5 transition-all duration-200 focus:border-slate-400"
               rows={5}
             />
           </div>
@@ -3386,35 +3439,35 @@ export default function MyPilesPage() {
         <DialogContent className="sm:max-w-[500px] rounded-xl shadow-xl border-none overflow-hidden">
           <DialogHeader className="pb-2">
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
-              <Link2 className="text-blue-600" size={20} />
+              <Link2 className="text-slate-600" size={20} />
               Combine Duplicate Piles
             </DialogTitle>
             <DialogDescription className="text-slate-600 dark:text-slate-300 mt-2">
-              This will combine all duplicate piles with ID <span className="font-semibold text-blue-600">{pileIdToCombine}</span> into a single pile.
+              This will combine all duplicate piles with ID <span className="font-semibold text-slate-600">{pileIdToCombine}</span> into a single pile.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
-              <h4 className="font-semibold text-sm text-blue-900 dark:text-blue-100 mb-2">What will happen:</h4>
-              <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
+            <div className="bg-slate-100 dark:bg-slate-800/20 border border-slate-300 dark:border-slate-700 rounded-lg p-4">
+              <h4 className="font-semibold text-sm text-slate-900 dark:text-slate-200 mb-2">What will happen:</h4>
+              <ul className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span className="text-slate-600 dark:text-slate-400 mt-0.5">•</span>
                   <span>All embedment values will be <strong>summed together</strong></span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span className="text-slate-600 dark:text-slate-400 mt-0.5">•</span>
                   <span>All gain/30 seconds values will be <strong>summed together</strong></span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span className="text-slate-600 dark:text-slate-400 mt-0.5">•</span>
                   <span>Date range will show <strong>earliest to latest date</strong></span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span className="text-slate-600 dark:text-slate-400 mt-0.5">•</span>
                   <span>The pile with the <strong>highest embedment</strong> will be kept as the base</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span className="text-slate-600 dark:text-slate-400 mt-0.5">•</span>
                   <span>All other duplicates will be <strong>deleted</strong></span>
                 </li>
               </ul>
@@ -3438,7 +3491,7 @@ export default function MyPilesPage() {
             <Button
               onClick={handleCombineDuplicates}
               disabled={isCombiningDuplicates}
-              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md transition-all duration-200"
+              className="bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 text-white shadow-md transition-all duration-200"
             >
               {isCombiningDuplicates ? (
                 <>
@@ -3461,35 +3514,35 @@ export default function MyPilesPage() {
         <DialogContent className="sm:max-w-[550px] rounded-xl shadow-xl border-none overflow-hidden">
           <DialogHeader className="pb-2">
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
-              <Link2 className="text-blue-600" size={20} />
+              <Link2 className="text-slate-600" size={20} />
               Combine All Duplicate Piles
             </DialogTitle>
             <DialogDescription className="text-slate-600 dark:text-slate-300 mt-2">
-              This will combine <span className="font-semibold text-blue-600">{duplicatePileIds.size} groups</span> of duplicate piles into single piles.
+              This will combine <span className="font-semibold text-slate-600">{duplicatePileIds.size} groups</span> of duplicate piles into single piles.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4">
-              <h4 className="font-semibold text-sm text-blue-900 dark:text-blue-100 mb-2">What will happen:</h4>
-              <ul className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
+            <div className="bg-slate-100 dark:bg-slate-800/20 border border-slate-300 dark:border-slate-700 rounded-lg p-4">
+              <h4 className="font-semibold text-sm text-slate-900 dark:text-slate-200 mb-2">What will happen:</h4>
+              <ul className="space-y-2 text-sm text-slate-700 dark:text-slate-300">
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span className="text-slate-600 dark:text-slate-400 mt-0.5">•</span>
                   <span>For each duplicate group, embedment values will be <strong>summed together</strong></span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span className="text-slate-600 dark:text-slate-400 mt-0.5">•</span>
                   <span>For each group, gain/30 seconds values will be <strong>summed together</strong></span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span className="text-slate-600 dark:text-slate-400 mt-0.5">•</span>
                   <span>Date ranges will show <strong>earliest to latest date</strong> for each group</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span className="text-slate-600 dark:text-slate-400 mt-0.5">•</span>
                   <span>For each group, the pile with the <strong>highest embedment</strong> will be kept as the base</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-blue-600 dark:text-blue-400 mt-0.5">•</span>
+                  <span className="text-slate-600 dark:text-slate-400 mt-0.5">•</span>
                   <span>All other duplicates will be <strong>deleted</strong></span>
                 </li>
               </ul>
@@ -3513,7 +3566,7 @@ export default function MyPilesPage() {
             <Button
               onClick={handleCombineAllDuplicates}
               disabled={isCombiningAllDuplicates}
-              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md transition-all duration-200"
+              className="bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 text-white shadow-md transition-all duration-200"
             >
               {isCombiningAllDuplicates ? (
                 <>
@@ -3539,7 +3592,7 @@ export default function MyPilesPage() {
             <DialogDescription>
               Actions for pile {selectedPileForActions?.pile_id || selectedPileForActions?.pile_number}
               {!canEdit && (
-                <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg text-blue-700 text-sm">
+                <div className="mt-2 p-2 bg-slate-100 border border-slate-300 rounded-lg text-slate-700 text-sm">
                   <p className="flex items-center gap-2">
                     <Info size={14} />
                     You have view-only access as an Owner's Representative

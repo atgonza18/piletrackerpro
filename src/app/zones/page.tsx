@@ -122,7 +122,7 @@ export default function PileTypesPage() {
 
               // Load pile lookup data to get ALL pile types from the pile plot plan
               const { data: pileLookupData, error: lookupError } = await supabase
-                .from('pile_lookup')
+                .from('pile_lookup_data')
                 .select('*')
                 .eq('project_id', project.id);
 
@@ -589,7 +589,7 @@ export default function PileTypesPage() {
       {/* Mobile header */}
       <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-bold text-sm">
+          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-slate-700 to-slate-800 text-white flex items-center justify-center font-bold text-sm">
             PT
           </div>
           <h1 className="text-lg font-bold text-slate-900 dark:text-white">
@@ -609,7 +609,10 @@ export default function PileTypesPage() {
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-16">
+      <div
+        className="transition-all duration-300 ease-in-out max-lg:!pl-0"
+        style={{ paddingLeft: 'var(--sidebar-width, 0px)' }}
+      >
         <main className="p-3">
           <div className="max-w-7xl mx-auto">
             {/* Page header */}
@@ -708,7 +711,7 @@ export default function PileTypesPage() {
                   <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">Pile Types with Slow Drive Time</CardTitle>
                 </CardHeader>
                 <CardContent className="p-3 pt-0">
-                  <div className="text-xl font-bold text-blue-600 dark:text-blue-500">
+                  <div className="text-xl font-bold text-slate-600 dark:text-slate-400">
                     {pileTypes.filter(z => z.slowDriveTimeCount > 0).length}
                   </div>
                 </CardContent>
@@ -746,7 +749,7 @@ export default function PileTypesPage() {
 
             {isLoading ? (
               <div className="flex justify-center items-center min-h-[400px]">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-600"></div>
               </div>
             ) : filteredPileTypes.length === 0 ? (
               <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
@@ -781,7 +784,7 @@ export default function PileTypesPage() {
                           <div className="text-xs font-medium px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-full">
                             {zone.totalPiles} total
                           </div>
-                          <div className="text-xs font-medium px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded-full">
+                          <div className="text-xs font-medium px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-full">
                             {zone.installedPiles} installed
                           </div>
                         </div>
@@ -848,7 +851,7 @@ export default function PileTypesPage() {
                             />
                           </div>
                           <div className="text-xs text-slate-500 dark:text-slate-400">Drive Time</div>
-                          <div className={`text-sm font-medium ${zone.slowDriveTimeCount > 0 ? 'text-blue-600 dark:text-blue-500' : 'text-green-600 dark:text-green-500'}`}>
+                          <div className={`text-sm font-medium ${zone.slowDriveTimeCount > 0 ? 'text-slate-600 dark:text-slate-400' : 'text-green-600 dark:text-green-500'}`}>
                             {zone.slowDriveTimeCount} of {zone.installedPiles}
                           </div>
                         </div>
@@ -904,7 +907,7 @@ export default function PileTypesPage() {
           
           {isLoadingPiles ? (
             <div className="flex justify-center items-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-600"></div>
             </div>
           ) : zonePiles.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
