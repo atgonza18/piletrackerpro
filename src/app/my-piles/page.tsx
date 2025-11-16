@@ -73,6 +73,7 @@ interface PileData {
   start_z: number | null;
   stop_time: string | null;
   pile_type: string | null;
+  published?: boolean;
   is_combined?: boolean;
   combined_count?: number;
   combined_pile_ids?: string[];
@@ -97,6 +98,7 @@ export default function MyPilesPage() {
   const router = useRouter();
   const [notifications, setNotifications] = useState(3);
   const { user, signOut, isLoading: authLoading } = useAuth();
+  const { canEdit } = useAccountType();
   const [userInitials, setUserInitials] = useState("JD");
   const [userName, setUserName] = useState("Jane");
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
@@ -120,7 +122,10 @@ export default function MyPilesPage() {
   const [isCombiningAllDuplicates, setIsCombiningAllDuplicates] = useState(false);
   const [selectedPiles, setSelectedPiles] = useState<Set<string>>(new Set());
   const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
-  
+  const [unpublishedPilesCount, setUnpublishedPilesCount] = useState(0);
+  const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -369,10 +374,18 @@ export default function MyPilesPage() {
               setEmbedmentTolerance(projectTolerance);
               
               // Get piles data - first get the count
-              const { count, error: countError } = await supabase
+              // For Owner's Reps, only count published piles
+              let countQuery = supabase
                 .from('piles')
                 .select('*', { count: 'exact', head: true })
                 .eq('project_id', project.id);
+
+              if (!canEdit) {
+                // Owner's Reps only see published piles
+                countQuery = countQuery.eq('published', true);
+              }
+
+              const { count, error: countError } = await countQuery;
 
               if (countError) {
                 throw countError;
@@ -380,6 +393,17 @@ export default function MyPilesPage() {
 
               const totalCount = count || 0;
               console.log("Total piles in database:", totalCount);
+
+              // For EPC users, also count unpublished piles
+              if (canEdit) {
+                const { count: unpublishedCount } = await supabase
+                  .from('piles')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('project_id', project.id)
+                  .eq('published', false);
+
+                setUnpublishedPilesCount(unpublishedCount || 0);
+              }
               
               // Set total count immediately from count query
               setTotalPiles(totalCount);
@@ -399,13 +423,21 @@ export default function MyPilesPage() {
                 for (let page = 0; page < totalPages; page++) {
                   const from = page * pageSize;
                   const to = Math.min(from + pageSize - 1, totalCount - 1);
-                  
+
+                  // Build query with published filter for Owner's Reps
+                  let fetchQuery = supabase
+                    .from('piles')
+                    .select('*')
+                    .eq('project_id', project.id);
+
+                  if (!canEdit) {
+                    // Owner's Reps only see published piles
+                    fetchQuery = fetchQuery.eq('published', true);
+                  }
+
                   // Add each fetch to the promises array
                   fetchPromises.push(
-                    supabase
-                      .from('piles')
-                      .select('*')
-                      .eq('project_id', project.id)
+                    fetchQuery
                       .order('created_at', { ascending: true })
                       .range(from, to)
                   );
@@ -1827,7 +1859,42 @@ export default function MyPilesPage() {
     }
   };
 
-  const { canEdit } = useAccountType();
+  const handlePublishAllPiles = async () => {
+    if (!user || !projectData || !canEdit) return;
+
+    try {
+      setIsPublishing(true);
+
+      // Publish all unpublished piles for the current project
+      const { error } = await supabase
+        .from('piles')
+        .update({ published: true })
+        .eq('project_id', projectData.id)
+        .eq('published', false);
+
+      if (error) {
+        throw error;
+      }
+
+      // Update the unpublished count
+      setUnpublishedPilesCount(0);
+
+      // Refresh pile data to reflect the changes
+      const updatedPiles = piles.map(pile => ({
+        ...pile,
+        published: true
+      }));
+      setPiles(updatedPiles);
+
+      toast.success(`Successfully published ${unpublishedPilesCount} pile(s)`);
+      setIsPublishDialogOpen(false);
+    } catch (error) {
+      console.error("Error publishing piles:", error);
+      toast.error("Failed to publish piles. Please try again.");
+    } finally {
+      setIsPublishing(false);
+    }
+  };
 
   if (!user) {
     return null; // Don't render anything if user isn't logged in
@@ -1926,6 +1993,17 @@ export default function MyPilesPage() {
                       Upload CSV Data
                     </Button>
                   </>
+                )}
+                {canEdit && unpublishedPilesCount > 0 && (
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="gap-1.5 bg-blue-600 hover:bg-blue-700"
+                    onClick={() => setIsPublishDialogOpen(true)}
+                  >
+                    <CheckCircle2 size={16} />
+                    Publish Data ({unpublishedPilesCount})
+                  </Button>
                 )}
                 {canEdit && (
                   <Button
@@ -3720,6 +3798,52 @@ export default function MyPilesPage() {
       </Dialog>
       
       {/* Delete All Confirmation Dialog */}
+      {/* Publish Data Dialog */}
+      <Dialog open={isPublishDialogOpen} onOpenChange={setIsPublishDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-xl font-semibold text-blue-600">Publish Pile Data</DialogTitle>
+            <DialogDescription className="pt-4">
+              <CheckCircle2 className="h-12 w-12 text-blue-600 mx-auto mb-4" />
+              <p className="text-center text-slate-600 dark:text-slate-400">
+                You are about to publish <strong>{unpublishedPilesCount}</strong> unpublished pile(s).
+                Once published, this data will become visible to Owner's Rep accounts.
+              </p>
+              <p className="text-center text-slate-500 dark:text-slate-500 mt-3 text-sm">
+                Make sure you have reviewed the data for accuracy before publishing.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2 justify-end">
+            <Button
+              variant="outline"
+              onClick={() => setIsPublishDialogOpen(false)}
+              disabled={isPublishing}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="gap-2 bg-blue-600 hover:bg-blue-700"
+              onClick={handlePublishAllPiles}
+              disabled={isPublishing}
+            >
+              {isPublishing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Publishing...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4" />
+                  Publish Data
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete All Dialog */}
       <Dialog open={isDeleteAllDialogOpen} onOpenChange={setIsDeleteAllDialogOpen}>
         <DialogContent>
           <DialogHeader>

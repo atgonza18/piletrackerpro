@@ -80,6 +80,7 @@ export function ManualPileModal({ isOpen, onClose, projectId }: ManualPileModalP
         gain_per_30_seconds: formData.gain_per_30_seconds ? parseFloat(formData.gain_per_30_seconds) : null,
         machine: formData.machine ? parseInt(formData.machine) : null,
         notes: formData.notes.trim() || null,
+        published: false, // New piles start as unpublished
       };
 
       // Auto-calculate embedment if start_z and end_z are provided but embedment is not

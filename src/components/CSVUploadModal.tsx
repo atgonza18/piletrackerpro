@@ -1050,7 +1050,8 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       start_z: startZ,
       stop_time: stopTime,
       notes: getColumnValue('notes'),
-      pile_status: 'N/A' // Default status for all imported piles
+      pile_status: 'N/A', // Default status for all imported piles
+      published: false // New piles start as unpublished
       // Note: 'zone' column is excluded - it was replaced by 'pile_type' in the schema
     };
 
