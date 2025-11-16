@@ -165,6 +165,17 @@ export function CollapsibleSidebar({ projectName = "PileTrackerPro", currentPage
               Log Out
             </span>
           </button>
+
+          {/* Creator Credit */}
+          <div
+            className={`px-2 py-2 text-center transition-all duration-300 ${
+              isExpanded ? 'opacity-100' : 'opacity-0'
+            }`}
+          >
+            <p className="text-xs text-slate-400 dark:text-slate-500">
+              Created by Aaron Gonzalez
+            </p>
+          </div>
         </div>
       </nav>
     </div>

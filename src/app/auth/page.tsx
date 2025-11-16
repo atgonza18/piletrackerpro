@@ -399,8 +399,13 @@ export default function AuthPage() {
           </div>
         </div>
         
-        <div className="relative z-10 text-sm text-slate-300">
-          &copy; {new Date().getFullYear()} PileTrackerPro. All rights reserved.
+        <div className="relative z-10">
+          <p className="text-sm text-slate-300">
+            &copy; {new Date().getFullYear()} PileTrackerPro. All rights reserved.
+          </p>
+          <p className="text-xs text-slate-400 mt-2">
+            A BIRDSEYE Construction Solutions Product
+          </p>
         </div>
       </div>
       
@@ -919,6 +924,9 @@ export default function AuthPage() {
           </p>
           <p className="mt-2">
             &copy; {new Date().getFullYear()} PileTrackerPro. All rights reserved.
+          </p>
+          <p className="text-xs text-slate-400 mt-1.5">
+            A BIRDSEYE Construction Solutions Product
           </p>
         </div>
       </div>
