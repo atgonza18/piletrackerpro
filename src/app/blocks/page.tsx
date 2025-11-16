@@ -62,6 +62,7 @@ export default function BlocksPage() {
   const [blockPiles, setBlockPiles] = useState<any[]>([]);
   const [isBlockPilesModalOpen, setIsBlockPilesModalOpen] = useState(false);
   const [isLoadingPiles, setIsLoadingPiles] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState({ current: 0, total: 0, stage: '' });
 
   // Configuration values
   const [embedmentTolerance, setEmbedmentTolerance] = useState(1);
@@ -134,6 +135,8 @@ export default function BlocksPage() {
               console.log("Total piles with blocks:", totalCount);
 
               // Fetch ALL piles with blocks in parallel pages (same as my-piles page)
+              setLoadingProgress({ current: 0, total: 100, stage: 'Loading pile data...' });
+
               let allPilesData: any[] = [];
               const pageSize = 1000;
               const totalPages = Math.ceil(totalCount / pageSize);
@@ -168,6 +171,8 @@ export default function BlocksPage() {
                   const result = results[i];
                   if (result.status === 'fulfilled' && result.value.data) {
                     allPilesData = [...allPilesData, ...result.value.data];
+                    const progress = Math.round(((i + 1) / totalPages) * 50); // First 50% of progress
+                    setLoadingProgress({ current: progress, total: 100, stage: `Loading pile data (${i + 1}/${totalPages})...` });
                     console.log(`Page ${i + 1}: Loaded ${result.value.data.length} piles`);
                   } else if (result.status === 'rejected') {
                     console.error(`Page ${i + 1} failed:`, result.reason);
@@ -178,6 +183,7 @@ export default function BlocksPage() {
               }
 
               const pileData = allPilesData;
+              setLoadingProgress({ current: 50, total: 100, stage: 'Processing blocks...' });
 
               // Extract unique blocks from ALL the loaded pile data
               const uniqueBlocks = new Set<string>();
@@ -189,137 +195,116 @@ export default function BlocksPage() {
 
               console.log(`Found ${uniqueBlocks.size} unique blocks:`, Array.from(uniqueBlocks).sort());
 
-              // Process block data
+              // Process block data - optimized to use in-memory data only (no separate DB queries)
               const blockMap = new Map<string, BlockData>();
-
-              // Initialize block data with empty counts
               const blockArray: BlockData[] = [];
 
-              // Process each block one by one, making separate count queries for each
-              const processBlocks = async () => {
-                for (const blockName of uniqueBlocks) {
-                  // Create basic block data structure
-                  const blockData: BlockData = {
-                    name: blockName,
-                    totalPiles: 0,
-                    refusalCount: 0,
-                    toleranceCount: 0,
-                    slowDriveTimeCount: 0,
-                    averageDriveTime: 0,
-                    averageEmbedment: 0,
-                    designEmbedment: null
-                  };
+              // Initialize block data structures and count piles directly from loaded data
+              const blockPileCounts: { [blockName: string]: number } = {};
+              const blockEmbedmentSums: { [blockName: string]: number } = {};
+              const blockDurationSums: { [blockName: string]: number } = {};
+              const blockRefusalCounts: { [blockName: string]: number } = {};
+              const blockToleranceCounts: { [blockName: string]: number } = {};
+              const blockSlowDriveCounts: { [blockName: string]: number } = {};
 
-                  // Get exact count for this block directly from database
-                  let blockCountQuery = supabase
-                    .from('piles')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('project_id', project.id)
-                    .eq('block', blockName);
-
-                  // Owner's Reps only see published piles
-                  if (!canEdit) {
-                    blockCountQuery = blockCountQuery.eq('published', true);
-                  }
-
-                  const { count, error: countError } = await blockCountQuery;
-
-                  if (countError) {
-                    console.error(`Error getting count for block ${blockName}:`, countError);
-                  } else if (count !== null) {
-                    // Set the exact count from the database
-                    blockData.totalPiles = count;
-                    console.log(`Block ${blockName} has ${count} piles`);
-                  }
-
-                  // Add to array
-                  blockArray.push(blockData);
-
-                  // Also add to map for statistics calculation
-                  blockMap.set(blockName, blockData);
-                }
-
-                // Now calculate other statistics
-                let blockEmbedmentSums: { [blockName: string]: number } = {};
-                let blockDurationSums: { [blockName: string]: number } = {};
-                let blockRefusalCounts: { [blockName: string]: number } = {};
-                let blockToleranceCounts: { [blockName: string]: number } = {};
-                let blockSlowDriveCounts: { [blockName: string]: number } = {};
-
-                // Process statistics for each pile
-                pileData.forEach(pile => {
-                  if (!pile.block) return;
-
-                  const blockName = pile.block.trim();
-                  const blockData = blockMap.get(blockName);
-                  if (!blockData) return;
-
-                  // Parse duration
-                  const duration = parseDuration(pile.duration);
-
-                  // Track total duration for calculating average later
-                  blockDurationSums[blockName] = (blockDurationSums[blockName] || 0) + duration;
-
-                  // Count slow drive time piles
-                  if (duration > driveTimeThreshold) {
-                    blockSlowDriveCounts[blockName] = (blockSlowDriveCounts[blockName] || 0) + 1;
-                  }
-
-                  // Update embedment data
-                  if (pile.embedment && pile.design_embedment) {
-                    // Convert to numbers for proper comparison
-                    const embedment = Number(pile.embedment);
-                    const designEmbedment = Number(pile.design_embedment);
-
-                    // Set design embedment (should be the same for all piles in block)
-                    blockData.designEmbedment = designEmbedment;
-
-                    // Track total embedment for calculating average later
-                    blockEmbedmentSums[blockName] = (blockEmbedmentSums[blockName] || 0) + embedment;
-
-                    // Check embedment against design values
-                    if (embedment < (designEmbedment - tolerance)) {
-                      // Count refusal piles (below tolerance)
-                      blockRefusalCounts[blockName] = (blockRefusalCounts[blockName] || 0) + 1;
-                    } else if (embedment < designEmbedment) {
-                      // Count piles below design embedment but within tolerance
-                      blockToleranceCounts[blockName] = (blockToleranceCounts[blockName] || 0) + 1;
-                    }
-                  }
-                });
-
-                // Update all the block data with calculated statistics
-                for (const blockName of uniqueBlocks) {
-                  const blockData = blockMap.get(blockName);
-                  if (!blockData) continue;
-
-                  // Set refusal and tolerance counts
-                  blockData.refusalCount = blockRefusalCounts[blockName] || 0;
-                  blockData.toleranceCount = blockToleranceCounts[blockName] || 0;
-                  blockData.slowDriveTimeCount = blockSlowDriveCounts[blockName] || 0;
-
-                  // Calculate averages if we have data
-                  if (blockData.totalPiles > 0) {
-                    if (blockDurationSums[blockName]) {
-                      blockData.averageDriveTime = blockDurationSums[blockName] / blockData.totalPiles;
-                    }
-
-                    if (blockEmbedmentSums[blockName]) {
-                      blockData.averageEmbedment = blockEmbedmentSums[blockName] / blockData.totalPiles;
-                    }
-                  }
-                }
-
-                // Set the blocks state
-                setBlocks(blockArray);
-                setIsLoading(false);
-              };
-
-              // Execute the async function
-              processBlocks().catch(error => {
-                console.error("Error processing blocks:", error);
-                setIsLoading(false);
+              // Initialize all blocks
+              uniqueBlocks.forEach(blockName => {
+                const blockData: BlockData = {
+                  name: blockName,
+                  totalPiles: 0,
+                  refusalCount: 0,
+                  toleranceCount: 0,
+                  slowDriveTimeCount: 0,
+                  averageDriveTime: 0,
+                  averageEmbedment: 0,
+                  designEmbedment: null
+                };
+                blockArray.push(blockData);
+                blockMap.set(blockName, blockData);
+                blockPileCounts[blockName] = 0;
               });
+
+              setLoadingProgress({ current: 60, total: 100, stage: 'Calculating statistics...' });
+
+              // Single pass through all pile data to calculate everything
+              pileData.forEach(pile => {
+                if (!pile.block) return;
+
+                const blockName = pile.block.trim();
+                const blockData = blockMap.get(blockName);
+                if (!blockData) return;
+
+                // Count piles
+                blockPileCounts[blockName] = (blockPileCounts[blockName] || 0) + 1;
+
+                // Parse duration
+                const duration = parseDuration(pile.duration);
+
+                // Track total duration for calculating average later
+                blockDurationSums[blockName] = (blockDurationSums[blockName] || 0) + duration;
+
+                // Count slow drive time piles
+                if (duration > driveTimeThreshold) {
+                  blockSlowDriveCounts[blockName] = (blockSlowDriveCounts[blockName] || 0) + 1;
+                }
+
+                // Update embedment data
+                if (pile.embedment && pile.design_embedment) {
+                  // Convert to numbers for proper comparison
+                  const embedment = Number(pile.embedment);
+                  const designEmbedment = Number(pile.design_embedment);
+
+                  // Set design embedment (should be the same for all piles in block)
+                  blockData.designEmbedment = designEmbedment;
+
+                  // Track total embedment for calculating average later
+                  blockEmbedmentSums[blockName] = (blockEmbedmentSums[blockName] || 0) + embedment;
+
+                  // Check embedment against design values
+                  if (embedment < (designEmbedment - tolerance)) {
+                    // Count refusal piles (below tolerance)
+                    blockRefusalCounts[blockName] = (blockRefusalCounts[blockName] || 0) + 1;
+                  } else if (embedment < designEmbedment) {
+                    // Count piles below design embedment but within tolerance
+                    blockToleranceCounts[blockName] = (blockToleranceCounts[blockName] || 0) + 1;
+                  }
+                }
+              });
+
+              setLoadingProgress({ current: 80, total: 100, stage: 'Finalizing data...' });
+
+              // Update all the block data with calculated statistics
+              uniqueBlocks.forEach(blockName => {
+                const blockData = blockMap.get(blockName);
+                if (!blockData) return;
+
+                // Set total pile count from in-memory data
+                blockData.totalPiles = blockPileCounts[blockName] || 0;
+
+                // Set refusal and tolerance counts
+                blockData.refusalCount = blockRefusalCounts[blockName] || 0;
+                blockData.toleranceCount = blockToleranceCounts[blockName] || 0;
+                blockData.slowDriveTimeCount = blockSlowDriveCounts[blockName] || 0;
+
+                // Calculate averages if we have data
+                if (blockData.totalPiles > 0) {
+                  if (blockDurationSums[blockName]) {
+                    blockData.averageDriveTime = blockDurationSums[blockName] / blockData.totalPiles;
+                  }
+
+                  if (blockEmbedmentSums[blockName]) {
+                    blockData.averageEmbedment = blockEmbedmentSums[blockName] / blockData.totalPiles;
+                  }
+                }
+
+                console.log(`Block ${blockName}: ${blockData.totalPiles} piles, ${blockData.refusalCount} refusals`);
+              });
+
+              setLoadingProgress({ current: 100, total: 100, stage: 'Complete!' });
+
+              // Set the blocks state
+              setBlocks(blockArray);
+              setIsLoading(false);
             }
           }
 
@@ -579,7 +564,7 @@ export default function BlocksPage() {
 
     try {
       const activeFilters = [];
-      if (searchTerm) activeFilters.push({ label: 'Search', value: searchTerm });
+      if (searchQuery) activeFilters.push({ label: 'Search', value: searchQuery });
       if (selectedTab !== 'all') activeFilters.push({ label: 'Filter', value: selectedTab });
 
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
@@ -831,8 +816,23 @@ export default function BlocksPage() {
             </Tabs>
 
             {isLoading ? (
-              <div className="flex justify-center items-center min-h-[400px]">
+              <div className="flex flex-col justify-center items-center min-h-[400px] gap-4">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-600"></div>
+                <div className="w-full max-w-md space-y-2">
+                  <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
+                    <span>{loadingProgress.stage}</span>
+                    <span>{loadingProgress.current}%</span>
+                  </div>
+                  <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-indigo-500 to-indigo-600 h-full transition-all duration-300 ease-out"
+                      style={{ width: `${loadingProgress.current}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-center text-slate-500 dark:text-slate-400">
+                    Loading block data, please wait...
+                  </p>
+                </div>
               </div>
             ) : filteredBlocks.length === 0 ? (
               <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">

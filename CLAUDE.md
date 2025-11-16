@@ -109,12 +109,15 @@ Database setup files:
 10. `db_migration_remove_pile_unique_constraint.sql` - Allow duplicate pile names
 11. `db_migration_combined_piles.sql` - Combined pile data migrations
 12. `db_migration_add_inspector_name.sql` - Inspector name field for field entry
-13. `db_create_statistics_function.sql` - Statistics calculation function
-14. `db_fix_project_insert_policy.sql` - Project creation RLS fixes
-15. `db_fix_project_insert_policy_epc_only.sql` - Additional project creation fixes
-16. `db_final_project_creation_fix.sql` - Final project creation RLS policies
+13. `db_migration_add_published_field.sql` - Publication workflow for data safeguarding
+14. `db_create_statistics_function.sql` - Statistics calculation function
+15. `db_fix_project_insert_policy.sql` - Project creation RLS fixes
+16. `db_fix_project_insert_policy_epc_only.sql` - Additional project creation fixes
+17. `db_final_project_creation_fix.sql` - Final project creation RLS policies
 
-**Important**: All tables use Row Level Security (RLS). Users can only access data for projects they're associated with via `user_projects` table. When querying blocks, use separate count queries per block for accuracy rather than filtering in-memory.
+**Important**: All tables use Row Level Security (RLS). Users can only access data for projects they're associated with via `user_projects` table.
+
+**Performance Note**: The blocks and zones pages load all pile data in parallel (pages of 1000), then process statistics in-memory. This avoids making separate database queries for each block/zone, which was causing significant performance issues. All filtering for Owner's Rep accounts (`published = true`) is applied during the initial data load.
 
 ### Environment Variables
 Required in `.env.local`:
@@ -214,6 +217,22 @@ RESEND_API_KEY=your_resend_key                 # Option 3: Resend (production)
 - Detailed explanations of each page and feature
 - Best practices for data management and project setup
 - Visual guide with color-coded sections and navigation
+- Content is restricted for Owner's Rep accounts - they see a message directing them to contact their EPC for the SOP
+
+### Publication Workflow
+- **Purpose**: Data safeguarding system allowing EPC users to review pile data before making it visible to Owner's Rep accounts
+- **Database field**: `published` boolean column in `piles` table (defaults to false)
+- **EPC users** (canEdit = true):
+  - See all piles (published and unpublished)
+  - New piles start as unpublished (manual entry or CSV import)
+  - "Publish Data" button appears in My Piles page when unpublished piles exist
+  - Publishing makes all unpublished piles visible to Owner's Reps at once
+- **Owner's Rep accounts** (canEdit = false):
+  - Only see published piles across all pages
+  - Unpublished data is completely hidden
+  - Real-time unpublished pile count shown in dashboard for EPC users
+- **Implementation**: Filters applied in My Piles, Dashboard, Blocks, and Zones pages
+- **No unpublish feature**: Once published, piles remain published (one-way operation)
 
 ## Development Guidelines
 
@@ -316,6 +335,7 @@ supabase functions logs send-invitation-email
 - Client components must use `"use client"` directive when using hooks or browser APIs
 - All pages that require authentication should check for valid session (see existing pages for patterns)
 - When working with RLS-protected tables, remember users can only see data for projects in their `user_projects` associations
+- **Data filtering for Owner's Rep accounts**: When querying piles, always filter by `published = true` for users with `canEdit = false`. This applies to all pile queries in Dashboard, My Piles, Blocks, and Zones pages.
 - Use `useSearchParams()` within a Suspense boundary to avoid production build issues
 - Import paths use `@/*` alias for `src/*` (e.g., `import { supabase } from '@/lib/supabase'`)
 
