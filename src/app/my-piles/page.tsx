@@ -952,7 +952,7 @@ export default function MyPilesPage() {
   
   const refreshPilesData = async () => {
     if (!projectData) return;
-    
+
     setIsLoading(true);
     try {
       // First get the count
@@ -967,9 +967,20 @@ export default function MyPilesPage() {
 
       const totalCount = count || 0;
       console.log("Total piles in database (refresh):", totalCount);
-      
+
       // Set total count immediately from count query
       setTotalPiles(totalCount);
+
+      // For EPC users, also refresh unpublished pile count
+      if (canEdit) {
+        const { count: unpublishedCount } = await supabase
+          .from('piles')
+          .select('*', { count: 'exact', head: true })
+          .eq('project_id', projectData.id)
+          .eq('published', false);
+
+        setUnpublishedPilesCount(unpublishedCount || 0);
+      }
       
       // OPTIMIZED: Fetch all data in parallel for faster refresh
       let allPilesData: PileData[] = [];
@@ -1123,7 +1134,12 @@ export default function MyPilesPage() {
       } else {
         setPendingPiles(prev => prev - 1);
       }
-      
+
+      // Update unpublished count if the deleted pile was unpublished
+      if (canEdit && !pileToDelete.published) {
+        setUnpublishedPilesCount(prev => Math.max(0, prev - 1));
+      }
+
       toast.success("Pile deleted successfully");
       setIsDeleteDialogOpen(false);
       setPileToDelete(null);
@@ -1402,7 +1418,15 @@ export default function MyPilesPage() {
           setPendingPiles(prev => prev - 1);
         }
       });
-      
+
+      // Update unpublished count
+      if (canEdit) {
+        const unpublishedDeletedCount = pilesToDelete.filter(pile => !pile.published).length;
+        if (unpublishedDeletedCount > 0) {
+          setUnpublishedPilesCount(prev => Math.max(0, prev - unpublishedDeletedCount));
+        }
+      }
+
       toast.success(`Successfully deleted ${pilesToDelete.length} duplicate piles`);
       setIsDeleteDuplicatesDialogOpen(false);
     } catch (error) {
@@ -1501,7 +1525,15 @@ export default function MyPilesPage() {
           setPendingPiles(prev => prev - 1);
         }
       });
-      
+
+      // Update unpublished count
+      if (canEdit) {
+        const unpublishedDeletedCount = pilesToDelete.filter(pile => !pile.published).length;
+        if (unpublishedDeletedCount > 0) {
+          setUnpublishedPilesCount(prev => Math.max(0, prev - unpublishedDeletedCount));
+        }
+      }
+
       toast.success(`Successfully deleted ${pilesToDelete.length} duplicate piles with lower embedment values. Kept ${keptCount} piles with highest embedment.`);
       setIsDeleteLowerDuplicatesDialogOpen(false);
     } catch (error) {
@@ -1719,8 +1751,14 @@ export default function MyPilesPage() {
 
   const handleBulkDelete = async () => {
     if (selectedPiles.size === 0) return;
-    
+
     try {
+      // Count unpublished piles before deletion
+      const deletedPiles = piles.filter(pile => selectedPiles.has(pile.id));
+      const unpublishedDeletedCount = canEdit
+        ? deletedPiles.filter(pile => !pile.published).length
+        : 0;
+
       const { error } = await supabase
         .from('piles')
         .delete()
@@ -1733,7 +1771,12 @@ export default function MyPilesPage() {
       setFilteredPiles(filteredPiles.filter(pile => !selectedPiles.has(pile.id)));
       setSelectedPiles(new Set());
       setIsBulkDeleteDialogOpen(false);
-      
+
+      // Update unpublished count
+      if (unpublishedDeletedCount > 0) {
+        setUnpublishedPilesCount(prev => Math.max(0, prev - unpublishedDeletedCount));
+      }
+
       toast.success(`Successfully deleted ${selectedPiles.size} piles`);
     } catch (error) {
       console.error('Error deleting piles:', error);
@@ -1848,7 +1891,8 @@ export default function MyPilesPage() {
       setPendingPiles(0);
       setDuplicatePileIds(new Set());
       setSelectedPiles(new Set());
-      
+      setUnpublishedPilesCount(0);
+
       toast.success("All piles have been deleted successfully");
       setIsDeleteAllDialogOpen(false);
     } catch (error) {
@@ -2836,8 +2880,8 @@ export default function MyPilesPage() {
           isOpen={isManualPileModalOpen}
           onClose={() => {
             setIsManualPileModalOpen(false);
-            // Reload the page to refresh pile data
-            window.location.reload();
+            // Refresh pile data to update counts and list
+            refreshPilesData();
           }}
           projectId={projectData.id}
         />
@@ -2859,8 +2903,8 @@ export default function MyPilesPage() {
         onClose={() => setIsEditPileModalOpen(false)}
         pile={pileToEdit}
         onUpdate={() => {
-          // Reload the page to refresh pile data
-          window.location.reload();
+          // Refresh pile data to update counts and list
+          refreshPilesData();
         }}
       />
 
