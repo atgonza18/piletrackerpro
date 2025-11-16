@@ -116,10 +116,17 @@ export default function DashboardPage() {
 
               try {
                 // First get total count of piles
-                const { count: totalCount } = await supabase
+                let countQuery = supabase
                   .from('piles')
                   .select('*', { count: 'exact', head: true })
                   .eq('project_id', project.id);
+
+                // Owner's Reps only see published piles
+                if (!canEdit) {
+                  countQuery = countQuery.eq('published', true);
+                }
+
+                const { count: totalCount } = await countQuery;
 
                 console.log(`Total piles in database: ${totalCount}`);
 
@@ -137,11 +144,17 @@ export default function DashboardPage() {
                   const from = pageNum * pageSize;
                   const to = from + pageSize - 1;
 
-                  const { data, error } = await supabase
+                  let pileQuery = supabase
                     .from('piles')
                     .select('embedment, design_embedment, block, pile_type, start_date, created_at')
-                    .eq('project_id', project.id)
-                    .range(from, to);
+                    .eq('project_id', project.id);
+
+                  // Owner's Reps only see published piles
+                  if (!canEdit) {
+                    pileQuery = pileQuery.eq('published', true);
+                  }
+
+                  const { data, error } = await pileQuery.range(from, to);
 
                   if (error) {
                     console.error(`Error fetching page ${pageNum + 1}:`, error);

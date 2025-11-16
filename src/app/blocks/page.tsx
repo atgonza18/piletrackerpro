@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useRouter } from "next/navigation";
 import { LogOut, List, BarChart3, Settings, User, Bell, FileText, MapPin, Filter, Search, Clock, AlertTriangle, AlertCircle, Check, ChevronLeft, ChevronRight, Box, Download, ChevronDown, FileDown } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useAccountType } from "@/context/AccountTypeContext";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -49,6 +50,7 @@ export default function BlocksPage() {
   const router = useRouter();
   const [notifications, setNotifications] = useState(3);
   const { user, signOut, isLoading: authLoading } = useAuth();
+  const { canEdit } = useAccountType();
   const [userInitials, setUserInitials] = useState("JD");
   const [userName, setUserName] = useState("User");
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
@@ -111,11 +113,18 @@ export default function BlocksPage() {
               setEmbedmentTolerance(tolerance);
 
               // Get total count of piles with blocks
-              const { count, error: countError } = await supabase
+              let countQuery = supabase
                 .from('piles')
                 .select('*', { count: 'exact', head: true })
                 .eq('project_id', project.id)
                 .not('block', 'is', null);
+
+              // Owner's Reps only see published piles
+              if (!canEdit) {
+                countQuery = countQuery.eq('published', true);
+              }
+
+              const { count, error: countError } = await countQuery;
 
               if (countError) {
                 throw countError;
@@ -138,14 +147,18 @@ export default function BlocksPage() {
                   const from = page * pageSize;
                   const to = Math.min(from + pageSize - 1, totalCount - 1);
 
-                  fetchPromises.push(
-                    supabase
-                      .from('piles')
-                      .select('*')
-                      .eq('project_id', project.id)
-                      .not('block', 'is', null)
-                      .range(from, to)
-                  );
+                  let pileQuery = supabase
+                    .from('piles')
+                    .select('*')
+                    .eq('project_id', project.id)
+                    .not('block', 'is', null);
+
+                  // Owner's Reps only see published piles
+                  if (!canEdit) {
+                    pileQuery = pileQuery.eq('published', true);
+                  }
+
+                  fetchPromises.push(pileQuery.range(from, to));
                 }
 
                 console.log(`Fetching ${fetchPromises.length} pages in parallel...`);
@@ -198,11 +211,18 @@ export default function BlocksPage() {
                   };
 
                   // Get exact count for this block directly from database
-                  const { count, error: countError } = await supabase
+                  let blockCountQuery = supabase
                     .from('piles')
                     .select('*', { count: 'exact', head: true })
                     .eq('project_id', project.id)
                     .eq('block', blockName);
+
+                  // Owner's Reps only see published piles
+                  if (!canEdit) {
+                    blockCountQuery = blockCountQuery.eq('published', true);
+                  }
+
+                  const { count, error: countError } = await blockCountQuery;
 
                   if (countError) {
                     console.error(`Error getting count for block ${blockName}:`, countError);

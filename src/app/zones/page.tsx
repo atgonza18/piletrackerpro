@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useRouter } from "next/navigation";
 import { LogOut, List, BarChart3, Settings, User, Bell, FileText, MapPin, Filter, Search, Clock, AlertTriangle, AlertCircle, Check, ChevronLeft, ChevronRight, Box } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useAccountType } from "@/context/AccountTypeContext";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -47,6 +48,7 @@ export default function PileTypesPage() {
   const router = useRouter();
   const [notifications, setNotifications] = useState(3);
   const { user, signOut, isLoading: authLoading } = useAuth();
+  const { canEdit } = useAccountType();
   const [userInitials, setUserInitials] = useState("JD");
   const [userName, setUserName] = useState("User");
   const [projectData, setProjectData] = useState<ProjectData | null>(null);
@@ -109,10 +111,17 @@ export default function PileTypesPage() {
 
               // Load pile data for pile type statistics
               // Note: We load ALL piles, not just those with pile_type
-              const { data: pileData, error: pileError } = await supabase
+              let pileQuery = supabase
                 .from('piles')
                 .select('*')
                 .eq('project_id', project.id);
+
+              // Owner's Reps only see published piles
+              if (!canEdit) {
+                pileQuery = pileQuery.eq('published', true);
+              }
+
+              const { data: pileData, error: pileError } = await pileQuery;
 
               if (pileError) {
                 throw pileError;
@@ -196,11 +205,18 @@ export default function PileTypesPage() {
                   let installedCount = 0;
                   if (zoneName === 'Uncategorized') {
                     // Count piles with null or empty pile_type
-                    const { count, error: countError } = await supabase
+                    let uncategorizedQuery = supabase
                       .from('piles')
                       .select('*', { count: 'exact', head: true })
                       .eq('project_id', project.id)
                       .is('pile_type', null);
+
+                    // Owner's Reps only see published piles
+                    if (!canEdit) {
+                      uncategorizedQuery = uncategorizedQuery.eq('published', true);
+                    }
+
+                    const { count, error: countError } = await uncategorizedQuery;
 
                     if (countError) {
                       console.error(`Error getting count for uncategorized piles:`, countError);
@@ -209,11 +225,18 @@ export default function PileTypesPage() {
                     }
                   } else {
                     // Normal pile type count
-                    const { count, error: countError } = await supabase
+                    let typeCountQuery = supabase
                       .from('piles')
                       .select('*', { count: 'exact', head: true })
                       .eq('project_id', project.id)
                       .eq('pile_type', zoneName);
+
+                    // Owner's Reps only see published piles
+                    if (!canEdit) {
+                      typeCountQuery = typeCountQuery.eq('published', true);
+                    }
+
+                    const { count, error: countError } = await typeCountQuery;
 
                     if (countError) {
                       console.error(`Error getting count for pile type ${zoneName}:`, countError);
