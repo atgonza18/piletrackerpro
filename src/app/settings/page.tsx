@@ -16,11 +16,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useAccountType } from "@/context/AccountTypeContext";
 import { sendInvitationEmail, sendInvitationEmailViaAPI } from "@/lib/emailService";
 import { PileLookupUploadModal } from "@/components/PileLookupUploadModal";
+import { geocodeAddress } from "@/lib/weatherService";
 
 interface ProjectSettings {
   id: string;
   project_name: string;
   project_location: string;
+  location_lat: number | null;
+  location_lng: number | null;
   total_project_piles: number;
   tracker_system: string;
   geotech_company: string;
@@ -38,6 +41,9 @@ interface TeamMember {
 export default function ProjectSettingsPage() {
   const [projectName, setProjectName] = useState("");
   const [projectLocation, setProjectLocation] = useState("");
+  const [locationLat, setLocationLat] = useState<number | null>(null);
+  const [locationLng, setLocationLng] = useState<number | null>(null);
+  const [isGeocoding, setIsGeocoding] = useState(false);
   const [role, setRole] = useState("");
   const [totalProjectPiles, setTotalProjectPiles] = useState("");
   const [trackerSystem, setTrackerSystem] = useState("");
@@ -115,11 +121,13 @@ export default function ProjectSettingsPage() {
         setProjectId(projectData.id);
         setProjectName(projectData.project_name);
         setProjectLocation(projectData.project_location);
+        setLocationLat(projectData.location_lat);
+        setLocationLng(projectData.location_lng);
         setRole(projectData.role);
         setTotalProjectPiles(projectData.total_project_piles.toString());
         setTrackerSystem(projectData.tracker_system);
         setGeotechCompany(projectData.geotech_company);
-        
+
         // Get embedment_tolerance if it exists, otherwise use default
         if (projectData.embedment_tolerance !== undefined && projectData.embedment_tolerance !== null) {
           setEmbedmentTolerance(projectData.embedment_tolerance.toString());
@@ -233,6 +241,8 @@ export default function ProjectSettingsPage() {
         .update({
           project_name: projectName,
           project_location: projectLocation,
+          location_lat: locationLat,
+          location_lng: locationLng,
           role: role,
           total_project_piles: parseInt(totalProjectPiles),
           tracker_system: trackerSystem,
@@ -260,6 +270,7 @@ export default function ProjectSettingsPage() {
 
   const handleSaveClick = async () => {
     if (!validateForm()) {
+      toast.error("Please fix the errors in the form before saving");
       return;
     }
 
@@ -291,6 +302,8 @@ export default function ProjectSettingsPage() {
         .update({
           project_name: projectName,
           project_location: projectLocation,
+          location_lat: locationLat,
+          location_lng: locationLng,
           role: role,
           total_project_piles: parseInt(totalProjectPiles),
           tracker_system: trackerSystem,
@@ -316,22 +329,71 @@ export default function ProjectSettingsPage() {
     }
   };
 
+  const handleGeocodeLocation = async () => {
+    if (!projectLocation.trim()) {
+      toast.error("Please enter a project location first");
+      return;
+    }
+
+    setIsGeocoding(true);
+    try {
+      const coords = await geocodeAddress(projectLocation);
+
+      if (coords) {
+        setLocationLat(coords.lat);
+        setLocationLng(coords.lng);
+        toast.success(`Location geocoded successfully! (${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)})`);
+      } else {
+        toast.error("Could not geocode this address. Please try a more specific location or enter coordinates manually.");
+      }
+    } catch (error) {
+      console.error("Error geocoding location:", error);
+      toast.error("Failed to geocode location");
+    } finally {
+      setIsGeocoding(false);
+    }
+  };
+
   const loadTeamMembers = async () => {
     try {
       // Load existing team members from user_projects
-      const { data: existingMembers, error: membersError } = await supabase
+      // First try with profiles join, fall back to basic query if it fails
+      let existingMembers: Array<{
+        id: string;
+        user_id: string;
+        role: string;
+        created_at: string;
+        is_owner: boolean;
+        profiles?: { email: string } | null;
+      }> | null = null;
+
+      // Try to join with profiles view (requires db_migration_profiles_view.sql)
+      const { data: membersWithProfiles, error: profilesError } = await supabase
         .from('user_projects')
         .select(`
-          *,
-          user:user_id (
-            id,
-            email,
-            user_metadata
+          id,
+          user_id,
+          role,
+          created_at,
+          is_owner,
+          profiles:user_id (
+            email
           )
         `)
         .eq('project_id', projectId);
 
-      if (membersError) throw membersError;
+      if (!profilesError) {
+        existingMembers = membersWithProfiles;
+      } else {
+        // Fall back to basic query without profiles join
+        const { data: basicMembers, error: basicError } = await supabase
+          .from('user_projects')
+          .select('id, user_id, role, created_at, is_owner')
+          .eq('project_id', projectId);
+
+        if (basicError) throw basicError;
+        existingMembers = basicMembers;
+      }
 
       // Load pending invitations
       const { data: invitations, error: invitationsError } = await supabase
@@ -345,15 +407,43 @@ export default function ProjectSettingsPage() {
         console.error('Error loading invitations:', invitationsError);
       }
 
+      // Load accepted invitations to get emails for team members
+      const { data: acceptedInvitations } = await supabase
+        .from('project_invitations')
+        .select('email, accepted_by')
+        .eq('project_id', projectId)
+        .eq('status', 'accepted');
+
+      // Create a map of user_id to email from accepted invitations
+      const userEmailMap = new Map<string, string>();
+      (acceptedInvitations || []).forEach(inv => {
+        if (inv.accepted_by && inv.email) {
+          userEmailMap.set(inv.accepted_by, inv.email);
+        }
+      });
+
       // Format team members for display
-      const formattedMembers = (existingMembers || []).map(member => ({
-        id: member.id,
-        email: member.user?.email || 'Unknown',
-        role: member.role,
-        created_at: member.created_at,
-        is_owner: member.is_owner,
-        type: 'member'
-      }));
+      const formattedMembers = (existingMembers || []).map(member => {
+        // Try to get email from: 1) profiles join, 2) accepted invitations, 3) current user
+        let email = 'Team Member';
+
+        if (member.profiles && typeof member.profiles === 'object' && 'email' in member.profiles) {
+          email = member.profiles.email;
+        } else if (userEmailMap.has(member.user_id)) {
+          email = userEmailMap.get(member.user_id)!;
+        } else if (member.user_id === user?.id && user?.email) {
+          email = user.email;
+        }
+
+        return {
+          id: member.id,
+          email,
+          role: member.role,
+          created_at: member.created_at,
+          is_owner: member.is_owner,
+          type: 'member'
+        };
+      });
 
       // Add pending invitations to the list
       const formattedInvitations = (invitations || []).map(inv => ({
@@ -622,16 +712,101 @@ export default function ProjectSettingsPage() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="projectLocation">Project Location</Label>
-                        <Input 
-                          id="projectLocation" 
+                        <Input
+                          id="projectLocation"
                           value={projectLocation}
                           onChange={(e) => setProjectLocation(e.target.value)}
                           className={formErrors.projectLocation ? "border-red-500" : ""}
+                          placeholder="e.g., 123 Main St, City, State"
                           disabled={!canEdit}
                         />
                         {formErrors.projectLocation && (
                           <p className="text-xs text-red-500">{formErrors.projectLocation}</p>
                         )}
+                      </div>
+                    </div>
+
+                    {/* Weather Location Configuration */}
+                    <div className="border-t pt-6 mt-6">
+                      <div className="space-y-4">
+                        <div>
+                          <h3 className="text-lg font-semibold flex items-center gap-2">
+                            <MapPin className="h-5 w-5 text-slate-600" />
+                            Weather Location Configuration
+                          </h3>
+                          <p className="text-sm text-slate-500 mt-1">
+                            Set precise coordinates for weather data tracking. Weather conditions will be recorded for each pile installation.
+                          </p>
+                        </div>
+
+                        <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="locationLat" className="text-xs text-slate-600">Latitude</Label>
+                              <Input
+                                id="locationLat"
+                                type="number"
+                                step="0.000001"
+                                value={locationLat?.toString() || ""}
+                                onChange={(e) => setLocationLat(e.target.value ? parseFloat(e.target.value) : null)}
+                                placeholder="e.g., 40.712776"
+                                disabled={!canEdit}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="locationLng" className="text-xs text-slate-600">Longitude</Label>
+                              <Input
+                                id="locationLng"
+                                type="number"
+                                step="0.000001"
+                                value={locationLng?.toString() || ""}
+                                onChange={(e) => setLocationLng(e.target.value ? parseFloat(e.target.value) : null)}
+                                placeholder="e.g., -74.005974"
+                                disabled={!canEdit}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700">
+                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                              {locationLat && locationLng ? (
+                                <span className="text-green-600 dark:text-green-400 font-medium">✓ Weather location configured</span>
+                              ) : (
+                                <span className="text-amber-600 dark:text-amber-400">⚠️ No coordinates set - weather features disabled</span>
+                              )}
+                            </div>
+                            <Button
+                              type="button"
+                              onClick={handleGeocodeLocation}
+                              disabled={isGeocoding || !projectLocation.trim() || !canEdit}
+                              variant="outline"
+                              size="sm"
+                              className="gap-2"
+                            >
+                              {isGeocoding ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-600" />
+                                  Geocoding...
+                                </>
+                              ) : (
+                                <>
+                                  <MapPin className="h-4 w-4" />
+                                  Auto-Fill from Address
+                                </>
+                              )}
+                            </Button>
+                          </div>
+
+                          <div className="text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-200 dark:border-slate-700">
+                            <p className="font-medium mb-1">About Weather Tracking:</p>
+                            <ul className="list-disc list-inside space-y-1">
+                              <li>Weather data will be automatically associated with each pile installation</li>
+                              <li>Historical weather lookups use the installation date from pile records</li>
+                              <li>Data sourced from Open-Meteo (free, no API key required)</li>
+                              <li>Coordinates can be entered manually or auto-filled from the project address</li>
+                            </ul>
+                          </div>
+                        </div>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

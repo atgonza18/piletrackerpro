@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase";
 import { useAccountType } from "@/context/AccountTypeContext";
 import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { CollapsibleSidebar } from "@/components/CollapsibleSidebar";
+import { WeatherWidget } from "@/components/WeatherWidget";
 
 interface ProjectData {
   id: string;
@@ -722,6 +723,9 @@ export default function DashboardPage() {
 
             {/* Charts and Analytics */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3">
+              {/* Weather Widget */}
+              {projectData && <WeatherWidget projectId={projectData.id} />}
+
               {/* Pile Status Distribution - Pie Chart */}
               <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
                 <CardHeader className="p-3">

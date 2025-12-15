@@ -81,6 +81,7 @@ export function ManualPileModal({ isOpen, onClose, projectId }: ManualPileModalP
         machine: formData.machine ? parseInt(formData.machine) : null,
         notes: formData.notes.trim() || null,
         published: false, // New piles start as unpublished
+        is_manual_entry: true, // Mark as manually entered
       };
 
       // Auto-calculate embedment if start_z and end_z are provided but embedment is not

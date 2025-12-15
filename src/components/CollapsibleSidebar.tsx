@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, BarChart3, List, MapPin, Box, FileText, Settings, User, BookOpen } from "lucide-react";
+import { LogOut, BarChart3, List, MapPin, Box, FileText, Settings, User, BookOpen, Activity, Shield } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAccountType } from "@/context/AccountTypeContext";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
+import { adminService } from "@/lib/adminService";
 
 interface NavItem {
   name: string;
@@ -23,8 +24,24 @@ interface CollapsibleSidebarProps {
 export function CollapsibleSidebar({ projectName = "PileTrackerPro", currentPage }: CollapsibleSidebarProps) {
   const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const { canEdit } = useAccountType();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
+
+  // Check if user is super admin
+  useEffect(() => {
+    const checkSuperAdmin = async () => {
+      if (!user) return;
+      try {
+        const result = await adminService.checkSuperAdmin();
+        setIsSuperAdmin(result.isSuperAdmin);
+      } catch {
+        // Not a super admin or error - just don't show admin link
+        setIsSuperAdmin(false);
+      }
+    };
+    checkSuperAdmin();
+  }, [user]);
 
   // Update CSS variable when sidebar expands/collapses
   useEffect(() => {
@@ -49,6 +66,7 @@ export function CollapsibleSidebar({ projectName = "PileTrackerPro", currentPage
   const mainNavItems: NavItem[] = [
     { name: 'Dashboard', icon: BarChart3, href: '/dashboard', active: currentPage === 'dashboard' },
     { name: 'My Piles', icon: List, href: '/my-piles', active: currentPage === 'my-piles' },
+    { name: 'Production', icon: Activity, href: '/production', active: currentPage === 'production' },
     { name: 'Pile Types', icon: MapPin, href: '/zones', active: currentPage === 'zones' },
     { name: 'Blocks', icon: Box, href: '/blocks', active: currentPage === 'blocks' },
     { name: 'Notes', icon: FileText, href: '/notes', active: currentPage === 'notes' },
@@ -59,6 +77,14 @@ export function CollapsibleSidebar({ projectName = "PileTrackerPro", currentPage
     { name: 'Settings', icon: Settings, href: '/settings', active: currentPage === 'settings' },
     { name: 'Account', icon: User, href: '/settings', active: false },
   ] : [];
+
+  // Admin nav item for super admins only
+  const adminNavItem: NavItem | null = isSuperAdmin ? {
+    name: 'Admin',
+    icon: Shield,
+    href: '/admin',
+    active: currentPage === 'admin'
+  } : null;
 
   return (
     <div
@@ -109,6 +135,30 @@ export function CollapsibleSidebar({ projectName = "PileTrackerPro", currentPage
             </button>
           ))}
         </div>
+
+        {/* Admin Section - Super Admins Only */}
+        {adminNavItem && (
+          <div className="mt-4 pt-2 border-t border-amber-200 dark:border-amber-800 space-y-1">
+            <button
+              onClick={() => handleNavigation(adminNavItem.href)}
+              className={`flex items-center gap-2 w-full px-2 py-2 text-sm rounded-lg transition-all ${
+                adminNavItem.active
+                  ? 'bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-100 font-medium'
+                  : 'text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+              } ${!isExpanded ? 'justify-center' : ''}`}
+              title={!isExpanded ? adminNavItem.name : undefined}
+            >
+              <adminNavItem.icon size={18} className="flex-shrink-0" />
+              <span
+                className={`transition-all duration-300 whitespace-nowrap ${
+                  isExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0 overflow-hidden'
+                }`}
+              >
+                {adminNavItem.name}
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Settings Section */}
         {settingsNavItems.length > 0 && (

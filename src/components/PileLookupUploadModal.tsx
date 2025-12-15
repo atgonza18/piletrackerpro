@@ -33,6 +33,9 @@ export function PileLookupUploadModal({ isOpen, onClose, projectId }: PileLookup
   const [errorMessage, setErrorMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Upload mode: 'replace' = replace all existing data, 'add' = add to existing data
+  const [uploadMode, setUploadMode] = useState<'replace' | 'add'>('add');
+
   // Column mapping state
   const [showColumnMapping, setShowColumnMapping] = useState(false);
   const [headers, setHeaders] = useState<string[]>([]);
@@ -113,6 +116,7 @@ export function PileLookupUploadModal({ isOpen, onClose, projectId }: PileLookup
       easting: '',
       pileSize: ''
     });
+    setUploadMode('add');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -275,7 +279,7 @@ export function PileLookupUploadModal({ isOpen, onClose, projectId }: PileLookup
       }, 500);
 
       // Process and upload pile lookup data with user-selected mapping
-      const { data, error } = await processAndUploadLookupData(fileData, projectId, columnMapping);
+      const { data, error } = await processAndUploadLookupData(fileData, projectId, columnMapping, uploadMode);
 
       clearInterval(progressInterval);
 
@@ -285,7 +289,8 @@ export function PileLookupUploadModal({ isOpen, onClose, projectId }: PileLookup
 
       setUploadProgress(100);
       setUploadStatus('success');
-      toast.success(`✅ Successfully uploaded ${data?.count || 0} pile lookup records!`);
+      const modeText = uploadMode === 'add' ? 'added' : 'uploaded';
+      toast.success(`Successfully ${modeText} ${data?.count || 0} pile lookup records!`);
 
       setTimeout(() => {
         onClose();
@@ -306,7 +311,8 @@ export function PileLookupUploadModal({ isOpen, onClose, projectId }: PileLookup
   const processAndUploadLookupData = async (
     fileData: string[][],
     projectId: string,
-    mapping: typeof columnMapping
+    mapping: typeof columnMapping,
+    mode: 'replace' | 'add'
   ) => {
     const header = fileData[0];
     const rows = fileData.slice(1);
@@ -327,14 +333,16 @@ export function PileLookupUploadModal({ isOpen, onClose, projectId }: PileLookup
       throw new Error("Pile TAG/ID column is required");
     }
 
-    // Delete existing lookup data for this project
-    const { error: deleteError } = await supabase
-      .from('pile_lookup_data')
-      .delete()
-      .eq('project_id', projectId);
+    // Only delete existing lookup data if in 'replace' mode
+    if (mode === 'replace') {
+      const { error: deleteError } = await supabase
+        .from('pile_lookup_data')
+        .delete()
+        .eq('project_id', projectId);
 
-    if (deleteError) {
-      console.warn('Error deleting old lookup data:', deleteError);
+      if (deleteError) {
+        console.warn('Error deleting old lookup data:', deleteError);
+      }
     }
 
     // Process rows
@@ -408,6 +416,39 @@ export function PileLookupUploadModal({ isOpen, onClose, projectId }: PileLookup
                     <p className="text-slate-600 text-xs">
                       Select which columns in your file correspond to each field. We've pre-selected our best guesses, but you can adjust them as needed.
                     </p>
+                  </div>
+                </div>
+
+                {/* Upload Mode Selection */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">Upload Mode</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setUploadMode('add')}
+                      className={cn(
+                        "p-3 rounded-lg border-2 text-left transition-all",
+                        uploadMode === 'add'
+                          ? "border-slate-800 bg-slate-50"
+                          : "border-slate-200 hover:border-slate-300"
+                      )}
+                    >
+                      <p className="font-medium text-sm text-slate-800">Add to Existing</p>
+                      <p className="text-xs text-slate-500 mt-0.5">For segments & revisions</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUploadMode('replace')}
+                      className={cn(
+                        "p-3 rounded-lg border-2 text-left transition-all",
+                        uploadMode === 'replace'
+                          ? "border-slate-800 bg-slate-50"
+                          : "border-slate-200 hover:border-slate-300"
+                      )}
+                    >
+                      <p className="font-medium text-sm text-slate-800">Replace All</p>
+                      <p className="text-xs text-slate-500 mt-0.5">For complete plans</p>
+                    </button>
                   </div>
                 </div>
 
@@ -689,6 +730,16 @@ export function PileLookupUploadModal({ isOpen, onClose, projectId }: PileLookup
             )}
           </AnimatePresence>
 
+          <div className="mt-4 flex gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-amber-800">
+              <p className="font-medium">Important: Column headers must be in the first row</p>
+              <p className="text-amber-700 text-xs">
+                Remove any title rows or metadata above your column headers before uploading.
+              </p>
+            </div>
+          </div>
+
           <div className="mt-4 flex gap-3 p-4 bg-slate-100 rounded-lg">
             <Info className="w-5 h-5 text-slate-500 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-slate-700">
@@ -705,7 +756,8 @@ export function PileLookupUploadModal({ isOpen, onClose, projectId }: PileLookup
                   <li><strong>Embedment:</strong> Design embedment value</li>
                 </ul>
                 <p className="text-slate-600 text-xs mt-2">
-                  ℹ️ This data will be replaced each time you upload a new pile plot file.
+                  <strong>Add to Existing:</strong> Use when uploading pile plot plan segments or revisions.<br />
+                  <strong>Replace All:</strong> Use when uploading a complete pile plot plan.
                 </p>
               </div>
             </div>

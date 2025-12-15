@@ -31,6 +31,10 @@ interface PileData {
   gain_per_30_seconds: number | null;
   machine: number | null;
   notes: string | null;
+  weather_condition: string | null;
+  weather_temp: number | null;
+  weather_precipitation: number | null;
+  weather_wind_speed: number | null;
 }
 
 interface EditPileModalProps {
@@ -172,6 +176,50 @@ export function EditPileModal({ isOpen, onClose, pile, onUpdate }: EditPileModal
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Weather Information Section - Read Only */}
+          {(pile.weather_condition || pile.weather_temp) && (
+            <div className="bg-gradient-to-r from-blue-50 to-sky-50 dark:from-slate-800 dark:to-slate-700 rounded-lg p-4 border border-blue-200 dark:border-slate-600">
+              <h3 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-200">Weather at Installation</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {pile.weather_temp && (
+                  <div>
+                    <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">Temperature</div>
+                    <div className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                      {Math.round(pile.weather_temp)}°F
+                    </div>
+                  </div>
+                )}
+                {pile.weather_condition && (
+                  <div>
+                    <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">Conditions</div>
+                    <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                      {pile.weather_condition}
+                    </div>
+                  </div>
+                )}
+                {pile.weather_wind_speed !== null && pile.weather_wind_speed !== undefined && (
+                  <div>
+                    <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">Wind Speed</div>
+                    <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                      {Math.round(pile.weather_wind_speed)} mph
+                    </div>
+                  </div>
+                )}
+                {pile.weather_precipitation !== null && pile.weather_precipitation !== undefined && pile.weather_precipitation > 0 && (
+                  <div>
+                    <div className="text-xs text-slate-600 dark:text-slate-400 mb-1">Precipitation</div>
+                    <div className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                      {pile.weather_precipitation.toFixed(2)}"
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Recorded automatically at time of installation
+              </div>
+            </div>
+          )}
+
           {/* Basic Information Section */}
           <div>
             <h3 className="text-sm font-semibold mb-3 text-muted-foreground">Basic Information</h3>

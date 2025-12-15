@@ -1919,12 +1919,22 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
             )}
           </AnimatePresence>
           
+          <div className="mt-4 flex gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-amber-800">
+              <p className="font-medium">Important: Column headers must be in the first row</p>
+              <p className="text-amber-700 text-xs">
+                Remove any title rows or metadata above your column headers before uploading.
+              </p>
+            </div>
+          </div>
+
           <div className="mt-4 flex gap-3 p-4 bg-slate-100 rounded-lg">
             <Info className="w-5 h-5 text-slate-500 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-slate-700">
               <p className="font-medium mb-1">Format Requirements</p>
               <p className="text-slate-600 text-xs leading-relaxed">
-                🎉 <strong>GPS CSV Support!</strong> Upload CSV/XLSX files directly from your GPS pile driver. The app will automatically calculate Embedment, Gain/30, Pile Type, Design Embedment, and more!
+                Upload CSV/XLSX files directly from your GPS pile driver. The app will automatically calculate Embedment, Gain/30, Pile Type, Design Embedment, and more!
               </p>
               <div className="mt-2 space-y-1">
                 <p className="text-slate-600 text-xs">

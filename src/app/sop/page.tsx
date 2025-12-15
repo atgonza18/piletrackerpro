@@ -87,12 +87,19 @@ export default function SOPPage() {
                   </>
                 ) : (
                   <>
-                    <p className="mb-2">
+                    <p className="mb-3">
                       This guide will help you navigate and understand the pile tracking data for your project.
-                      As a viewer, you have access to all project data and reports.
+                      As an Owner's Representative, you have full viewing access to all <strong>published</strong> pile data and reports.
                     </p>
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-3">
+                      <p className="text-xs text-blue-900 dark:text-blue-100 font-medium mb-1">ℹ️ About Published Data</p>
+                      <p className="text-xs text-blue-800 dark:text-blue-200">
+                        Your EPC contractor reviews and validates pile installation data before publishing it to you. This ensures
+                        data accuracy and quality. You'll only see data that has been verified and marked as "published" by your EPC team.
+                      </p>
+                    </div>
                     <p className="font-medium">
-                      Learn to: View Data → Interpret Status → Generate Reports
+                      Key capabilities: View Published Data → Understand Pile Status → Generate Reports → Track Progress
                     </p>
                   </>
                 )}
@@ -164,8 +171,13 @@ export default function SOPPage() {
                       <div>
                         <h4 className="font-semibold text-slate-900 dark:text-white mb-2">What is Pile Plot Plan?</h4>
                         <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-                          Your pile plot plan (also called pile lookup) is a document that shows all the piles planned for installation,
-                          organized by pile type. This helps you track expected vs. actual installations.
+                          Your pile plot plan (also called pile lookup) is a reference document that shows all the piles planned for installation,
+                          organized by pile type with design specifications. This establishes the baseline for tracking expected vs. actual
+                          installations and enables automatic lookup of pile types and design embedments during data entry.
+                        </p>
+                        <p className="text-sm text-slate-600 dark:text-slate-400">
+                          <strong className="text-slate-900 dark:text-white">Purpose:</strong> When you upload actual pile installation data later,
+                          the system will automatically match pile IDs to retrieve their type and design embedment from this reference file.
                         </p>
                       </div>
                     </div>
@@ -177,10 +189,13 @@ export default function SOPPage() {
                       <div className="flex-1">
                         <h4 className="font-semibold text-slate-900 dark:text-white mb-2">How to Upload</h4>
                         <ol className="list-decimal list-inside space-y-2 text-sm text-slate-600 dark:text-slate-400 ml-2">
-                          <li>Navigate to <span className="font-medium text-slate-900 dark:text-white">My Piles</span> page</li>
+                          <li>Navigate to <span className="font-medium text-slate-900 dark:text-white">Settings</span> page</li>
+                          <li>Scroll to the <span className="font-medium text-slate-900 dark:text-white">Pile Plot Plan Upload</span> section</li>
                           <li>Click the <span className="font-medium text-slate-900 dark:text-white">Upload Pile Lookup</span> button</li>
-                          <li>Select your CSV file containing pile plot plan data</li>
-                          <li>The file should have a column for <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded">pile_type</span> (or similar name)</li>
+                          <li>Drag and drop your file or click "Browse files" to select it (supports .CSV and .XLSX formats)</li>
+                          <li>Click <span className="font-medium text-slate-900 dark:text-white">Next: Map Columns</span> to proceed</li>
+                          <li>Review and adjust the automatic column mappings</li>
+                          <li>Click <span className="font-medium text-slate-900 dark:text-white">Upload Data</span> to import</li>
                         </ol>
                       </div>
                     </div>
@@ -190,15 +205,73 @@ export default function SOPPage() {
                         <Table2 className="h-4 w-4 text-slate-600 dark:text-slate-400" />
                       </div>
                       <div className="flex-1">
-                        <h4 className="font-semibold text-slate-900 dark:text-white mb-2">Column Mapping</h4>
+                        <h4 className="font-semibold text-slate-900 dark:text-white mb-2">Intelligent Column Mapping</h4>
                         <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-                          The system will automatically detect your column names and suggest mappings. You can:
+                          The system uses intelligent auto-detection to match your column headers to database fields. It recognizes
+                          various naming conventions and will pre-select the most likely matches.
                         </p>
-                        <ul className="list-disc list-inside space-y-1 text-sm text-slate-600 dark:text-slate-400 ml-2">
-                          <li>Review the automatic suggestions</li>
-                          <li>Manually map columns if the auto-detection isn't accurate</li>
-                          <li>The most important column is <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1 rounded">pile_type</span></li>
-                        </ul>
+                        <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 mt-3 space-y-3">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <div className="h-2 w-2 rounded-full bg-red-500"></div>
+                              <span className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wide">Required Field</span>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex gap-2 text-xs">
+                                <div className="font-medium text-slate-700 dark:text-slate-300 min-w-[120px]">Pile TAG/ID:</div>
+                                <div className="text-slate-600 dark:text-slate-400">
+                                  The unique pile identifier (e.g., "A1.005.03"). Recognized headers: "TAG", "Name", "Pile Name", "Pile ID", "Pile_ID"
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <div className="h-2 w-2 rounded-full bg-slate-400"></div>
+                              <span className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wide">Recommended Fields</span>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex gap-2 text-xs">
+                                <div className="font-medium text-slate-700 dark:text-slate-300 min-w-[120px]">Pile Type:</div>
+                                <div className="text-slate-600 dark:text-slate-400">
+                                  Pile classification (e.g., "2A2B.INTARRAY"). Headers: "Type", "Pile Type", "Zone Type", "Zone", "Pile_Type"
+                                </div>
+                              </div>
+                              <div className="flex gap-2 text-xs">
+                                <div className="font-medium text-slate-700 dark:text-slate-300 min-w-[120px]">Design Embedment:</div>
+                                <div className="text-slate-600 dark:text-slate-400">
+                                  Target depth in feet. Headers: "Embedment", "Design Embedment", "Design_Embedment"
+                                </div>
+                              </div>
+                              <div className="flex gap-2 text-xs">
+                                <div className="font-medium text-slate-700 dark:text-slate-300 min-w-[120px]">Block:</div>
+                                <div className="text-slate-600 dark:text-slate-400">
+                                  Physical area/block designation. Headers: "Block", "Area"
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <div className="h-2 w-2 rounded-full bg-slate-300"></div>
+                              <span className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wide">Optional Fields</span>
+                            </div>
+                            <div className="space-y-1 text-xs text-slate-600 dark:text-slate-400">
+                              <div>• <strong>Northing/Easting:</strong> GPS coordinates for pile location</div>
+                              <div>• <strong>Pile Size:</strong> Physical dimensions or size classification</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                          <p className="text-xs text-blue-900 dark:text-blue-100 font-medium mb-1">💡 Pro Tip</p>
+                          <p className="text-xs text-blue-800 dark:text-blue-200">
+                            You can always manually adjust the mappings by clicking the dropdown menus. Select "-- None --" for any
+                            field you don't want to import. The system will remember your choices for the current upload session.
+                          </p>
+                        </div>
                       </div>
                     </div>
 
@@ -206,11 +279,12 @@ export default function SOPPage() {
                       <div className="flex items-start gap-2">
                         <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                         <div>
-                          <h5 className="font-semibold text-amber-900 dark:text-amber-100 mb-1">Important Note</h5>
-                          <p className="text-sm text-amber-800 dark:text-amber-200">
-                            Upload your pile plot plan BEFORE uploading actual pile data. This establishes a baseline
-                            for tracking progress and comparing expected vs. installed piles by type.
-                          </p>
+                          <h5 className="font-semibold text-amber-900 dark:text-amber-100 mb-1">Important Notes</h5>
+                          <ul className="text-sm text-amber-800 dark:text-amber-200 space-y-1 list-disc list-inside">
+                            <li>Upload your pile plot plan BEFORE uploading actual pile data for best results</li>
+                            <li>Each upload replaces the previous lookup data - the system doesn't append or merge</li>
+                            <li>Missing pile types in the lookup won't prevent data upload, but you'll need to enter them manually</li>
+                          </ul>
                         </div>
                       </div>
                     </div>
@@ -247,9 +321,11 @@ export default function SOPPage() {
                         <h4 className="font-semibold text-slate-900 dark:text-white mb-2">Starting the Upload</h4>
                         <ol className="list-decimal list-inside space-y-2 text-sm text-slate-600 dark:text-slate-400 ml-2">
                           <li>Navigate to <span className="font-medium text-slate-900 dark:text-white">My Piles</span> page</li>
-                          <li>Click the <span className="font-medium text-slate-900 dark:text-white">CSV Upload</span> button</li>
-                          <li>Select your CSV file containing pile installation data</li>
-                          <li>The intelligent column mapper will analyze your file</li>
+                          <li>Click the <span className="font-medium text-slate-900 dark:text-white">CSV Upload</span> button in the top toolbar</li>
+                          <li>Drag and drop your file or click "Browse files" (supports .CSV and .XLSX formats)</li>
+                          <li>Click <span className="font-medium text-slate-900 dark:text-white">Next: Map Columns</span> to analyze the file</li>
+                          <li>Review and adjust the intelligent column mappings (see details below)</li>
+                          <li>Click <span className="font-medium text-slate-900 dark:text-white">Upload Data</span> to process</li>
                         </ol>
                       </div>
                     </div>
@@ -259,62 +335,269 @@ export default function SOPPage() {
                         <Settings className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                       </div>
                       <div className="flex-1">
-                        <h4 className="font-semibold text-slate-900 dark:text-white mb-2">Column Mapping Process</h4>
+                        <h4 className="font-semibold text-slate-900 dark:text-white mb-2">Intelligent Column Mapping System</h4>
                         <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-                          The system uses intelligent auto-detection to map your CSV columns to the database fields:
+                          The system automatically analyzes your file headers and suggests the best column mappings. It recognizes
+                          dozens of common naming patterns used in pile tracking systems.
                         </p>
-                        <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 space-y-2">
-                          <div className="grid grid-cols-2 gap-2 text-sm">
-                            <div className="font-medium text-slate-700 dark:text-slate-300">Your Column</div>
-                            <div className="font-medium text-slate-700 dark:text-slate-300">Maps To</div>
-                            <div className="text-slate-600 dark:text-slate-400">Pile Name, Pile ID, Name</div>
-                            <div className="text-indigo-600 dark:text-indigo-400 font-mono text-xs">→ pile_name</div>
-                            <div className="text-slate-600 dark:text-slate-400">Embedment, Final Emb.</div>
-                            <div className="text-indigo-600 dark:text-indigo-400 font-mono text-xs">→ embedment</div>
-                            <div className="text-slate-600 dark:text-slate-400">Design Embedment, Design</div>
-                            <div className="text-indigo-600 dark:text-indigo-400 font-mono text-xs">→ design_embedment</div>
-                            <div className="text-slate-600 dark:text-slate-400">Block, Zone, Area</div>
-                            <div className="text-indigo-600 dark:text-indigo-400 font-mono text-xs">→ block</div>
-                            <div className="text-slate-600 dark:text-slate-400">Type, Pile Type</div>
-                            <div className="text-indigo-600 dark:text-indigo-400 font-mono text-xs">→ pile_type</div>
-                            <div className="text-slate-600 dark:text-slate-400">Location, Pile Location</div>
-                            <div className="text-indigo-600 dark:text-indigo-400 font-mono text-xs">→ pile_location</div>
+
+                        <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 mt-3 space-y-4">
+                          {/* Required Fields Section */}
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="h-2 w-2 rounded-full bg-red-500"></div>
+                              <span className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wide">Required Fields (Must Map)</span>
+                            </div>
+                            <div className="space-y-2.5 text-xs">
+                              <div className="bg-white dark:bg-slate-900 rounded p-2">
+                                <div className="font-medium text-slate-900 dark:text-white mb-1">Pile Number/ID</div>
+                                <div className="text-slate-600 dark:text-slate-400">
+                                  Recognized headers: "Pile Number", "Pile_Number", "PileNumber", "Pile No", "Pile #", "Number", "TAG", "Name", "Pile ID", "Pile_ID"
+                                </div>
+                              </div>
+                              <div className="bg-white dark:bg-slate-900 rounded p-2">
+                                <div className="font-medium text-slate-900 dark:text-white mb-1">Machine</div>
+                                <div className="text-slate-600 dark:text-slate-400">
+                                  Equipment identifier. Headers: "Machine", "Equipment", "Rig", "Machine ID", "Machine_ID"
+                                </div>
+                              </div>
+                              <div className="bg-white dark:bg-slate-900 rounded p-2">
+                                <div className="font-medium text-slate-900 dark:text-white mb-1">Start Date</div>
+                                <div className="text-slate-600 dark:text-slate-400">
+                                  Installation date. Headers: "Start Date", "Start_Date", "StartDate", "Date", "Install Date"
+                                </div>
+                              </div>
+                              <div className="bg-white dark:bg-slate-900 rounded p-2">
+                                <div className="font-medium text-slate-900 dark:text-white mb-1">Start Time & Stop Time</div>
+                                <div className="text-slate-600 dark:text-slate-400">
+                                  Installation period. Headers: "Start Time"/"Stop Time", "Start_Time"/"End_Time", "Begin Time"/"Finish Time"
+                                </div>
+                              </div>
+                              <div className="bg-white dark:bg-slate-900 rounded p-2">
+                                <div className="font-medium text-slate-900 dark:text-white mb-1">Duration</div>
+                                <div className="text-slate-600 dark:text-slate-400">
+                                  Total drive time. Headers: "Duration", "Drive Time", "DriveTime", "Time"
+                                </div>
+                              </div>
+                              <div className="bg-white dark:bg-slate-900 rounded p-2">
+                                <div className="font-medium text-slate-900 dark:text-white mb-1">Start Z & End Z</div>
+                                <div className="text-slate-600 dark:text-slate-400">
+                                  Elevation measurements in feet. Headers: "Start Z"/"End Z", "Start_Z"/"End_Z", "Start Elevation"/"End Elevation", "Start Z(Feet)"/"End Z(Feet)"
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Auto-Calculated Fields Section */}
+                          <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="h-2 w-2 rounded-full bg-blue-500"></div>
+                              <span className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wide">Auto-Calculated & Lookup Fields</span>
+                            </div>
+                            <div className="space-y-2.5 text-xs">
+                              <div className="bg-white dark:bg-slate-900 rounded p-2">
+                                <div className="font-medium text-slate-900 dark:text-white mb-1">Embedment (Can be provided OR calculated)</div>
+                                <div className="text-slate-600 dark:text-slate-400">
+                                  • <strong>Option 1:</strong> Map to a column in your file (e.g., "Embedment", "Actual Embedment", "Final Embedment")<br/>
+                                  • <strong>Option 2:</strong> Leave unmapped - system calculates as: Start Z - End Z
+                                </div>
+                              </div>
+                              <div className="bg-white dark:bg-slate-900 rounded p-2">
+                                <div className="font-medium text-slate-900 dark:text-white mb-1">Design Embedment (Can be provided OR looked up)</div>
+                                <div className="text-slate-600 dark:text-slate-400">
+                                  • <strong>Option 1:</strong> Map to a column (e.g., "Design Embedment", "Target Embedment")<br/>
+                                  • <strong>Option 2:</strong> Leave unmapped - system looks up from pile plot plan using Pile ID
+                                </div>
+                              </div>
+                              <div className="bg-white dark:bg-slate-900 rounded p-2">
+                                <div className="font-medium text-slate-900 dark:text-white mb-1">Pile Type (Can be provided OR looked up)</div>
+                                <div className="text-slate-600 dark:text-slate-400">
+                                  • <strong>Option 1:</strong> Map to a column (e.g., "Pile Type", "Type", "Zone Type")<br/>
+                                  • <strong>Option 2:</strong> Leave unmapped - system looks up from pile plot plan using Pile ID<br/>
+                                  • <em>Note: Lookup only works if you've uploaded pile plot plan first</em>
+                                </div>
+                              </div>
+                              <div className="bg-white dark:bg-slate-900 rounded p-2">
+                                <div className="font-medium text-slate-900 dark:text-white mb-1">Gain Per 30 Seconds (Can be provided OR calculated)</div>
+                                <div className="text-slate-600 dark:text-slate-400">
+                                  • <strong>Option 1:</strong> Map to a column (e.g., "Gain Per 30", "Gain/30")<br/>
+                                  • <strong>Option 2:</strong> Leave unmapped - system calculates from embedment and duration
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Optional Fields Section */}
+                          <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="h-2 w-2 rounded-full bg-slate-400"></div>
+                              <span className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wide">Optional Fields (Recommended)</span>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                              <div className="bg-white dark:bg-slate-900 rounded p-2">
+                                <div className="font-medium text-slate-900 dark:text-white">Block</div>
+                                <div className="text-slate-600 dark:text-slate-400 text-xs">Physical area/zone identifier</div>
+                              </div>
+                              <div className="bg-white dark:bg-slate-900 rounded p-2">
+                                <div className="font-medium text-slate-900 dark:text-white">Pile Location</div>
+                                <div className="text-slate-600 dark:text-slate-400 text-xs">Description of pile location</div>
+                              </div>
+                              <div className="bg-white dark:bg-slate-900 rounded p-2">
+                                <div className="font-medium text-slate-900 dark:text-white">Pile Size</div>
+                                <div className="text-slate-600 dark:text-slate-400 text-xs">Dimensions or classification</div>
+                              </div>
+                              <div className="bg-white dark:bg-slate-900 rounded p-2">
+                                <div className="font-medium text-slate-900 dark:text-white">Pile Color</div>
+                                <div className="text-slate-600 dark:text-slate-400 text-xs">Color coding for tracking</div>
+                              </div>
+                              <div className="bg-white dark:bg-slate-900 rounded p-2">
+                                <div className="font-medium text-slate-900 dark:text-white">End Date</div>
+                                <div className="text-slate-600 dark:text-slate-400 text-xs">Completion date if different</div>
+                              </div>
+                              <div className="bg-white dark:bg-slate-900 rounded p-2">
+                                <div className="font-medium text-slate-900 dark:text-white">Notes</div>
+                                <div className="text-slate-600 dark:text-slate-400 text-xs">Comments or observations</div>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-3">
-                          You can manually adjust any mapping if the auto-detection needs correction. Simply click on a dropdown
-                          to change the mapping for any column.
-                        </p>
+
+                        <div className="mt-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                          <p className="text-xs text-blue-900 dark:text-blue-100 font-medium mb-1">💡 Mapping Tips</p>
+                          <ul className="text-xs text-blue-800 dark:text-blue-200 space-y-1 list-disc list-inside">
+                            <li>If auto-detection is wrong, click any dropdown to manually select the correct column</li>
+                            <li>Select "-- None --" for fields you don't want to import</li>
+                            <li>The system remembers your mappings for the current upload session</li>
+                            <li>You can leave smart fields like Embedment and Pile Type unmapped - the system will handle them</li>
+                          </ul>
+                        </div>
                       </div>
                     </div>
 
                     <div className="flex items-start gap-3">
                       <div className="h-6 w-6 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <CheckCircle className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                        <Settings className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                       </div>
                       <div className="flex-1">
-                        <h4 className="font-semibold text-slate-900 dark:text-white mb-2">Key Fields to Include</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
-                            <div className="font-medium text-sm text-slate-900 dark:text-white mb-1">Essential Fields</div>
-                            <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1">
-                              <li>• Pile Name (required)</li>
-                              <li>• Embedment</li>
-                              <li>• Design Embedment</li>
-                              <li>• Block</li>
-                              <li>• Pile Type</li>
-                            </ul>
+                        <h4 className="font-semibold text-slate-900 dark:text-white mb-2">Advanced: Pattern Extraction</h4>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                          When your data has pile IDs or blocks embedded within longer strings, use pattern extraction to automatically
+                          extract just the portion you need. This powerful feature works with both character position and regex patterns.
+                        </p>
+
+                        <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 mt-3 space-y-4">
+                          {/* Character Position Extraction */}
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="h-2 w-2 rounded-full bg-purple-500"></div>
+                              <span className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wide">Method 1: Character Position Extraction</span>
+                            </div>
+                            <div className="bg-white dark:bg-slate-900 rounded p-3 space-y-2 text-xs">
+                              <div className="font-medium text-slate-900 dark:text-white mb-2">How it works:</div>
+                              <div className="text-slate-600 dark:text-slate-400">
+                                Extract a substring by specifying start and end character positions (0-indexed).
+                              </div>
+                              <div className="bg-slate-50 dark:bg-slate-800 rounded p-2 mt-2">
+                                <div className="font-medium text-slate-900 dark:text-white mb-1">Example:</div>
+                                <div className="space-y-1 text-slate-700 dark:text-slate-300">
+                                  <div className="flex gap-2">
+                                    <span className="font-semibold min-w-[80px]">Full value:</span>
+                                    <span className="font-mono bg-white dark:bg-slate-900 px-2 rounded">Project_A_A1.005.03_Section1</span>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <span className="font-semibold min-w-[80px]">Extract from:</span>
+                                    <span>Position 10 to 20</span>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <span className="font-semibold min-w-[80px]">Result:</span>
+                                    <span className="font-mono bg-green-50 dark:bg-green-900/20 px-2 rounded text-green-700 dark:text-green-300">A1.005.03</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-slate-600 dark:text-slate-400 mt-2">
+                                <strong>Use when:</strong> Your pile IDs or blocks are always in the same position within the string
+                              </div>
+                            </div>
                           </div>
-                          <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
-                            <div className="font-medium text-sm text-slate-900 dark:text-white mb-1">Optional Fields</div>
-                            <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1">
-                              <li>• Start Date/Time</li>
-                              <li>• End Date/Time</li>
-                              <li>• Slow Drive Time</li>
-                              <li>• Inspector Name</li>
-                              <li>• Notes</li>
-                            </ul>
+
+                          {/* Regex Pattern Extraction */}
+                          <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="h-2 w-2 rounded-full bg-purple-500"></div>
+                              <span className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wide">Method 2: Regex Pattern Matching</span>
+                            </div>
+                            <div className="bg-white dark:bg-slate-900 rounded p-3 space-y-2 text-xs">
+                              <div className="font-medium text-slate-900 dark:text-white mb-2">How it works:</div>
+                              <div className="text-slate-600 dark:text-slate-400">
+                                Use a regular expression to match and extract complex patterns. The first capturing group (text in parentheses) is used.
+                              </div>
+                              <div className="bg-slate-50 dark:bg-slate-800 rounded p-2 mt-2 space-y-2">
+                                <div>
+                                  <div className="font-medium text-slate-900 dark:text-white mb-1">Example 1: Extract pile ID</div>
+                                  <div className="space-y-1 text-slate-700 dark:text-slate-300">
+                                    <div className="flex gap-2">
+                                      <span className="font-semibold min-w-[80px]">Full value:</span>
+                                      <span className="font-mono bg-white dark:bg-slate-900 px-2 rounded">Pile_A1.005.03_Data</span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <span className="font-semibold min-w-[80px]">Regex:</span>
+                                      <span className="font-mono bg-white dark:bg-slate-900 px-2 rounded">^Pile_([A-Z]+\d+\.\d+\.\d+)</span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <span className="font-semibold min-w-[80px]">Result:</span>
+                                      <span className="font-mono bg-green-50 dark:bg-green-900/20 px-2 rounded text-green-700 dark:text-green-300">A1.005.03</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="pt-2 border-t border-slate-300 dark:border-slate-600">
+                                  <div className="font-medium text-slate-900 dark:text-white mb-1">Example 2: Extract block letter</div>
+                                  <div className="space-y-1 text-slate-700 dark:text-slate-300">
+                                    <div className="flex gap-2">
+                                      <span className="font-semibold min-w-[80px]">Full value:</span>
+                                      <span className="font-mono bg-white dark:bg-slate-900 px-2 rounded">Block_A_Section_1</span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <span className="font-semibold min-w-[80px]">Regex:</span>
+                                      <span className="font-mono bg-white dark:bg-slate-900 px-2 rounded">^Block_([A-Z]+)</span>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <span className="font-semibold min-w-[80px]">Result:</span>
+                                      <span className="font-mono bg-green-50 dark:bg-green-900/20 px-2 rounded text-green-700 dark:text-green-300">A</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-slate-600 dark:text-slate-400 mt-2">
+                                <strong>Use when:</strong> Your data has variable-length strings or complex patterns that need intelligent matching
+                              </div>
+                            </div>
                           </div>
+
+                          {/* How to Access */}
+                          <div className="border-t border-slate-200 dark:border-slate-700 pt-3">
+                            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded p-3">
+                              <div className="font-medium text-amber-900 dark:text-amber-100 text-xs mb-1">🔧 How to Use Pattern Extraction</div>
+                              <div className="text-xs text-amber-800 dark:text-amber-200 space-y-1">
+                                <div>1. After mapping your Pile Number or Block column, an "Extract pattern from text" option appears below</div>
+                                <div>2. Check the checkbox to enable pattern extraction</div>
+                                <div>3. You'll see a sample value from your data</div>
+                                <div>4. Choose either character position method OR regex method</div>
+                                <div>5. The system shows you a live preview of the extracted result</div>
+                                <div>6. Pattern extraction applies to ALL rows during import</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+                          <p className="text-xs text-purple-900 dark:text-purple-100 font-medium mb-1">💡 Pattern Extraction Tips</p>
+                          <ul className="text-xs text-purple-800 dark:text-purple-200 space-y-1 list-disc list-inside">
+                            <li>Start with character position method - it's simpler and works for most cases</li>
+                            <li>Use regex when your pile IDs vary in length or have complex formatting</li>
+                            <li>Remember: Character positions are 0-indexed (first character = 0)</li>
+                            <li>Test your pattern on the sample value before uploading to ensure correct extraction</li>
+                            <li>Pattern extraction is available for both Pile ID and Block fields</li>
+                          </ul>
                         </div>
                       </div>
                     </div>
@@ -323,12 +606,16 @@ export default function SOPPage() {
                       <div className="flex items-start gap-2">
                         <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
                         <div>
-                          <h5 className="font-semibold text-green-900 dark:text-green-100 mb-1">Smart Error Handling</h5>
-                          <p className="text-sm text-green-800 dark:text-green-200">
-                            The system validates each row individually. If some rows have errors, they'll be skipped
-                            while valid rows are imported. You'll receive a detailed report showing exactly which rows
-                            succeeded and which need attention.
+                          <h5 className="font-semibold text-green-900 dark:text-green-100 mb-1">Row-by-Row Validation & Error Handling</h5>
+                          <p className="text-sm text-green-800 dark:text-green-200 mb-2">
+                            The system validates each row individually during upload. This means:
                           </p>
+                          <ul className="text-sm text-green-800 dark:text-green-200 space-y-1 list-disc list-inside ml-2">
+                            <li><strong>Valid rows are imported</strong> - Even if some rows have errors, good data still gets through</li>
+                            <li><strong>Invalid rows are skipped</strong> - Rows with missing required fields or bad data are automatically skipped</li>
+                            <li><strong>Detailed report provided</strong> - You'll see exactly how many rows succeeded vs. skipped</li>
+                            <li><strong>No partial imports</strong> - Each row is either fully imported or fully skipped (no partial data)</li>
+                          </ul>
                         </div>
                       </div>
                     </div>
@@ -337,11 +624,13 @@ export default function SOPPage() {
                       <div className="flex items-start gap-2">
                         <Info className="h-5 w-5 text-slate-600 dark:text-slate-400 flex-shrink-0 mt-0.5" />
                         <div>
-                          <h5 className="font-semibold text-slate-900 dark:text-slate-200 mb-1">Duplicate Piles Allowed</h5>
-                          <p className="text-sm text-slate-700 dark:text-slate-300">
-                            The system allows duplicate pile names by design. This is useful for tracking piles that may be
-                            re-driven or have multiple entries. All pile operations are tracked in the activity history.
-                          </p>
+                          <h5 className="font-semibold text-slate-900 dark:text-slate-200 mb-1">Important Upload Behaviors</h5>
+                          <ul className="text-sm text-slate-700 dark:text-slate-300 space-y-1.5 list-disc list-inside">
+                            <li><strong>Duplicate piles are allowed</strong> - You can upload the same pile ID multiple times (useful for re-drives or updates)</li>
+                            <li><strong>All operations are logged</strong> - Every change is tracked in the pile activity history</li>
+                            <li><strong>Data is appended, not replaced</strong> - New uploads add to existing data (they don't delete old records)</li>
+                            <li><strong>Unpublished by default</strong> - New pile data starts as unpublished. Use the "Publish Data" button to make it visible to Owner's Rep accounts</li>
+                          </ul>
                         </div>
                       </div>
                     </div>
@@ -381,16 +670,39 @@ export default function SOPPage() {
                         </div>
                       </div>
                       <div className="ml-11 space-y-2 text-sm text-slate-600 dark:text-slate-400">
-                        <p><strong className="text-slate-900 dark:text-white">Purpose:</strong> Get a high-level overview of your entire project at a glance.</p>
+                        <p><strong className="text-slate-900 dark:text-white">Purpose:</strong> Get a high-level overview of your entire project at a glance{!canEdit ? ' (shows all published pile data)' : ''}.</p>
                         <p><strong className="text-slate-900 dark:text-white">What you'll see:</strong></p>
                         <ul className="list-disc list-inside ml-2 space-y-1">
-                          <li>Total piles (Accepted, Refusal, N/A)</li>
-                          <li>Project completion percentage</li>
-                          <li>Pie chart showing pile status distribution</li>
-                          <li>Installation timeline (weekly/monthly views)</li>
-                          <li>Block performance bar chart</li>
-                          <li>Quick action buttons to navigate to other sections</li>
+                          <li>Total piles count broken down by status (Accepted, Refusal, Tolerance, N/A)</li>
+                          <li>Project completion percentage based on expected vs. installed piles</li>
+                          <li>Pie chart showing pile status distribution for quick visual reference</li>
+                          <li>Installation timeline with weekly/monthly views to track progress over time</li>
+                          <li>Block performance bar chart comparing acceptance rates across blocks</li>
+                          <li>Quick action buttons to navigate to detailed sections</li>
                         </ul>
+                        {!canEdit && (
+                          <div className="mt-3 bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
+                            <p className="text-xs font-medium text-slate-900 dark:text-white mb-1">📊 Understanding Dashboard Metrics</p>
+                            <div className="space-y-1.5 text-xs text-slate-700 dark:text-slate-300">
+                              <div className="flex gap-2">
+                                <span className="font-semibold min-w-[110px]">Completion %:</span>
+                                <span>Shows installed piles divided by total expected piles (from pile plot plan)</span>
+                              </div>
+                              <div className="flex gap-2">
+                                <span className="font-semibold min-w-[110px]">Status Counts:</span>
+                                <span>Breakdown of how many piles are Accepted, in Tolerance, Refusal, or N/A (pending)</span>
+                              </div>
+                              <div className="flex gap-2">
+                                <span className="font-semibold min-w-[110px]">Timeline Chart:</span>
+                                <span>Shows when piles were installed over time - useful for tracking project pace</span>
+                              </div>
+                              <div className="flex gap-2">
+                                <span className="font-semibold min-w-[110px]">Block Chart:</span>
+                                <span>Compares blocks side-by-side to identify which areas need attention</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -408,10 +720,10 @@ export default function SOPPage() {
                         </div>
                       </div>
                       <div className="ml-11 space-y-2 text-sm text-slate-600 dark:text-slate-400">
-                        <p><strong className="text-slate-900 dark:text-white">Purpose:</strong> {canEdit ? 'View, search, filter, and manage all pile records.' : 'View, search, and filter all pile records.'}</p>
+                        <p><strong className="text-slate-900 dark:text-white">Purpose:</strong> {canEdit ? 'View, search, filter, and manage all pile records.' : 'View, search, and filter all published pile records.'}</p>
                         <p><strong className="text-slate-900 dark:text-white">Key features:</strong></p>
                         <ul className="list-disc list-inside ml-2 space-y-1">
-                          <li>Searchable table with all pile data</li>
+                          <li>Searchable table with all {canEdit ? '' : 'published '}pile data</li>
                           <li>Filter by status (Accepted, Refusal, Tolerance, N/A)</li>
                           {canEdit && (
                             <>
@@ -423,7 +735,21 @@ export default function SOPPage() {
                           )}
                           <li>Export data to Excel or PDF</li>
                           <li>Color-coded status indicators (Green = Accepted, Purple = Refusal, Amber = N/A)</li>
+                          {!canEdit && (
+                            <li>Search by pile number, location, block, or pile type</li>
+                          )}
                         </ul>
+                        {!canEdit && (
+                          <div className="mt-3 bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
+                            <p className="text-xs font-medium text-slate-900 dark:text-white mb-1">💡 Searching & Filtering Tips</p>
+                            <ul className="text-xs text-slate-700 dark:text-slate-300 space-y-1">
+                              <li>• Use the search bar to find specific piles by ID or name</li>
+                              <li>• Click status filter buttons to show only Accepted, Refusal, Tolerance, or N/A piles</li>
+                              <li>• Combine search and filters to narrow down results</li>
+                              <li>• Sort columns by clicking the column headers</li>
+                            </ul>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -565,13 +891,72 @@ export default function SOPPage() {
                         <Download className="h-5 w-5 text-slate-600" />
                         Export & Reporting
                       </h4>
-                      <div className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
-                        <p>Generate reports and export data in multiple formats:</p>
-                        <ul className="list-disc list-inside ml-2 space-y-1">
-                          <li><strong className="text-slate-900 dark:text-white">Excel Export:</strong> Full data export with all fields for analysis</li>
-                          <li><strong className="text-slate-900 dark:text-white">PDF Export:</strong> Professional formatted reports for sharing</li>
-                          <li><strong className="text-slate-900 dark:text-white">Filtered Exports:</strong> Export only what you see (respects current filters)</li>
-                        </ul>
+                      <div className="space-y-3 text-sm text-slate-600 dark:text-slate-400">
+                        <p>Generate reports and export data in multiple formats{!canEdit ? ' for all published pile data' : ''}:</p>
+
+                        <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
+                          <div className="space-y-3">
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <FileText className="h-4 w-4 text-green-600" />
+                                <strong className="text-slate-900 dark:text-white text-sm">Excel Export (.XLSX)</strong>
+                              </div>
+                              <ul className="text-xs text-slate-700 dark:text-slate-300 ml-6 space-y-0.5">
+                                <li>• Includes all columns and data fields</li>
+                                <li>• Perfect for detailed analysis in Excel or Google Sheets</li>
+                                <li>• Preserves all numeric values for calculations</li>
+                                <li>• Available from My Piles, Blocks, and Pile Types pages</li>
+                              </ul>
+                            </div>
+
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <FileText className="h-4 w-4 text-red-600" />
+                                <strong className="text-slate-900 dark:text-white text-sm">PDF Export (.PDF)</strong>
+                              </div>
+                              <ul className="text-xs text-slate-700 dark:text-slate-300 ml-6 space-y-0.5">
+                                <li>• Professional formatted reports ready to share</li>
+                                <li>• Includes project header and summary statistics</li>
+                                <li>• Optimized for printing and email distribution</li>
+                                <li>• Great for stakeholder presentations and documentation</li>
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                          <p className="text-xs text-blue-900 dark:text-blue-100 font-medium mb-1">💡 Export Tips</p>
+                          <ul className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
+                            <li>• Exports respect your current filters - apply filters first, then export to get specific data</li>
+                            <li>• Use search to find piles, then export to create targeted reports</li>
+                            <li>• Export from Blocks/Pile Types pages for pre-grouped data</li>
+                            {!canEdit && <li>• All exports only include published data visible to you</li>}
+                          </ul>
+                        </div>
+
+                        {!canEdit && (
+                          <div className="bg-slate-100 dark:bg-slate-800/20 border border-slate-300 dark:border-slate-700 rounded-lg p-3">
+                            <p className="text-xs font-medium text-slate-900 dark:text-white mb-2">Common Reporting Workflows:</p>
+                            <div className="space-y-2 text-xs text-slate-700 dark:text-slate-300">
+                              <div className="flex gap-2">
+                                <span className="font-semibold min-w-[100px]">Weekly Status:</span>
+                                <span>Dashboard → Export PDF with current project status and completion %</span>
+                              </div>
+                              <div className="flex gap-2">
+                                <span className="font-semibold min-w-[100px]">Refusal Report:</span>
+                                <span>My Piles → Filter "Refusal" → Export Excel for detailed analysis</span>
+                              </div>
+                              <div className="flex gap-2">
+                                <span className="font-semibold min-w-[100px]">Block Progress:</span>
+                                <span>Blocks → Export Excel for block-by-block breakdown</span>
+                              </div>
+                              <div className="flex gap-2">
+                                <span className="font-semibold min-w-[100px]">Type Analysis:</span>
+                                <span>Pile Types → Export to compare expected vs. installed by type</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 

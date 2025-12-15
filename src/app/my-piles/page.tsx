@@ -79,6 +79,7 @@ interface PileData {
   combined_pile_ids?: string[];
   date_range_start?: string | null;
   date_range_end?: string | null;
+  is_manual_entry?: boolean;
 }
 
 interface ProjectData {
@@ -2633,10 +2634,10 @@ export default function MyPilesPage() {
                               )}
                             </td>
                             <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-slate-700 dark:group-hover:text-slate-300">
-                              <span className="group-hover:text-slate-600 transition-colors duration-200 block truncate" title={String(pile.pile_id || pile.pile_number)}>
-                                {pile.pile_id && duplicatePileIds.has(pile.pile_id) && showDuplicatesOnly ? (
-                                  <div className="flex items-center">
-                                    <span 
+                              <div className="flex items-center gap-1.5">
+                                <span className="group-hover:text-slate-600 transition-colors duration-200 truncate" title={String(pile.pile_id || pile.pile_number)}>
+                                  {pile.pile_id && duplicatePileIds.has(pile.pile_id) && showDuplicatesOnly ? (
+                                    <span
                                       className="flex gap-1 items-center px-1 py-0.5 rounded border transition-all duration-300 hover:shadow-md relative group text-xs"
                                       style={{
                                         backgroundColor: duplicateColors[pile.pile_id]?.bg as string || 'rgba(251, 191, 36, 0.1)',
@@ -2647,11 +2648,16 @@ export default function MyPilesPage() {
                                       <AlertTriangle size={10} className="text-amber-700" />
                                       <span className="truncate">{pile.pile_id || pile.pile_number}</span>
                                     </span>
-                                  </div>
-                                ) : (
-                                  pile.pile_id || pile.pile_number
+                                  ) : (
+                                    pile.pile_id || pile.pile_number
+                                  )}
+                                </span>
+                                {pile.is_manual_entry && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
+                                    Manual
+                                  </span>
                                 )}
-                              </span>
+                              </div>
                             </td>
                             <td className="px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition-colors duration-200 group-hover:text-slate-700 dark:group-hover:text-slate-300">
                               <span className="truncate block" title={pile.pile_type || "N/A"}>
@@ -3847,15 +3853,15 @@ export default function MyPilesPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold text-blue-600">Publish Pile Data</DialogTitle>
-            <DialogDescription className="pt-4">
+            <DialogDescription className="pt-4 text-center">
               <CheckCircle2 className="h-12 w-12 text-blue-600 mx-auto mb-4" />
-              <p className="text-center text-slate-600 dark:text-slate-400">
+              <span className="block text-slate-600 dark:text-slate-400">
                 You are about to publish <strong>{unpublishedPilesCount}</strong> unpublished pile(s).
                 Once published, this data will become visible to Owner's Rep accounts.
-              </p>
-              <p className="text-center text-slate-500 dark:text-slate-500 mt-3 text-sm">
+              </span>
+              <span className="block text-slate-500 dark:text-slate-500 mt-3 text-sm">
                 Make sure you have reviewed the data for accuracy before publishing.
-              </p>
+              </span>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2 justify-end">
@@ -3892,11 +3898,11 @@ export default function MyPilesPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold text-red-600">Delete All Piles</DialogTitle>
-            <DialogDescription className="pt-4">
+            <DialogDescription className="pt-4 text-center">
               <AlertTriangle className="h-12 w-12 text-red-600 mx-auto mb-4" />
-              <p className="text-center text-slate-600 dark:text-slate-400">
+              <span className="block text-slate-600 dark:text-slate-400">
                 Are you absolutely sure you want to delete all piles? This action cannot be undone and will permanently remove all pile data from the database.
-              </p>
+              </span>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2 justify-end">

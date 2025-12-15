@@ -46,39 +46,45 @@ npm run lint         # Run ESLint checks
 ```
 src/
 ├── app/                    # Next.js App Router pages
+│   ├── admin/             # Super admin dashboard (requires super_admin privileges)
+│   ├── api/admin/         # Admin API routes (protected, server-side)
 │   ├── auth/              # Authentication pages (login, signup, forgot-password)
-│   ├── dashboard/         # Main dashboard
-│   ├── my-piles/          # Pile management
-│   ├── zones/             # Pile type analysis (formerly zones)
-│   ├── notes/             # Project notes
 │   ├── blocks/            # Block management
-│   ├── settings/          # User/project settings
-│   ├── project-setup/     # New project creation
+│   ├── dashboard/         # Main dashboard
 │   ├── field-entry/       # Mobile-optimized field data entry form
+│   ├── my-piles/          # Pile management
+│   ├── notes/             # Project notes
+│   ├── production/        # Production tracking and reporting
+│   ├── project-setup/     # New project creation
+│   ├── settings/          # User/project settings
 │   ├── sop/               # Standard Operating Procedure guide
+│   ├── zones/             # Pile type analysis (formerly zones)
 │   ├── icon.tsx           # App favicon (edge runtime)
 │   ├── layout.tsx         # Root layout with provider wrapping
 │   └── page.tsx           # Landing/home page
 ├── components/            # Shared components
 │   ├── ui/               # shadcn/ui components
-│   ├── CSVUploadModal.tsx
-│   ├── PileLookupUploadModal.tsx
-│   ├── ManualPileModal.tsx
-│   ├── EditPileModal.tsx
-│   ├── ProjectSelector.tsx
-│   ├── DeleteAllPilesButton.tsx
-│   ├── NavigationProgress.tsx
-│   ├── FieldEntryQRCode.tsx
-│   └── Sidebar.tsx         # Collapsible sidebar with hover expansion
+│   ├── CollapsibleSidebar.tsx      # Collapsible sidebar with hover expansion
+│   ├── CSVUploadModal.tsx          # Pile data CSV import
+│   ├── DeleteAllPilesButton.tsx    # Bulk delete functionality
+│   ├── EditPileModal.tsx           # Edit existing pile
+│   ├── FieldEntryQRCode.tsx        # QR code for mobile field entry
+│   ├── ManualPileModal.tsx         # Manual pile entry
+│   ├── NavigationProgress.tsx      # Page navigation indicator
+│   ├── PileLookupUploadModal.tsx   # Pile plot plan import
+│   ├── PreliminaryProductionUploadModal.tsx  # Preliminary production data import
+│   ├── ProjectSelector.tsx         # Project switching dropdown
+│   └── WeatherWidget.tsx           # Weather display component
 ├── context/              # React Context providers
-│   ├── AuthContext.tsx
-│   ├── ThemeContext.tsx
-│   └── AccountTypeContext.tsx
-├── hooks/                # Custom React hooks
+│   ├── AuthContext.tsx        # User authentication state
+│   ├── ThemeContext.tsx       # Light/dark theme switching
+│   └── AccountTypeContext.tsx # User role/permissions
 └── lib/                  # Utility libraries
     ├── supabase.ts       # Supabase client
+    ├── adminService.ts   # Admin API client
     ├── emailService.ts   # Email service abstraction
     ├── pdfExport.ts      # PDF export utilities
+    ├── weatherService.ts # Weather API integration
     └── utils.ts          # Helper utilities
 ```
 
@@ -86,7 +92,8 @@ src/
 Main tables in Supabase:
 - `projects` - Project information with `embedment_tolerance` field
 - `user_projects` - User-project relationships with role-based access (Owner, Admin, Rep)
-- `piles` - Pile tracking data with embedment/refusal fields, status tracking, `block` field for grouping, and `pile_type` field for categorization
+- `piles` - Pile tracking data with embedment/refusal fields, status tracking, `block` field for grouping, `pile_type` field for categorization, `published` flag for data safeguarding, and `is_manual_entry` flag for manual vs CSV entry tracking
+- `preliminary_production` - **Isolated** preliminary production data for GPS/PD10 exports (completely separate from piles table, only visible on Production page Preliminary tab)
 - `pile_lookup` - Pile plot plan data for tracking expected piles per type
 - `pile_activities` - Activity history for pile operations
 - `project_invitations` - Invitation tracking with token-based security and 7-day expiration
@@ -114,8 +121,20 @@ Database setup files:
 15. `db_fix_project_insert_policy.sql` - Project creation RLS fixes
 16. `db_fix_project_insert_policy_epc_only.sql` - Additional project creation fixes
 17. `db_final_project_creation_fix.sql` - Final project creation RLS policies
+18. `db_migration_super_admin_step*.sql` - Super admin system migrations (3 steps + rollback files)
+19. `db_migration_weather_system.sql` - Weather tracking system with location coordinates and caching
+20. `db_migration_weather_system_ROLLBACK.sql` - Rollback script for weather system
+21. `db_migration_preliminary_flag.sql` - Preliminary production data flag for piles (deprecated, use preliminary_production table instead)
+22. `db_migration_manual_entry_flag.sql` - Manual entry tracking flag for piles
+23. `db_migration_preliminary_production.sql` - Isolated preliminary production table for GPS/PD10 data
+24. `db_migration_preliminary_production_ROLLBACK.sql` - Rollback script for preliminary production table
 
 **Important**: All tables use Row Level Security (RLS). Users can only access data for projects they're associated with via `user_projects` table.
+
+**Weather System Tables**:
+- `weather_data` - Cached weather data by project and date to minimize API calls
+- Projects table includes `location_lat` and `location_lng` for precise weather lookups
+- Piles table includes weather reference columns for installation conditions
 
 **Performance Note**: The blocks and zones pages load all pile data in parallel (pages of 1000), then process statistics in-memory. This avoids making separate database queries for each block/zone, which was causing significant performance issues. All filtering for Owner's Rep accounts (`published = true`) is applied during the initial data load.
 
@@ -133,6 +152,9 @@ NEXT_PUBLIC_EMAILJS_PUBLIC_KEY=your_public_key
 RESEND_API_KEY=your_resend_key                 # Option 3: Resend (production)
 ```
 
+### MCP Integration
+The project includes Supabase MCP (Model Context Protocol) server configuration in `.mcp.json` for enhanced AI-assisted development workflows.
+
 ## Key Features & Implementation Details
 
 ### Invitation System
@@ -149,11 +171,16 @@ RESEND_API_KEY=your_resend_key                 # Option 3: Resend (production)
 ### CSV Upload System
 - Located in `src/components/CSVUploadModal.tsx`
 - Intelligent column mapping with automatic detection
+- Advanced pattern extraction features:
+  - Character position extraction (substring by start/end index)
+  - Regex pattern matching for complex string extraction
+  - Available for Pile ID and Block fields
+  - Live preview of extracted results
 - Row-by-row error handling with detailed feedback
 - Supports bulk pile data import with validation
 - Allows duplicate piles by design (tracked in pile_activities)
 - Additional upload modals:
-  - `PileLookupUploadModal.tsx` for pile plot plan data (expected piles per type)
+  - `PileLookupUploadModal.tsx` for pile plot plan data (accessed via Settings page)
   - `ManualPileModal.tsx`, `EditPileModal.tsx` for manual pile entry/editing
 
 ### Authentication Flow
@@ -211,6 +238,24 @@ RESEND_API_KEY=your_resend_key                 # Option 3: Resend (production)
 - Form auto-populates with sensible defaults (today's date, pending status)
 - Real-time form validation with immediate feedback
 
+### Production Tracking System
+- Page at `src/app/production/page.tsx` for machine-level production analytics
+- **Dual-tab system** with URL persistence (`?tab=actual` or `?tab=preliminary`):
+  - **Actual Production Tab**: Uses data from main `piles` table - shows Overview, All Machines, and Performance Issues sub-tabs
+  - **Preliminary Data Tab**: Uses data from isolated `preliminary_production` table - for early productivity tracking before complete engineer data is available
+- Groups piles by machine/rig to track individual machine performance
+- Features:
+  - Overview tab with aggregate statistics and charts
+  - Per-machine metrics: piles installed, refusal/tolerance rates, average drive time
+  - Date range filtering for production periods
+  - Daily/weekly production trend charts using Recharts
+  - Export to Excel (XLSX) for reporting
+  - Preliminary production data upload via `PreliminaryProductionUploadModal.tsx` (uploads to separate table)
+  - Individual and bulk delete for preliminary records
+- Tracks: total piles per machine, piles per block, piles per date, average embedment
+- Uses same status classification as blocks (Accepted/Tolerance/Refusal/Pending)
+- **Preliminary data is completely isolated** - does NOT appear in Dashboard, My Piles, Blocks, or Zones
+
 ### Standard Operating Procedure (SOP)
 - Page at `src/app/sop/page.tsx` provides a comprehensive user guide
 - Step-by-step workflow documentation for new users
@@ -234,7 +279,52 @@ RESEND_API_KEY=your_resend_key                 # Option 3: Resend (production)
 - **Implementation**: Filters applied in My Piles, Dashboard, Blocks, and Zones pages
 - **No unpublish feature**: Once published, piles remain published (one-way operation)
 
+### Super Admin System
+- **Purpose**: System-wide administrative capabilities beyond project-level permissions
+- **Database table**: `super_admins` table tracks users with elevated privileges
+- **Admin page**: `src/app/admin/page.tsx` - Dashboard for super admin operations
+- **Admin service**: `src/lib/adminService.ts` - Client-side API wrapper
+- **API routes**: Protected server-side routes at `src/app/api/admin/`:
+  - `check-super-admin/` - Verify super admin status
+  - `list-users/` - List all users with pagination
+  - `list-projects/` - List all projects
+  - `create-user/` - Create new user accounts
+  - `create-project/` - Create new projects
+  - `assign-user-to-project/` - Add user to project with role
+  - `remove-user-from-project/` - Remove user from project
+  - `grant-super-admin/` - Grant super admin privileges
+  - `revoke-super-admin/` - Revoke super admin privileges
+- **Migration approach**: Multi-step migration process with rollback capability
+  - Step 1: Creates `super_admins` table with RLS policies
+  - Step 2: Modifies project RLS policies to grant super admins access
+  - Step 3: Updates user_projects policies for super admin privileges
+- **Safe deployment**: Each step includes rollback SQL for safe migration reversal
+
+### Weather Tracking System
+- **Purpose**: Automatically track weather conditions for pile installation dates
+- **API**: Open-Meteo (free, no API key required, historical data available)
+- **Database components**:
+  - `weather_data` table caches weather by project/date to minimize API calls
+  - Projects table: `location_lat`, `location_lng` fields for weather lookups
+  - Piles table: weather reference columns for installation conditions
+- **Features**:
+  - Geocoding support via Nominatim (OpenStreetMap) - converts addresses to coordinates
+  - Current weather widget for dashboard
+  - Historical weather lookup for any date
+  - Automatic weather association with pile installations
+  - Weather data includes: temperature, conditions, precipitation, wind, humidity
+- **Configuration**: Settings page → Project Info → Weather Location Configuration
+- **Service**: `src/lib/weatherService.ts` handles all weather API interactions
+- **Component**: `src/components/WeatherWidget.tsx` for displaying weather data
+
 ## Development Guidelines
+
+### Excel Template Generation
+The `generate-pile-tracker-excel.js` script generates professionally formatted Excel templates for pile tracking data:
+- Uses ExcelJS library for advanced formatting
+- Creates multi-sheet workbooks with Configuration and Pile Data sheets
+- Run with: `node generate-pile-tracker-excel.js`
+- Output: `PileTrackerPro_Template.xlsx`
 
 ### Working with Supabase Edge Functions
 ```bash
@@ -266,11 +356,6 @@ RESEND_API_KEY=your_resend_key                 # Option 3: Resend (production)
 - Row Level Security (RLS) enabled on all tables
 - Use typed responses from Supabase
 - Database functions for complex operations
-
-## Testing Approach
-No test framework is currently configured. Manual testing through the development server is the primary approach. Test files available:
-- `test-invitation.js` - Invitation system testing
-- `test-invitation-system.md` - Testing documentation
 
 ## Common Tasks
 
@@ -305,6 +390,16 @@ No test framework is currently configured. Manual testing through the developmen
 3. Accepted invitations automatically assign user to project via `accept_project_invitation()` function
 4. Email service must be configured for automatic sending (otherwise link is copied to clipboard)
 
+### Uploading Pile Data
+1. **Pile Plot Plan (Lookup)**: Settings page → Pile Plot Plan Upload section → Upload Pile Lookup button
+2. **Pile Installation Data**: My Piles page → CSV Upload button
+3. Both uploads support intelligent column mapping with auto-detection
+4. Pile data CSV upload includes advanced pattern extraction:
+   - Character position extraction for fixed-position substrings
+   - Regex pattern matching for complex string patterns
+   - Available for Pile ID and Block columns
+   - Live preview shows extracted result before upload
+
 ### Deploying Supabase Edge Functions
 ```bash
 # Install Supabase CLI
@@ -326,11 +421,6 @@ supabase functions logs send-invitation-email
 
 ## Important Development Reminders
 
-### File Operations
-- **ALWAYS prefer editing existing files** over creating new ones
-- **NEVER proactively create documentation files** (*.md) or README files unless explicitly requested
-- Only create new files when absolutely necessary for the task at hand
-
 ### Code Practices
 - Client components must use `"use client"` directive when using hooks or browser APIs
 - All pages that require authentication should check for valid session (see existing pages for patterns)
@@ -351,6 +441,6 @@ supabase functions logs send-invitation-email
 
 ### Navigation and UI Layout
 - Collapsible sidebar navigation with hover expansion to maximize viewport space
-- Sidebar component at `src/components/Sidebar.tsx`
+- Sidebar component at `src/components/CollapsibleSidebar.tsx`
 - Consistent UI sizing and spacing standards across all pages
 - Mobile-responsive design with optimized layouts for field data entry

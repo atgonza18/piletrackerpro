@@ -74,11 +74,11 @@ export function DeleteAllPilesButton({ projectId, onDeleteSuccess }: DeleteAllPi
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold text-red-600">Delete All Piles</DialogTitle>
-            <DialogDescription className="pt-4">
+            <DialogDescription className="pt-4 text-center">
               <AlertTriangle className="h-12 w-12 text-red-600 mx-auto mb-4" />
-              <p className="text-center text-slate-600 dark:text-slate-400">
+              <span className="block text-slate-600 dark:text-slate-400">
                 Are you absolutely sure you want to delete all piles? This action cannot be undone and will permanently remove all pile data from the database.
-              </p>
+              </span>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2 justify-end">

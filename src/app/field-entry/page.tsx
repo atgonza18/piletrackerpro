@@ -10,8 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import { Loader2, ClipboardCheck } from "lucide-react";
+import { Loader2, ClipboardCheck, Cloud, CloudRain, Sun } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { fetchCurrentWeather, getWeatherIcon, getWeatherForDate } from "@/lib/weatherService";
 
 interface FieldEntryFormProps {
   projectId: string | null;
@@ -21,6 +22,9 @@ function FieldEntryForm({ projectId }: FieldEntryFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [projectName, setProjectName] = useState("");
+  const [weather, setWeather] = useState<any>(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const [locationConfigured, setLocationConfigured] = useState(false);
   const [formData, setFormData] = useState({
     inspector_name: "",
     pile_id: "",
@@ -43,21 +47,41 @@ function FieldEntryForm({ projectId }: FieldEntryFormProps) {
     notes: "",
   });
 
-  // Fetch project name
+  // Fetch project name and weather
   useEffect(() => {
     if (projectId) {
-      const fetchProject = async () => {
+      const fetchProjectAndWeather = async () => {
+        // Fetch project details
         const { data, error } = await supabase
           .from('projects')
-          .select('project_name')
+          .select('project_name, location_lat, location_lng')
           .eq('id', projectId)
           .single();
 
         if (data) {
           setProjectName(data.project_name);
+
+          // Check if location is configured
+          if (data.location_lat && data.location_lng) {
+            setLocationConfigured(true);
+
+            // Fetch current weather
+            setWeatherLoading(true);
+            try {
+              const currentWeather = await fetchCurrentWeather(
+                data.location_lat,
+                data.location_lng
+              );
+              setWeather(currentWeather);
+            } catch (err) {
+              console.error('Error fetching weather:', err);
+            } finally {
+              setWeatherLoading(false);
+            }
+          }
         }
       };
-      fetchProject();
+      fetchProjectAndWeather();
     }
   }, [projectId]);
 
@@ -113,7 +137,16 @@ function FieldEntryForm({ projectId }: FieldEntryFormProps) {
         machine: formData.machine ? parseInt(formData.machine) : null,
         notes: formData.notes.trim() || null,
         published: false, // New piles start as unpublished
+        is_manual_entry: true, // Mark as manually entered via field entry
       };
+
+      // Add weather data if available
+      if (weather && locationConfigured) {
+        pileData.weather_condition = weather.condition;
+        pileData.weather_temp = weather.temperature;
+        pileData.weather_precipitation = weather.precipitation;
+        pileData.weather_wind_speed = weather.windSpeed;
+      }
 
       // Auto-calculate embedment if start_z and end_z are provided but embedment is not
       if (!pileData.embedment && pileData.start_z !== null && pileData.end_z !== null) {
@@ -201,6 +234,40 @@ function FieldEntryForm({ projectId }: FieldEntryFormProps) {
           </CardHeader>
 
           <CardContent className="pt-6 pb-8">
+            {/* Weather Information */}
+            {locationConfigured && (
+              <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-sky-50 dark:from-slate-800 dark:to-slate-700 rounded-lg border border-blue-200 dark:border-slate-600">
+                {weatherLoading ? (
+                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-sm">Loading weather...</span>
+                  </div>
+                ) : weather ? (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="text-3xl">{weather.icon}</div>
+                      <div>
+                        <div className="font-semibold text-slate-900 dark:text-slate-100">
+                          Current Weather: {Math.round(weather.temperature)}°F
+                        </div>
+                        <div className="text-sm text-slate-600 dark:text-slate-300">
+                          {weather.condition} • Humidity: {Math.round(weather.humidity)}% • Wind: {Math.round(weather.windSpeed)} mph
+                          {weather.precipitation > 0 && ` • Rain: ${weather.precipitation.toFixed(2)}"`}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
+                      Auto-recorded
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-slate-600 dark:text-slate-300">
+                    Weather data unavailable
+                  </div>
+                )}
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-6 pb-4">
               {/* Inspector Name - Prominent at top */}
               <div className="space-y-2 bg-slate-100 dark:bg-slate-800 p-4 rounded-lg border-2 border-slate-300 dark:border-slate-700">
