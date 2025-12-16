@@ -18,7 +18,7 @@ import 'react-circular-progressbar/dist/styles.css';
 import { CollapsibleSidebar } from "@/components/CollapsibleSidebar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-fns";
+import { format, parseISO, isWithinInterval, startOfDay, endOfDay, startOfWeek, startOfMonth, getISOWeek, getYear } from "date-fns";
 import * as XLSX from 'xlsx';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, Brush } from 'recharts';
 import { PreliminaryProductionUploadModal } from "@/components/PreliminaryProductionUploadModal";
@@ -178,6 +178,7 @@ function ProductionPageContent() {
   const [selectedCompareDate, setSelectedCompareDate] = useState<string | null>(null);
   const [showDataDebug, setShowDataDebug] = useState(false);
   const [chartViewMode, setChartViewMode] = useState<'30days' | '90days' | 'all' | 'weekly' | 'monthly'>('all');
+  const [matrixViewMode, setMatrixViewMode] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [isAdminViewing, setIsAdminViewing] = useState(false);
 
   useEffect(() => {
@@ -1688,6 +1689,164 @@ function ProductionPageContent() {
       invalidMachineValues,
     };
   }, [preliminaryData, preliminaryDailyData]);
+
+  // Machine Matrix Data - transforms daily data into matrix format for comparison view
+  const preliminaryMatrixData = useMemo(() => {
+    if (preliminaryMachines.length === 0 || preliminaryDailyData.days.length === 0) {
+      return { columns: [], columnDates: [], machines: [], periodAverages: [], overallAverage: 0 };
+    }
+
+    // Get all dates from preliminaryDailyData (already sorted)
+    const allDates = preliminaryDailyData.days.map(d => d.date);
+
+    // Group dates based on view mode
+    let columns: string[] = [];
+    let columnDates: string[] = []; // The actual date/key for each column
+    const dateToColumn: { [date: string]: number } = {};
+
+    if (matrixViewMode === 'daily') {
+      // Each date is a column
+      columns = allDates.map(d => format(parseISO(d), 'MMM d'));
+      columnDates = allDates;
+      allDates.forEach((d, i) => { dateToColumn[d] = i; });
+    } else if (matrixViewMode === 'weekly') {
+      // Group by ISO week
+      const weekMap: { [weekKey: string]: { dates: string[]; startDate: string } } = {};
+      allDates.forEach(d => {
+        const date = parseISO(d);
+        const weekStart = format(startOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        const weekKey = `${getYear(date)}-W${String(getISOWeek(date)).padStart(2, '0')}`;
+        if (!weekMap[weekKey]) {
+          weekMap[weekKey] = { dates: [], startDate: weekStart };
+        }
+        weekMap[weekKey].dates.push(d);
+      });
+
+      const sortedWeeks = Object.entries(weekMap).sort((a, b) => a[0].localeCompare(b[0]));
+      columns = sortedWeeks.map(([key, data]) => {
+        const startDate = parseISO(data.startDate);
+        return `W${getISOWeek(startDate)} (${format(startDate, 'MMM d')})`;
+      });
+      columnDates = sortedWeeks.map(([key]) => key);
+      sortedWeeks.forEach(([weekKey, data], i) => {
+        data.dates.forEach(d => { dateToColumn[d] = i; });
+      });
+    } else {
+      // Monthly view
+      const monthMap: { [monthKey: string]: string[] } = {};
+      allDates.forEach(d => {
+        const date = parseISO(d);
+        const monthKey = format(startOfMonth(date), 'yyyy-MM');
+        if (!monthMap[monthKey]) {
+          monthMap[monthKey] = [];
+        }
+        monthMap[monthKey].push(d);
+      });
+
+      const sortedMonths = Object.entries(monthMap).sort((a, b) => a[0].localeCompare(b[0]));
+      columns = sortedMonths.map(([key]) => format(parseISO(`${key}-01`), 'MMM yyyy'));
+      columnDates = sortedMonths.map(([key]) => key);
+      sortedMonths.forEach(([monthKey, dates], i) => {
+        dates.forEach(d => { dateToColumn[d] = i; });
+      });
+    }
+
+    // Build machine rows with values for each column
+    const machineRows = preliminaryMachines.map(m => {
+      // Initialize values array with nulls
+      const values: (number | null)[] = new Array(columns.length).fill(null);
+      let total = 0;
+      let activeDays = 0;
+
+      // Find machine's first active column
+      let firstActiveColumn = columns.length; // Start with max
+
+      // Fill in values from pilesPerDate
+      Object.entries(m.pilesPerDate).forEach(([date, count]) => {
+        const colIdx = dateToColumn[date];
+        if (colIdx !== undefined) {
+          if (values[colIdx] === null) {
+            values[colIdx] = count;
+          } else {
+            values[colIdx] = (values[colIdx] as number) + count;
+          }
+          total += count;
+          if (matrixViewMode === 'daily') {
+            activeDays++;
+          }
+        }
+      });
+
+      // For weekly/monthly, count active periods
+      if (matrixViewMode !== 'daily') {
+        activeDays = values.filter(v => v !== null && v > 0).length;
+      }
+
+      // Determine first active column based on machine's first date
+      if (m.firstDate) {
+        const firstColIdx = dateToColumn[m.firstDate];
+        if (firstColIdx !== undefined) {
+          firstActiveColumn = firstColIdx;
+        } else {
+          // For weekly/monthly, find the column containing the first date
+          for (let i = 0; i < columns.length; i++) {
+            if (values[i] !== null) {
+              firstActiveColumn = i;
+              break;
+            }
+          }
+        }
+      }
+
+      // Mark columns before first active as null (machine didn't exist yet)
+      // Columns at or after first active but with no data get 0
+      for (let i = 0; i < columns.length; i++) {
+        if (i < firstActiveColumn) {
+          values[i] = null; // Before machine started
+        } else if (values[i] === null) {
+          values[i] = 0; // Active period but no production
+        }
+      }
+
+      return {
+        machineId: m.machineId,
+        firstActiveColumn,
+        firstDate: m.firstDate,
+        values,
+        total,
+        average: activeDays > 0 ? total / activeDays : 0,
+      };
+    });
+
+    // Sort machines by total production (highest first)
+    machineRows.sort((a, b) => b.total - a.total);
+
+    // Calculate column averages (only from active machines for each column)
+    const periodAverages = columns.map((_, colIdx) => {
+      const activeValues = machineRows
+        .filter(m => m.values[colIdx] !== null && colIdx >= m.firstActiveColumn)
+        .map(m => m.values[colIdx] as number);
+      return activeValues.length > 0
+        ? activeValues.reduce((sum, v) => sum + v, 0) / activeValues.length
+        : 0;
+    });
+
+    // Overall average
+    const allActiveValues = machineRows.flatMap(m =>
+      m.values.filter((v, i) => v !== null && i >= m.firstActiveColumn) as number[]
+    );
+    const overallAverage = allActiveValues.length > 0
+      ? allActiveValues.reduce((sum, v) => sum + v, 0) / allActiveValues.length
+      : 0;
+
+    return {
+      columns,
+      columnDates,
+      machines: machineRows,
+      periodAverages,
+      overallAverage,
+    };
+  }, [preliminaryMachines, preliminaryDailyData, matrixViewMode]);
 
   // Filter and sort preliminary machines
   useEffect(() => {
@@ -3782,6 +3941,188 @@ function ProductionPageContent() {
                         </div>
                       </CardContent>
                     </Card>
+
+                    {/* MACHINE MATRIX - Production comparison by date/period */}
+                    {preliminaryMatrixData.columns.length > 0 && (
+                      <Card className="bg-white dark:bg-slate-800 border-amber-200 dark:border-amber-700">
+                        <CardHeader className="pb-2">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                                <BarChart2 className="h-4 w-4 text-amber-600" />
+                                Machine Matrix
+                                <span className="text-xs font-normal bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full">
+                                  {matrixViewMode === 'daily' ? 'Daily' : matrixViewMode === 'weekly' ? 'Weekly' : 'Monthly'}
+                                </span>
+                              </CardTitle>
+                              <CardDescription>
+                                Compare machine production across {matrixViewMode === 'daily' ? 'days' : matrixViewMode === 'weekly' ? 'weeks' : 'months'}
+                              </CardDescription>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Select value={matrixViewMode} onValueChange={(v) => setMatrixViewMode(v as 'daily' | 'weekly' | 'monthly')}>
+                                <SelectTrigger className="h-8 w-[110px] text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="daily">Daily</SelectItem>
+                                  <SelectItem value="weekly">Weekly</SelectItem>
+                                  <SelectItem value="monthly">Monthly</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="p-3 pt-0">
+                          {/* Legend */}
+                          <div className="flex flex-wrap items-center gap-3 mb-3 text-xs">
+                            <span className="text-slate-500">Legend:</span>
+                            <span className="flex items-center gap-1">
+                              <span className="w-4 h-4 rounded bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600"></span>
+                              <span className="text-slate-600 dark:text-slate-400">Not yet operating</span>
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <span className="w-4 h-4 rounded bg-green-100 dark:bg-green-900/40 border border-green-300 dark:border-green-700"></span>
+                              <span className="text-slate-600 dark:text-slate-400">Above avg (+20%)</span>
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <span className="w-4 h-4 rounded bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600"></span>
+                              <span className="text-slate-600 dark:text-slate-400">Near average</span>
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <span className="w-4 h-4 rounded bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700"></span>
+                              <span className="text-slate-600 dark:text-slate-400">Below avg (-20%)</span>
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <span className="w-4 h-4 rounded bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700"></span>
+                              <span className="text-slate-600 dark:text-slate-400">Zero production</span>
+                            </span>
+                          </div>
+
+                          {/* Matrix Table */}
+                          <div className="overflow-x-auto max-h-[500px] overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg">
+                            <table className="w-full text-sm">
+                              <thead className="bg-slate-100 dark:bg-slate-700 sticky top-0 z-10">
+                                <tr>
+                                  <th className="py-2 px-3 text-left font-semibold text-slate-700 dark:text-slate-200 sticky left-0 bg-slate-100 dark:bg-slate-700 z-20 min-w-[100px]">
+                                    Machine
+                                  </th>
+                                  {preliminaryMatrixData.columns.map((col, idx) => (
+                                    <th
+                                      key={idx}
+                                      className="py-2 px-2 text-center font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap text-xs"
+                                    >
+                                      {col}
+                                    </th>
+                                  ))}
+                                  <th className="py-2 px-3 text-right font-semibold text-slate-700 dark:text-slate-200 sticky right-0 bg-slate-100 dark:bg-slate-700 z-20 min-w-[70px]">
+                                    Total
+                                  </th>
+                                  <th className="py-2 px-3 text-right font-semibold text-slate-700 dark:text-slate-200 min-w-[70px]">
+                                    Avg
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {preliminaryMatrixData.machines.map((machine, machineIdx) => (
+                                  <tr
+                                    key={machine.machineId}
+                                    className={`border-t border-slate-200 dark:border-slate-700 ${machineIdx % 2 === 0 ? 'bg-white dark:bg-slate-800' : 'bg-slate-50 dark:bg-slate-800/50'}`}
+                                  >
+                                    <td className="py-2 px-3 font-semibold text-slate-700 dark:text-slate-200 sticky left-0 bg-inherit z-10 whitespace-nowrap">
+                                      <div className="flex items-center gap-2">
+                                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                                          machineIdx === 0 ? 'bg-amber-500 text-white' :
+                                          machineIdx === 1 ? 'bg-slate-400 text-white' :
+                                          machineIdx === 2 ? 'bg-orange-700 text-white' :
+                                          'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300'
+                                        }`}>
+                                          {machineIdx + 1}
+                                        </span>
+                                        #{machine.machineId}
+                                      </div>
+                                    </td>
+                                    {machine.values.map((value, colIdx) => {
+                                      // Determine cell style based on value and comparison to average
+                                      const colAvg = preliminaryMatrixData.periodAverages[colIdx];
+                                      let cellClass = '';
+                                      let textClass = '';
+
+                                      if (value === null) {
+                                        // Before machine started - gray disabled
+                                        cellClass = 'bg-slate-200 dark:bg-slate-700';
+                                        textClass = 'text-slate-400 dark:text-slate-500';
+                                      } else if (value === 0) {
+                                        // Zero production on active day - red
+                                        cellClass = 'bg-red-100 dark:bg-red-900/40';
+                                        textClass = 'text-red-700 dark:text-red-400 font-medium';
+                                      } else if (colAvg > 0 && value >= colAvg * 1.2) {
+                                        // Above average (+20%) - green
+                                        cellClass = 'bg-green-100 dark:bg-green-900/40';
+                                        textClass = 'text-green-700 dark:text-green-400 font-medium';
+                                      } else if (colAvg > 0 && value < colAvg * 0.8) {
+                                        // Below average (-20%) - amber
+                                        cellClass = 'bg-amber-100 dark:bg-amber-900/40';
+                                        textClass = 'text-amber-700 dark:text-amber-400 font-medium';
+                                      } else {
+                                        // Near average - neutral
+                                        cellClass = '';
+                                        textClass = 'text-slate-700 dark:text-slate-300';
+                                      }
+
+                                      return (
+                                        <td
+                                          key={colIdx}
+                                          className={`py-1.5 px-2 text-center ${cellClass}`}
+                                        >
+                                          <span className={`text-xs ${textClass}`}>
+                                            {value === null ? '-' : value}
+                                          </span>
+                                        </td>
+                                      );
+                                    })}
+                                    <td className="py-2 px-3 text-right font-bold text-amber-600 dark:text-amber-400 sticky right-0 bg-inherit z-10">
+                                      {machine.total}
+                                    </td>
+                                    <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-400">
+                                      {machine.average.toFixed(1)}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot className="bg-slate-100 dark:bg-slate-700 sticky bottom-0">
+                                <tr>
+                                  <td className="py-2 px-3 font-bold text-slate-700 dark:text-slate-200 sticky left-0 bg-slate-100 dark:bg-slate-700 z-20">
+                                    Column Avg
+                                  </td>
+                                  {preliminaryMatrixData.periodAverages.map((avg, idx) => (
+                                    <td key={idx} className="py-1.5 px-2 text-center text-xs text-slate-500 dark:text-slate-400">
+                                      {avg > 0 ? avg.toFixed(0) : '-'}
+                                    </td>
+                                  ))}
+                                  <td className="py-2 px-3 text-right font-bold text-lg text-amber-600 sticky right-0 bg-slate-100 dark:bg-slate-700 z-20">
+                                    {preliminaryMatrixData.machines.reduce((sum, m) => sum + m.total, 0)}
+                                  </td>
+                                  <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-400">
+                                    {preliminaryMatrixData.overallAverage.toFixed(1)}
+                                  </td>
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+
+                          {/* Summary info */}
+                          <div className="mt-2 text-xs text-slate-500 flex items-center justify-between">
+                            <span>
+                              {preliminaryMatrixData.machines.length} machines × {preliminaryMatrixData.columns.length} {matrixViewMode === 'daily' ? 'days' : matrixViewMode === 'weekly' ? 'weeks' : 'months'}
+                            </span>
+                            <span>
+                              Overall avg: <span className="font-medium text-amber-600">{preliminaryMatrixData.overallAverage.toFixed(1)}</span> piles/{matrixViewMode === 'daily' ? 'day' : matrixViewMode === 'weekly' ? 'week' : 'month'}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
 
                     {/* MACHINE CARDS GRID */}
                     <Card className="bg-white dark:bg-slate-800 border-amber-200 dark:border-amber-700">
