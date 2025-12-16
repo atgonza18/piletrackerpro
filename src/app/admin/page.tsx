@@ -67,6 +67,11 @@ export default function AdminPage() {
   const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
   const [isDeletingUser, setIsDeletingUser] = useState(false);
 
+  // Delete project states
+  const [showDeleteProjectModal, setShowDeleteProjectModal] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<AdminProject | null>(null);
+  const [isDeletingProject, setIsDeletingProject] = useState(false);
+
   // Check super admin status on mount
   useEffect(() => {
     async function checkAdmin() {
@@ -291,6 +296,31 @@ export default function AdminPage() {
   const confirmDeleteUser = (userObj: AdminUser) => {
     setUserToDelete(userObj);
     setShowDeleteUserModal(true);
+  };
+
+  // Delete project handler
+  const handleDeleteProject = async () => {
+    if (!projectToDelete) return;
+
+    setIsDeletingProject(true);
+    try {
+      await adminService.deleteProject(projectToDelete.id);
+      toast.success(`Project "${projectToDelete.project_name}" deleted successfully`);
+      setShowDeleteProjectModal(false);
+      setProjectToDelete(null);
+      loadProjects();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to delete project";
+      toast.error(errorMessage);
+    } finally {
+      setIsDeletingProject(false);
+    }
+  };
+
+  // Open delete project confirmation
+  const confirmDeleteProject = (project: AdminProject) => {
+    setProjectToDelete(project);
+    setShowDeleteProjectModal(true);
   };
 
   // Copy password to clipboard
@@ -525,15 +555,25 @@ export default function AdminPage() {
                                 {new Date(p.created_at).toLocaleDateString()}
                               </TableCell>
                               <TableCell>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleViewProject(p.id, p.project_name)}
-                                  className="gap-1"
-                                >
-                                  <ExternalLink className="h-3 w-3" />
-                                  View
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleViewProject(p.id, p.project_name)}
+                                    className="gap-1"
+                                  >
+                                    <ExternalLink className="h-3 w-3" />
+                                    View
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => confirmDeleteProject(p)}
+                                    title="Delete project"
+                                  >
+                                    <Trash2 className="h-4 w-4 text-red-500" />
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
                           ))}
@@ -943,6 +983,58 @@ export default function AdminPage() {
             <Button variant="destructive" onClick={handleDeleteUser} disabled={isDeletingUser}>
               {isDeletingUser && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Delete User
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Project Confirmation Modal */}
+      <Dialog open={showDeleteProjectModal} onOpenChange={setShowDeleteProjectModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Delete Project
+            </DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. The project and ALL its data will be permanently deleted.
+            </DialogDescription>
+          </DialogHeader>
+          {projectToDelete && (
+            <div className="space-y-4 py-4">
+              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                <p className="text-sm text-red-700 dark:text-red-300">
+                  You are about to delete:
+                </p>
+                <p className="font-medium text-red-900 dark:text-red-100 mt-1">
+                  {projectToDelete.project_name}
+                </p>
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  {projectToDelete.project_location}
+                </p>
+              </div>
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                <p className="text-xs text-red-700 dark:text-red-300 font-medium">
+                  This will permanently delete:
+                </p>
+                <ul className="mt-1 text-xs text-red-600 dark:text-red-400">
+                  <li>• All piles ({projectToDelete.total_project_piles} configured)</li>
+                  <li>• All preliminary production data</li>
+                  <li>• All pile lookup data</li>
+                  <li>• All activity history</li>
+                  <li>• All user assignments ({projectToDelete.user_count} users)</li>
+                  <li>• All pending invitations</li>
+                </ul>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteProjectModal(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteProject} disabled={isDeletingProject}>
+              {isDeletingProject && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Delete Project
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -168,6 +168,14 @@ export const adminService = {
     });
   },
 
+  // Delete project and all its data
+  async deleteProject(project_id: string): Promise<{ success: boolean; message: string }> {
+    return adminFetch('delete-project', {
+      method: 'POST',
+      body: JSON.stringify({ project_id }),
+    });
+  },
+
   // Get piles for a project (super admin only)
   async getPiles(projectId: string, page = 0, pageSize = 1000): Promise<{
     piles: any[];
