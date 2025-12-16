@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   Shield, Users, Building2, UserPlus, Plus, Copy, Eye, EyeOff,
-  Trash2, RefreshCw, UserCheck, UserMinus, Loader2
+  Trash2, RefreshCw, UserCheck, UserMinus, Loader2, ExternalLink
 } from "lucide-react";
 
 export default function AdminPage() {
@@ -61,6 +61,11 @@ export default function AdminPage() {
   const [assignmentRole, setAssignmentRole] = useState("admin");
   const [assignmentIsOwner, setAssignmentIsOwner] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
+
+  // Delete user states
+  const [showDeleteUserModal, setShowDeleteUserModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<AdminUser | null>(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
 
   // Check super admin status on mount
   useEffect(() => {
@@ -263,6 +268,31 @@ export default function AdminPage() {
     }
   };
 
+  // Delete user handler
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+
+    setIsDeletingUser(true);
+    try {
+      await adminService.deleteUser(userToDelete.id);
+      toast.success(`User ${userToDelete.email} deleted successfully`);
+      setShowDeleteUserModal(false);
+      setUserToDelete(null);
+      loadUsers();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to delete user";
+      toast.error(errorMessage);
+    } finally {
+      setIsDeletingUser(false);
+    }
+  };
+
+  // Open delete user confirmation
+  const confirmDeleteUser = (userObj: AdminUser) => {
+    setUserToDelete(userObj);
+    setShowDeleteUserModal(true);
+  };
+
   // Copy password to clipboard
   const copyPassword = async () => {
     await navigator.clipboard.writeText(generatedPassword);
@@ -274,6 +304,14 @@ export default function AdminPage() {
     const credentials = `Email: ${createdUserEmail}\nPassword: ${generatedPassword}`;
     await navigator.clipboard.writeText(credentials);
     toast.success("Credentials copied to clipboard");
+  };
+
+  // View project data - switch to viewing this project
+  const handleViewProject = (projectId: string, projectName: string) => {
+    // Store the selected project for the app to use
+    localStorage.setItem('selectedProjectId', projectId);
+    toast.success(`Switched to viewing: ${projectName}`);
+    router.push('/dashboard');
   };
 
   if (authLoading || isCheckingAdmin) {
@@ -404,19 +442,30 @@ export default function AdminPage() {
                                 </div>
                               </TableCell>
                               <TableCell>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleToggleSuperAdmin(u.id, u.is_super_admin)}
-                                  disabled={u.id === user?.id}
-                                  title={u.id === user?.id ? "Cannot modify your own status" : undefined}
-                                >
-                                  {u.is_super_admin ? (
-                                    <UserMinus className="h-4 w-4 text-red-500" />
-                                  ) : (
-                                    <UserCheck className="h-4 w-4 text-green-500" />
-                                  )}
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleToggleSuperAdmin(u.id, u.is_super_admin)}
+                                    disabled={u.id === user?.id}
+                                    title={u.id === user?.id ? "Cannot modify your own status" : u.is_super_admin ? "Revoke super admin" : "Grant super admin"}
+                                  >
+                                    {u.is_super_admin ? (
+                                      <UserMinus className="h-4 w-4 text-red-500" />
+                                    ) : (
+                                      <UserCheck className="h-4 w-4 text-green-500" />
+                                    )}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => confirmDeleteUser(u)}
+                                    disabled={u.id === user?.id}
+                                    title={u.id === user?.id ? "Cannot delete your own account" : "Delete user"}
+                                  >
+                                    <Trash2 className="h-4 w-4 text-red-500" />
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
                           ))}
@@ -460,6 +509,7 @@ export default function AdminPage() {
                             <TableHead>Total Piles</TableHead>
                             <TableHead>Users</TableHead>
                             <TableHead>Created</TableHead>
+                            <TableHead>Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -473,6 +523,17 @@ export default function AdminPage() {
                               </TableCell>
                               <TableCell className="text-sm text-slate-500">
                                 {new Date(p.created_at).toLocaleDateString()}
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleViewProject(p.id, p.project_name)}
+                                  className="gap-1"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  View
+                                </Button>
                               </TableCell>
                             </TableRow>
                           ))}
@@ -822,6 +883,66 @@ export default function AdminPage() {
             <Button onClick={handleCreateProject} disabled={isCreatingProject}>
               {isCreatingProject && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Create Project
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Confirmation Modal */}
+      <Dialog open={showDeleteUserModal} onOpenChange={setShowDeleteUserModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Delete User
+            </DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. The user will be permanently removed from the system.
+            </DialogDescription>
+          </DialogHeader>
+          {userToDelete && (
+            <div className="space-y-4 py-4">
+              <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                <p className="text-sm text-red-700 dark:text-red-300">
+                  You are about to delete:
+                </p>
+                <p className="font-medium text-red-900 dark:text-red-100 mt-1">
+                  {userToDelete.email}
+                </p>
+                {(userToDelete.first_name || userToDelete.last_name) && (
+                  <p className="text-sm text-red-600 dark:text-red-400">
+                    {userToDelete.first_name} {userToDelete.last_name}
+                  </p>
+                )}
+              </div>
+              {userToDelete.projects.length > 0 && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    <strong>Warning:</strong> This user is assigned to {userToDelete.projects.length} project(s):
+                  </p>
+                  <ul className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                    {userToDelete.projects.map((p) => (
+                      <li key={p.project_id}>• {p.project_name} ({p.role})</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {userToDelete.is_super_admin && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    <strong>Warning:</strong> This user is a Super Admin. Their admin privileges will also be removed.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteUserModal(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteUser} disabled={isDeletingUser}>
+              {isDeletingUser && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Delete User
             </Button>
           </DialogFooter>
         </DialogContent>

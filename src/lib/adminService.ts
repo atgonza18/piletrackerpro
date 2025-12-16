@@ -159,4 +159,57 @@ export const adminService = {
       body: JSON.stringify({ user_id }),
     });
   },
+
+  // Delete user completely from the system
+  async deleteUser(user_id: string): Promise<{ success: boolean; message: string }> {
+    return adminFetch('delete-user', {
+      method: 'POST',
+      body: JSON.stringify({ user_id }),
+    });
+  },
+
+  // Get piles for a project (super admin only)
+  async getPiles(projectId: string, page = 0, pageSize = 1000): Promise<{
+    piles: any[];
+    count: number;
+    page: number;
+    pageSize: number;
+  }> {
+    return adminFetch(`get-piles?projectId=${projectId}&page=${page}&pageSize=${pageSize}`);
+  },
+
+  // Get pile count for a project (super admin only)
+  async getPileCount(projectId: string): Promise<{ count: number }> {
+    return adminFetch(`get-piles?projectId=${projectId}&countOnly=true`);
+  },
+
+  // Get project data for super admin viewing
+  async getProjectData(projectId: string): Promise<{
+    project: {
+      id: string;
+      project_name: string;
+      project_location: string;
+      total_project_piles: number;
+      tracker_system: string;
+      geotech_company: string;
+      embedment_tolerance?: number;
+      daily_pile_goal?: number;
+      location_lat?: number;
+      location_lng?: number;
+      created_at: string;
+      updated_at: string;
+    };
+    statistics: {
+      totalPiles: number;
+      accepted: number;
+      refusals: number;
+      pending: number;
+      completionPercent: number;
+    };
+    blockData: { name: string; count: number }[];
+    weeklyTimelineData: { name: string; piles: number }[];
+    monthlyTimelineData: { name: string; piles: number }[];
+  }> {
+    return adminFetch(`get-project-data?projectId=${projectId}`);
+  },
 };

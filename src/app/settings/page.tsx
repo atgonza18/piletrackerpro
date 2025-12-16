@@ -49,6 +49,7 @@ export default function ProjectSettingsPage() {
   const [trackerSystem, setTrackerSystem] = useState("");
   const [geotechCompany, setGeotechCompany] = useState("");
   const [embedmentTolerance, setEmbedmentTolerance] = useState("1");
+  const [dailyPileGoal, setDailyPileGoal] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
   const [projectId, setProjectId] = useState("");
@@ -131,6 +132,11 @@ export default function ProjectSettingsPage() {
         // Get embedment_tolerance if it exists, otherwise use default
         if (projectData.embedment_tolerance !== undefined && projectData.embedment_tolerance !== null) {
           setEmbedmentTolerance(projectData.embedment_tolerance.toString());
+        }
+
+        // Get daily_pile_goal if it exists
+        if (projectData.daily_pile_goal !== undefined && projectData.daily_pile_goal !== null) {
+          setDailyPileGoal(projectData.daily_pile_goal.toString());
         }
 
         // Load pile lookup count (pass projectId directly since state isn't updated yet)
@@ -247,7 +253,8 @@ export default function ProjectSettingsPage() {
           total_project_piles: parseInt(totalProjectPiles),
           tracker_system: trackerSystem,
           geotech_company: geotechCompany,
-          embedment_tolerance: parseFloat(embedmentTolerance)
+          embedment_tolerance: parseFloat(embedmentTolerance),
+          daily_pile_goal: dailyPileGoal ? parseInt(dailyPileGoal) : null
         })
         .eq('id', projectId)
         .select()
@@ -308,7 +315,8 @@ export default function ProjectSettingsPage() {
           total_project_piles: parseInt(totalProjectPiles),
           tracker_system: trackerSystem,
           geotech_company: geotechCompany,
-          embedment_tolerance: parseFloat(embedmentTolerance)
+          embedment_tolerance: parseFloat(embedmentTolerance),
+          daily_pile_goal: dailyPileGoal ? parseInt(dailyPileGoal) : null
         })
         .eq('id', projectId)
         .select()
@@ -882,23 +890,40 @@ export default function ProjectSettingsPage() {
                         )}
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="embedmentTolerance">Embedment Tolerance (ft)</Label>
-                      <Input 
-                        id="embedmentTolerance" 
-                        type="number"
-                        step="0.1"
-                        value={embedmentTolerance}
-                        onChange={(e) => setEmbedmentTolerance(e.target.value)}
-                        className={formErrors.embedmentTolerance ? "border-red-500" : ""}
-                        disabled={!canEdit}
-                      />
-                      {formErrors.embedmentTolerance && (
-                        <p className="text-xs text-red-500">{formErrors.embedmentTolerance}</p>
-                      )}
-                      <p className="text-xs text-slate-500 mt-1">
-                        Maximum allowed deviation from design embedment
-                      </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="embedmentTolerance">Embedment Tolerance (ft)</Label>
+                        <Input
+                          id="embedmentTolerance"
+                          type="number"
+                          step="0.1"
+                          value={embedmentTolerance}
+                          onChange={(e) => setEmbedmentTolerance(e.target.value)}
+                          className={formErrors.embedmentTolerance ? "border-red-500" : ""}
+                          disabled={!canEdit}
+                        />
+                        {formErrors.embedmentTolerance && (
+                          <p className="text-xs text-red-500">{formErrors.embedmentTolerance}</p>
+                        )}
+                        <p className="text-xs text-slate-500 mt-1">
+                          Maximum allowed deviation from design embedment
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="dailyPileGoal">Daily Production Goal (piles)</Label>
+                        <Input
+                          id="dailyPileGoal"
+                          type="number"
+                          min="1"
+                          value={dailyPileGoal}
+                          onChange={(e) => setDailyPileGoal(e.target.value)}
+                          placeholder="e.g., 50"
+                          disabled={!canEdit}
+                        />
+                        <p className="text-xs text-slate-500 mt-1">
+                          Target number of piles to install per day. Update as schedule changes.
+                        </p>
+                      </div>
                     </div>
 
                     {/* Pile Plot Plan Section */}

@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, BarChart3, List, MapPin, Box, FileText, Settings, User, BookOpen, Activity, Shield } from "lucide-react";
+import { LogOut, BarChart3, List, MapPin, Box, FileText, Settings, User, BookOpen, Activity, Shield, ChevronDown, Building2 } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAccountType } from "@/context/AccountTypeContext";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { adminService } from "@/lib/adminService";
+import { supabase } from "@/lib/supabase";
 
 interface NavItem {
   name: string;
@@ -21,20 +22,46 @@ interface CollapsibleSidebarProps {
   currentPage: string;
 }
 
+interface ProjectOption {
+  id: string;
+  project_name: string;
+}
+
 export function CollapsibleSidebar({ projectName = "PileTrackerPro", currentPage }: CollapsibleSidebarProps) {
   const router = useRouter();
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [allProjects, setAllProjects] = useState<ProjectOption[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const { canEdit } = useAccountType();
   const { signOut, user } = useAuth();
 
-  // Check if user is super admin
+  // Check if user is super admin and load all projects
   useEffect(() => {
     const checkSuperAdmin = async () => {
       if (!user) return;
       try {
         const result = await adminService.checkSuperAdmin();
         setIsSuperAdmin(result.isSuperAdmin);
+
+        if (result.isSuperAdmin) {
+          // Load all projects for super admin
+          const { data: projects } = await supabase
+            .from('projects')
+            .select('id, project_name')
+            .order('project_name');
+
+          if (projects) {
+            setAllProjects(projects);
+          }
+
+          // Check if there's a selected project in localStorage
+          const storedProjectId = localStorage.getItem('selectedProjectId');
+          if (storedProjectId) {
+            setSelectedProjectId(storedProjectId);
+          }
+        }
       } catch {
         // Not a super admin or error - just don't show admin link
         setIsSuperAdmin(false);
@@ -43,11 +70,54 @@ export function CollapsibleSidebar({ projectName = "PileTrackerPro", currentPage
     checkSuperAdmin();
   }, [user]);
 
+  // Handle project selection
+  const handleProjectSelect = (projectId: string) => {
+    localStorage.setItem('selectedProjectId', projectId);
+    setSelectedProjectId(projectId);
+    setShowProjectDropdown(false);
+    const project = allProjects.find(p => p.id === projectId);
+    toast.success(`Switched to: ${project?.project_name}`);
+    window.location.reload();
+  };
+
+  // Clear project selection (go back to user's own project)
+  const handleClearProjectSelection = () => {
+    localStorage.removeItem('selectedProjectId');
+    setSelectedProjectId(null);
+    setShowProjectDropdown(false);
+    toast.success('Switched back to your project');
+    window.location.reload();
+  };
+
   // Update CSS variable when sidebar expands/collapses
   useEffect(() => {
     const sidebarWidth = isExpanded ? '224px' : '64px'; // w-56 = 224px, w-16 = 64px
     document.documentElement.style.setProperty('--sidebar-width', sidebarWidth);
   }, [isExpanded]);
+
+  // Close dropdown when clicking outside or when sidebar collapses
+  useEffect(() => {
+    if (!isExpanded) {
+      setShowProjectDropdown(false);
+    }
+  }, [isExpanded]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (showProjectDropdown) {
+        setShowProjectDropdown(false);
+      }
+    };
+    if (showProjectDropdown) {
+      // Delay to prevent immediate close on the button click
+      setTimeout(() => {
+        document.addEventListener('click', handleClickOutside);
+      }, 0);
+    }
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [showProjectDropdown]);
 
   const handleNavigation = (path: string) => {
     router.push(path as any);
@@ -88,14 +158,14 @@ export function CollapsibleSidebar({ projectName = "PileTrackerPro", currentPage
 
   return (
     <div
-      className={`fixed inset-y-0 left-0 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 hidden lg:flex flex-col z-10 transition-all duration-300 ease-in-out ${
+      className={`fixed inset-y-0 left-0 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 hidden lg:flex flex-col z-10 transition-all duration-300 ease-in-out overflow-visible ${
         isExpanded ? 'w-56' : 'w-16'
       }`}
       onMouseEnter={() => setIsExpanded(true)}
       onMouseLeave={() => setIsExpanded(false)}
     >
       {/* Header */}
-      <div className="p-3 border-b border-slate-100 dark:border-slate-700 h-14 flex items-center overflow-hidden">
+      <div className="p-3 border-b border-slate-100 dark:border-slate-700 min-h-14 flex flex-col justify-center overflow-visible">
         <div className="flex items-center gap-2 min-w-max">
           <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-slate-700 to-slate-800 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
             PT
@@ -105,10 +175,64 @@ export function CollapsibleSidebar({ projectName = "PileTrackerPro", currentPage
               isExpanded ? 'opacity-100' : 'opacity-0 w-0'
             }`}
           >
-            {projectName}
+            {selectedProjectId ? allProjects.find(p => p.id === selectedProjectId)?.project_name || projectName : projectName}
           </h1>
         </div>
+
+        {/* Super Admin Project Selector */}
+        {isSuperAdmin && isExpanded && allProjects.length > 0 && (
+          <div className="mt-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowProjectDropdown(!showProjectDropdown);
+              }}
+              className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-xs rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+            >
+              <div className="flex items-center gap-1.5 truncate">
+                <Building2 size={12} />
+                <span className="truncate">
+                  {selectedProjectId
+                    ? allProjects.find(p => p.id === selectedProjectId)?.project_name || 'Select Project'
+                    : 'All Projects'}
+                </span>
+              </div>
+              <ChevronDown size={12} className={`flex-shrink-0 transition-transform ${showProjectDropdown ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Project Dropdown - Rendered outside header to avoid clipping */}
+      {isSuperAdmin && showProjectDropdown && allProjects.length > 0 && (
+        <div
+          className="fixed left-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md shadow-xl z-[9999] max-h-64 overflow-y-auto w-52"
+          style={{ top: '90px' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {selectedProjectId && (
+            <button
+              onClick={handleClearProjectSelection}
+              className="w-full px-3 py-2.5 text-xs text-left hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 font-medium"
+            >
+              ← Back to My Project
+            </button>
+          )}
+          {allProjects.map((project) => (
+            <button
+              key={project.id}
+              onClick={() => handleProjectSelect(project.id)}
+              className={`w-full px-3 py-2.5 text-xs text-left hover:bg-slate-100 dark:hover:bg-slate-700 truncate ${
+                selectedProjectId === project.id
+                  ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 font-medium'
+                  : 'text-slate-700 dark:text-slate-300'
+              }`}
+            >
+              {project.project_name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Main Navigation */}
       <nav className="p-2 flex-1 overflow-y-auto">

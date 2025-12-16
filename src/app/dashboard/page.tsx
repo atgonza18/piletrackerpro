@@ -4,12 +4,13 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { LogOut, List, BarChart3, Settings, User, Bell, FileText, MapPin, Box, TrendingUp, CheckCircle, AlertTriangle, Clock } from "lucide-react";
+import { LogOut, List, BarChart3, Settings, User, Bell, FileText, MapPin, Box, TrendingUp, CheckCircle, AlertTriangle, Clock, Shield, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { useAccountType } from "@/context/AccountTypeContext";
+import { adminService } from "@/lib/adminService";
 import { PieChart, Pie, Cell, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { CollapsibleSidebar } from "@/components/CollapsibleSidebar";
 import { WeatherWidget } from "@/components/WeatherWidget";
@@ -47,6 +48,7 @@ export default function DashboardPage() {
   const [weeklyTimelineData, setWeeklyTimelineData] = useState<any[]>([]);
   const [monthlyTimelineData, setMonthlyTimelineData] = useState<any[]>([]);
   const [timelineView, setTimelineView] = useState<'weekly' | 'monthly'>('weekly');
+  const [isAdminViewing, setIsAdminViewing] = useState(false);
 
   useEffect(() => {
     // Wait for auth to finish loading before making decisions
@@ -86,7 +88,79 @@ export default function DashboardPage() {
         console.log('Starting data load...');
         setStatsLoading(true);
         try {
-          // Get the user's project
+          // Check for super admin project override in localStorage
+          const overrideProjectId = localStorage.getItem('selectedProjectId');
+          console.log('Override project ID from localStorage:', overrideProjectId);
+
+          // If super admin is viewing a different project, use admin API
+          if (overrideProjectId) {
+            setIsAdminViewing(true);
+            console.log('[Dashboard] Super admin viewing project via admin API:', overrideProjectId);
+
+            try {
+              const adminData = await adminService.getProjectData(overrideProjectId);
+              console.log('[Dashboard] Admin API response - Project:', adminData.project.project_name);
+              console.log('[Dashboard] Admin API response - Total Piles:', adminData.statistics.totalPiles);
+              console.log('[Dashboard] Admin API response - Full data:', adminData);
+
+              // Set project data
+              setProjectData(adminData.project as any);
+
+              // Set embedment tolerance
+              if (adminData.project.embedment_tolerance !== undefined && adminData.project.embedment_tolerance !== null) {
+                setEmbedmentTolerance(adminData.project.embedment_tolerance);
+              }
+
+              // Set statistics from admin API response
+              setTotalPiles(adminData.statistics.totalPiles);
+              setAcceptedPiles(adminData.statistics.accepted);
+              setRefusalPiles(adminData.statistics.refusals);
+              setPendingPiles(adminData.statistics.pending);
+              setCompletedPilesPercent(adminData.statistics.completionPercent);
+
+              // Set block data
+              const blockChartData = adminData.blockData.map(b => ({
+                name: b.name,
+                total: b.count,
+                accepted: 0,
+                refusals: 0,
+                pending: 0
+              }));
+              setBlockData(blockChartData);
+
+              // Set timeline data
+              const weeklyChartData = adminData.weeklyTimelineData.map(w => ({
+                date: w.name,
+                rawDate: w.name,
+                piles: w.piles
+              }));
+              setWeeklyTimelineData(weeklyChartData);
+
+              const monthlyChartData = adminData.monthlyTimelineData.map(m => ({
+                date: m.name,
+                rawDate: m.name,
+                piles: m.piles
+              }));
+              setMonthlyTimelineData(monthlyChartData);
+
+              setStatsLoading(false);
+              setIsLoading(false);
+              return; // Exit early, data loaded via admin API
+            } catch (adminError) {
+              console.error('Error loading via admin API:', adminError);
+              // Fall back to normal loading if admin API fails
+              setIsAdminViewing(false);
+            }
+          } else {
+            setIsAdminViewing(false);
+          }
+
+          // Normal data loading path (for regular users or fallback)
+          let projectId: string | null = null;
+          let userRole = 'admin';
+          let isProjectOwner = false;
+
+          // Get the user's project from user_projects
           const { data: userProjectData } = await supabase
             .from('user_projects')
             .select('project_id, role, is_owner')
@@ -94,16 +168,24 @@ export default function DashboardPage() {
             .single();
 
           if (userProjectData) {
+            projectId = userProjectData.project_id;
+            userRole = userProjectData.role;
+            isProjectOwner = userProjectData.is_owner;
+          }
+
+          if (projectId) {
             // Get the project details
-            const { data: project } = await supabase
+            const { data: project, error: projectError } = await supabase
               .from('projects')
               .select('*')
-              .eq('id', userProjectData.project_id)
+              .eq('id', projectId)
               .single();
+
+            console.log('Project query result:', { project: project?.project_name, error: projectError });
 
             if (project) {
               setProjectData(project);
-              
+
               // Load embedment tolerance from project settings if available
               if (project.embedment_tolerance !== undefined && project.embedment_tolerance !== null) {
                 setEmbedmentTolerance(project.embedment_tolerance);
@@ -592,6 +674,31 @@ export default function DashboardPage() {
         {/* Dashboard content */}
         <main className="p-3 h-full max-h-[calc(100vh-60px)] lg:max-h-screen overflow-y-auto w-full">
           <div className="max-w-7xl mx-auto w-full">
+            {/* Admin Viewing Banner */}
+            {isAdminViewing && projectData && (
+              <div className="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <span className="text-sm text-amber-800 dark:text-amber-200">
+                    <strong>Admin View:</strong> Viewing <strong>{projectData.project_name}</strong>
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs border-amber-300 hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900/30"
+                  onClick={() => {
+                    localStorage.removeItem('selectedProjectId');
+                    setIsAdminViewing(false);
+                    window.location.reload();
+                  }}
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  Exit Admin View
+                </Button>
+              </div>
+            )}
+
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
               <div>
                 <h1 className="text-lg font-bold text-slate-900 dark:text-white">Welcome back, {userName}</h1>

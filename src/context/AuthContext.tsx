@@ -92,6 +92,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (pathname === '/auth') {
             redirectTimeout = setTimeout(async () => {
               try {
+                // First check if user is a super admin
+                const { data: isSuperAdmin } = await supabase.rpc('is_current_user_super_admin');
+
+                if (isSuperAdmin) {
+                  // Super admins bypass project onboarding - go directly to admin
+                  router.push('/admin');
+                  return;
+                }
+
                 const { data } = await supabase
                   .from('user_projects')
                   .select('id')
@@ -144,6 +153,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Only handle redirects for sign in events and if we're on auth page
         if (event === 'SIGNED_IN' && pathname === '/auth') {
           try {
+            // First check if user is a super admin
+            const { data: isSuperAdmin } = await supabase.rpc('is_current_user_super_admin');
+
+            if (isSuperAdmin) {
+              // Super admins bypass project onboarding - go directly to admin
+              redirectTimeout = setTimeout(() => {
+                router.push('/admin');
+              }, 100);
+              return;
+            }
+
             const { data } = await supabase
               .from('user_projects')
               .select('id')

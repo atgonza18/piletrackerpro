@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter, useSearchParams } from "next/navigation";
-import { User, Search, Clock, AlertTriangle, AlertCircle, Check, Download, ChevronDown, ChevronUp, FileDown, FileText, TrendingUp, Activity, Zap, Calendar, Target, Award, BarChart2, CalendarDays, Upload, Trash2, X, Info } from "lucide-react";
+import { User, Search, Clock, AlertTriangle, AlertCircle, Check, Download, ChevronDown, ChevronUp, FileDown, FileText, TrendingUp, TrendingDown, Activity, Zap, Calendar, Target, Award, BarChart2, CalendarDays, Upload, Trash2, X, Info, ArrowUp, ArrowDown, Flag, CalendarCheck, Flame, Snowflake, Building2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useAccountType } from "@/context/AccountTypeContext";
 import { toast } from "sonner";
@@ -22,6 +22,7 @@ import { format, parseISO, isWithinInterval, startOfDay, endOfDay } from "date-f
 import * as XLSX from 'xlsx';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, Brush } from 'recharts';
 import { PreliminaryProductionUploadModal } from "@/components/PreliminaryProductionUploadModal";
+import { adminService } from "@/lib/adminService";
 
 interface ProjectData {
   id: string;
@@ -34,6 +35,7 @@ interface ProjectData {
   created_at: string;
   updated_at: string;
   embedment_tolerance?: number;
+  daily_pile_goal?: number | null;
 }
 
 interface MachineData {
@@ -176,6 +178,7 @@ function ProductionPageContent() {
   const [selectedCompareDate, setSelectedCompareDate] = useState<string | null>(null);
   const [showDataDebug, setShowDataDebug] = useState(false);
   const [chartViewMode, setChartViewMode] = useState<'30days' | '90days' | 'all' | 'weekly' | 'monthly'>('all');
+  const [isAdminViewing, setIsAdminViewing] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -187,20 +190,19 @@ function ProductionPageContent() {
     const loadData = async () => {
       if (user) {
         try {
-          const { data: userProjectData } = await supabase
-            .from('user_projects')
-            .select('project_id, role, is_owner')
-            .eq('user_id', user.id)
-            .single();
+          // Check for super admin project override
+          const overrideProjectId = localStorage.getItem('selectedProjectId');
+          let project: any = null;
+          let allPilesData: any[] = [];
 
-          if (userProjectData) {
-            const { data: project } = await supabase
-              .from('projects')
-              .select('*')
-              .eq('id', userProjectData.project_id)
-              .single();
+          if (overrideProjectId) {
+            // Super admin viewing a different project - use admin API
+            setIsAdminViewing(true);
+            console.log('[Production] Super admin viewing project:', overrideProjectId);
 
-            if (project) {
+            try {
+              const adminData = await adminService.getProjectData(overrideProjectId);
+              project = adminData.project;
               setProjectData(project);
 
               const tolerance = project.embedment_tolerance !== undefined && project.embedment_tolerance !== null
@@ -208,61 +210,121 @@ function ProductionPageContent() {
                 : 1;
               setEmbedmentTolerance(tolerance);
 
-              // Get total count of piles with machine data
-              let countQuery = supabase
-                .from('piles')
-                .select('*', { count: 'exact', head: true })
-                .eq('project_id', project.id)
-                .not('machine', 'is', null);
-
-              if (!canEdit) {
-                countQuery = countQuery.eq('published', true);
-              }
-
-              const { count, error: countError } = await countQuery;
-
-              if (countError) throw countError;
-
-              const totalCount = count || 0;
+              // Fetch piles via admin API
               setLoadingProgress({ current: 0, total: 100, stage: 'Loading production data...' });
 
-              let allPilesData: any[] = [];
+              const { count: totalCount } = await adminService.getPileCount(overrideProjectId);
               const pageSize = 1000;
               const totalPages = Math.ceil(totalCount / pageSize);
 
-              if (totalPages > 0) {
-                const fetchPromises = [];
+              for (let page = 0; page < totalPages; page++) {
+                const { piles } = await adminService.getPiles(overrideProjectId, page, pageSize);
+                // Filter for piles with machine data
+                const pilesWithMachine = piles.filter((p: any) => p.machine !== null && p.machine !== undefined);
+                allPilesData = [...allPilesData, ...pilesWithMachine];
+                const progress = Math.round(((page + 1) / totalPages) * 50);
+                setLoadingProgress({ current: progress, total: 100, stage: `Loading production data (${page + 1}/${totalPages})...` });
+              }
 
-                for (let page = 0; page < totalPages; page++) {
-                  const from = page * pageSize;
-                  const to = Math.min(from + pageSize - 1, totalCount - 1);
+              console.log('[Production] Admin API - Loaded', allPilesData.length, 'piles with machine data');
+            } catch (adminError) {
+              console.error('[Production] Admin API error:', adminError);
+              toast.error('Failed to load project data');
+              setIsAdminViewing(false);
+              setIsLoading(false);
+              return;
+            }
+          } else {
+            // Normal user flow
+            setIsAdminViewing(false);
 
-                  let pileQuery = supabase
-                    .from('piles')
-                    .select('*')
-                    .eq('project_id', project.id)
-                    .not('machine', 'is', null);
+            const { data: userProjectData } = await supabase
+              .from('user_projects')
+              .select('project_id, role, is_owner')
+              .eq('user_id', user.id)
+              .single();
 
-                  if (!canEdit) {
-                    pileQuery = pileQuery.eq('published', true);
-                  }
+            if (userProjectData) {
+              const { data: projectResult } = await supabase
+                .from('projects')
+                .select('*')
+                .eq('id', userProjectData.project_id)
+                .single();
 
-                  fetchPromises.push(pileQuery.range(from, to));
+              project = projectResult;
+
+              if (project) {
+                setProjectData(project);
+
+                const tolerance = project.embedment_tolerance !== undefined && project.embedment_tolerance !== null
+                  ? project.embedment_tolerance
+                  : 1;
+                setEmbedmentTolerance(tolerance);
+
+                // Get total count of piles with machine data
+                let countQuery = supabase
+                  .from('piles')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('project_id', project.id)
+                  .not('machine', 'is', null);
+
+                if (!canEdit) {
+                  countQuery = countQuery.eq('published', true);
                 }
 
-                const results = await Promise.allSettled(fetchPromises);
+                const { count, error: countError } = await countQuery;
 
-                for (let i = 0; i < results.length; i++) {
-                  const result = results[i];
-                  if (result.status === 'fulfilled' && result.value.data) {
-                    allPilesData = [...allPilesData, ...result.value.data];
-                    const progress = Math.round(((i + 1) / totalPages) * 50);
-                    setLoadingProgress({ current: progress, total: 100, stage: `Loading production data (${i + 1}/${totalPages})...` });
+                if (countError) throw countError;
+
+                const totalCount = count || 0;
+                setLoadingProgress({ current: 0, total: 100, stage: 'Loading production data...' });
+
+                const pageSize = 1000;
+                const totalPages = Math.ceil(totalCount / pageSize);
+
+                if (totalPages > 0) {
+                  const fetchPromises = [];
+
+                  for (let page = 0; page < totalPages; page++) {
+                    const from = page * pageSize;
+                    const to = Math.min(from + pageSize - 1, totalCount - 1);
+
+                    let pileQuery = supabase
+                      .from('piles')
+                      .select('*')
+                      .eq('project_id', project.id)
+                      .not('machine', 'is', null);
+
+                    if (!canEdit) {
+                      pileQuery = pileQuery.eq('published', true);
+                    }
+
+                    fetchPromises.push(pileQuery.range(from, to));
+                  }
+
+                  const results = await Promise.allSettled(fetchPromises);
+
+                  for (let i = 0; i < results.length; i++) {
+                    const result = results[i];
+                    if (result.status === 'fulfilled' && result.value.data) {
+                      allPilesData = [...allPilesData, ...result.value.data];
+                      const progress = Math.round(((i + 1) / totalPages) * 50);
+                      setLoadingProgress({ current: progress, total: 100, stage: `Loading production data (${i + 1}/${totalPages})...` });
+                    }
                   }
                 }
               }
+            }
+          }
 
-              setAllPiles(allPilesData);
+          // Continue with common processing if we have a project
+          if (project) {
+            // Calculate tolerance from project settings
+            const tolerance = project.embedment_tolerance !== undefined && project.embedment_tolerance !== null
+              ? project.embedment_tolerance
+              : 1;
+
+            setAllPiles(allPilesData);
               setLoadingProgress({ current: 50, total: 100, stage: 'Processing machine data...' });
 
               // Extract unique machines
@@ -378,8 +440,7 @@ function ProductionPageContent() {
               setMachines(machineArray);
               setLoadingProgress({ current: 100, total: 100, stage: 'Complete!' });
               setIsLoading(false);
-            }
-          }
+          } // End of if (project)
         } catch (error) {
           console.error("Error loading production data:", error);
           toast.error("Failed to load production data");
@@ -944,6 +1005,177 @@ function ProductionPageContent() {
     return { totalPiles, totalAccepted, totalRefusal, totalTolerance, avgDriveTime, topMachine };
   }, [machines]);
 
+  // Daily goal progress for actual production
+  const dailyGoalProgress = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const dailyGoal = projectData?.daily_pile_goal || 0;
+
+    // Calculate today's production from all machines
+    let todaysPiles = 0;
+    machines.forEach(m => {
+      if (m.pilesPerDate[today]) {
+        todaysPiles += m.pilesPerDate[today];
+      }
+    });
+
+    // Calculate average daily production
+    const allDates = new Set<string>();
+    machines.forEach(m => {
+      Object.keys(m.pilesPerDate).forEach(date => allDates.add(date));
+    });
+    const totalDays = allDates.size;
+    const avgDailyProduction = totalDays > 0
+      ? machines.reduce((sum, m) => sum + m.totalPiles, 0) / totalDays
+      : 0;
+
+    const progressPercent = dailyGoal > 0 ? Math.min((todaysPiles / dailyGoal) * 100, 100) : 0;
+    const isOnTrack = dailyGoal > 0 && todaysPiles >= dailyGoal;
+
+    return {
+      todaysPiles,
+      dailyGoal,
+      progressPercent,
+      isOnTrack,
+      avgDailyProduction,
+      totalDays
+    };
+  }, [machines, projectData?.daily_pile_goal]);
+
+  // Enhanced analytics for actual production
+  const enhancedAnalytics = useMemo(() => {
+    const totalProjectPiles = projectData?.total_project_piles || 0;
+    const totalInstalledPiles = machines.reduce((sum, m) => sum + m.totalPiles, 0);
+    const dailyGoal = projectData?.daily_pile_goal || 0;
+
+    // Get all dates with production
+    const allDatesMap: { [date: string]: number } = {};
+    machines.forEach(m => {
+      Object.entries(m.pilesPerDate).forEach(([date, count]) => {
+        allDatesMap[date] = (allDatesMap[date] || 0) + count;
+      });
+    });
+
+    const sortedDates = Object.keys(allDatesMap).sort();
+    const totalWorkingDays = sortedDates.length;
+    const avgDailyProduction = totalWorkingDays > 0 ? totalInstalledPiles / totalWorkingDays : 0;
+
+    // Project Completion Forecast
+    const remainingPiles = Math.max(0, totalProjectPiles - totalInstalledPiles);
+    const daysToComplete = avgDailyProduction > 0 ? Math.ceil(remainingPiles / avgDailyProduction) : null;
+    const estimatedCompletionDate = daysToComplete !== null
+      ? new Date(Date.now() + daysToComplete * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      : null;
+    const projectProgressPercent = totalProjectPiles > 0
+      ? Math.min((totalInstalledPiles / totalProjectPiles) * 100, 100)
+      : 0;
+
+    // Best/Worst Day Analysis
+    let bestDay = { date: '', count: 0 };
+    let worstDay = { date: '', count: Infinity };
+    Object.entries(allDatesMap).forEach(([date, count]) => {
+      if (count > bestDay.count) bestDay = { date, count };
+      if (count < worstDay.count) worstDay = { date, count };
+    });
+    if (worstDay.count === Infinity) worstDay = { date: '', count: 0 };
+
+    // Week-over-Week Comparison
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const startOfThisWeek = new Date(today);
+    startOfThisWeek.setDate(today.getDate() - dayOfWeek);
+    startOfThisWeek.setHours(0, 0, 0, 0);
+
+    const startOfLastWeek = new Date(startOfThisWeek);
+    startOfLastWeek.setDate(startOfLastWeek.getDate() - 7);
+
+    const endOfLastWeek = new Date(startOfThisWeek);
+    endOfLastWeek.setDate(endOfLastWeek.getDate() - 1);
+
+    let thisWeekPiles = 0;
+    let lastWeekPiles = 0;
+    let thisWeekDays = 0;
+    let lastWeekDays = 0;
+
+    Object.entries(allDatesMap).forEach(([dateStr, count]) => {
+      const date = new Date(dateStr + 'T00:00:00');
+      if (date >= startOfThisWeek && date <= today) {
+        thisWeekPiles += count;
+        thisWeekDays++;
+      } else if (date >= startOfLastWeek && date <= endOfLastWeek) {
+        lastWeekPiles += count;
+        lastWeekDays++;
+      }
+    });
+
+    const weekOverWeekChange = lastWeekPiles > 0
+      ? ((thisWeekPiles - lastWeekPiles) / lastWeekPiles) * 100
+      : thisWeekPiles > 0 ? 100 : 0;
+
+    // Goal History (last 14 days)
+    const last14Days: string[] = [];
+    for (let i = 0; i < 14; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      last14Days.push(d.toISOString().split('T')[0]);
+    }
+
+    let goalMetDays = 0;
+    let totalTrackedDays = 0;
+    last14Days.forEach(date => {
+      const pilesOnDay = allDatesMap[date] || 0;
+      if (allDatesMap[date] !== undefined) {
+        totalTrackedDays++;
+        if (dailyGoal > 0 && pilesOnDay >= dailyGoal) {
+          goalMetDays++;
+        }
+      }
+    });
+
+    // Cumulative data for chart
+    let cumulative = 0;
+    const cumulativeData = sortedDates.map((date, index) => {
+      cumulative += allDatesMap[date];
+      // Calculate target pace (linear from start to total project piles)
+      const targetPace = totalProjectPiles > 0 && totalWorkingDays > 0
+        ? Math.round((totalProjectPiles / totalWorkingDays) * (index + 1))
+        : 0;
+      return {
+        date: format(parseISO(date), 'MMM d'),
+        fullDate: date,
+        actual: cumulative,
+        target: Math.min(targetPace, totalProjectPiles),
+        daily: allDatesMap[date]
+      };
+    });
+
+    return {
+      // Project Progress
+      totalProjectPiles,
+      totalInstalledPiles,
+      remainingPiles,
+      projectProgressPercent,
+      daysToComplete,
+      estimatedCompletionDate,
+      avgDailyProduction,
+      totalWorkingDays,
+      // Best/Worst Days
+      bestDay,
+      worstDay,
+      // Week over Week
+      thisWeekPiles,
+      lastWeekPiles,
+      weekOverWeekChange,
+      thisWeekDays,
+      lastWeekDays,
+      // Goal History
+      goalMetDays,
+      totalTrackedDays,
+      goalMetPercent: totalTrackedDays > 0 ? (goalMetDays / totalTrackedDays) * 100 : 0,
+      // Cumulative Chart Data
+      cumulativeData
+    };
+  }, [machines, projectData?.total_project_piles, projectData?.daily_pile_goal]);
+
   // Preliminary chart data calculations
   const preliminaryChartData = useMemo(() => {
     // Top machines by total piles with rates
@@ -1050,6 +1282,165 @@ function ProductionPageContent() {
 
     return { totalPiles, totalAccepted, totalRefusal, totalTolerance, avgDriveTime, topMachine };
   }, [preliminaryMachines]);
+
+  // Daily goal progress for preliminary production
+  const preliminaryDailyGoalProgress = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const dailyGoal = projectData?.daily_pile_goal || 0;
+
+    // Calculate today's production from all machines
+    let todaysPiles = 0;
+    preliminaryMachines.forEach(m => {
+      if (m.pilesPerDate[today]) {
+        todaysPiles += m.pilesPerDate[today];
+      }
+    });
+
+    // Calculate average daily production
+    const allDates = new Set<string>();
+    preliminaryMachines.forEach(m => {
+      Object.keys(m.pilesPerDate).forEach(date => allDates.add(date));
+    });
+    const totalDays = allDates.size;
+    const avgDailyProduction = totalDays > 0
+      ? preliminaryMachines.reduce((sum, m) => sum + m.totalPiles, 0) / totalDays
+      : 0;
+
+    const progressPercent = dailyGoal > 0 ? Math.min((todaysPiles / dailyGoal) * 100, 100) : 0;
+    const isOnTrack = dailyGoal > 0 && todaysPiles >= dailyGoal;
+
+    return {
+      todaysPiles,
+      dailyGoal,
+      progressPercent,
+      isOnTrack,
+      avgDailyProduction,
+      totalDays
+    };
+  }, [preliminaryMachines, projectData?.daily_pile_goal]);
+
+  // Enhanced analytics for preliminary production
+  const preliminaryEnhancedAnalytics = useMemo(() => {
+    const totalProjectPiles = projectData?.total_project_piles || 0;
+    const totalInstalledPiles = preliminaryMachines.reduce((sum, m) => sum + m.totalPiles, 0);
+    const dailyGoal = projectData?.daily_pile_goal || 0;
+
+    // Get all dates with production
+    const allDatesMap: { [date: string]: number } = {};
+    preliminaryMachines.forEach(m => {
+      Object.entries(m.pilesPerDate).forEach(([date, count]) => {
+        allDatesMap[date] = (allDatesMap[date] || 0) + count;
+      });
+    });
+
+    const sortedDates = Object.keys(allDatesMap).sort();
+    const totalWorkingDays = sortedDates.length;
+    const avgDailyProduction = totalWorkingDays > 0 ? totalInstalledPiles / totalWorkingDays : 0;
+
+    // Project Completion Forecast
+    const remainingPiles = Math.max(0, totalProjectPiles - totalInstalledPiles);
+    const daysToComplete = avgDailyProduction > 0 ? Math.ceil(remainingPiles / avgDailyProduction) : null;
+    const estimatedCompletionDate = daysToComplete !== null
+      ? new Date(Date.now() + daysToComplete * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      : null;
+    const projectProgressPercent = totalProjectPiles > 0
+      ? Math.min((totalInstalledPiles / totalProjectPiles) * 100, 100)
+      : 0;
+
+    // Best/Worst Day Analysis
+    let bestDay = { date: '', count: 0 };
+    let worstDay = { date: '', count: Infinity };
+    Object.entries(allDatesMap).forEach(([date, count]) => {
+      if (count > bestDay.count) bestDay = { date, count };
+      if (count < worstDay.count) worstDay = { date, count };
+    });
+    if (worstDay.count === Infinity) worstDay = { date: '', count: 0 };
+
+    // Week-over-Week Comparison
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const startOfThisWeek = new Date(today);
+    startOfThisWeek.setDate(today.getDate() - dayOfWeek);
+    startOfThisWeek.setHours(0, 0, 0, 0);
+
+    const startOfLastWeek = new Date(startOfThisWeek);
+    startOfLastWeek.setDate(startOfLastWeek.getDate() - 7);
+
+    const endOfLastWeek = new Date(startOfThisWeek);
+    endOfLastWeek.setDate(endOfLastWeek.getDate() - 1);
+
+    let thisWeekPiles = 0;
+    let lastWeekPiles = 0;
+
+    Object.entries(allDatesMap).forEach(([dateStr, count]) => {
+      const date = new Date(dateStr + 'T00:00:00');
+      if (date >= startOfThisWeek && date <= today) {
+        thisWeekPiles += count;
+      } else if (date >= startOfLastWeek && date <= endOfLastWeek) {
+        lastWeekPiles += count;
+      }
+    });
+
+    const weekOverWeekChange = lastWeekPiles > 0
+      ? ((thisWeekPiles - lastWeekPiles) / lastWeekPiles) * 100
+      : thisWeekPiles > 0 ? 100 : 0;
+
+    // Goal History (last 14 days)
+    const last14Days: string[] = [];
+    for (let i = 0; i < 14; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      last14Days.push(d.toISOString().split('T')[0]);
+    }
+
+    let goalMetDays = 0;
+    let totalTrackedDays = 0;
+    last14Days.forEach(date => {
+      const pilesOnDay = allDatesMap[date] || 0;
+      if (allDatesMap[date] !== undefined) {
+        totalTrackedDays++;
+        if (dailyGoal > 0 && pilesOnDay >= dailyGoal) {
+          goalMetDays++;
+        }
+      }
+    });
+
+    // Cumulative data for chart
+    let cumulative = 0;
+    const cumulativeData = sortedDates.map((date, index) => {
+      cumulative += allDatesMap[date];
+      const targetPace = totalProjectPiles > 0 && totalWorkingDays > 0
+        ? Math.round((totalProjectPiles / totalWorkingDays) * (index + 1))
+        : 0;
+      return {
+        date: format(parseISO(date), 'MMM d'),
+        fullDate: date,
+        actual: cumulative,
+        target: Math.min(targetPace, totalProjectPiles),
+        daily: allDatesMap[date]
+      };
+    });
+
+    return {
+      totalProjectPiles,
+      totalInstalledPiles,
+      remainingPiles,
+      projectProgressPercent,
+      daysToComplete,
+      estimatedCompletionDate,
+      avgDailyProduction,
+      totalWorkingDays,
+      bestDay,
+      worstDay,
+      thisWeekPiles,
+      lastWeekPiles,
+      weekOverWeekChange,
+      goalMetDays,
+      totalTrackedDays,
+      goalMetPercent: totalTrackedDays > 0 ? (goalMetDays / totalTrackedDays) * 100 : 0,
+      cumulativeData
+    };
+  }, [preliminaryMachines, projectData?.total_project_piles, projectData?.daily_pile_goal]);
 
   // Comprehensive daily production data for the dashboard
   const preliminaryDailyData = useMemo(() => {
@@ -1676,6 +2067,31 @@ function ProductionPageContent() {
         style={{ paddingLeft: 'var(--sidebar-width, 0px)' }}
       >
         <main className="p-3">
+          {/* Admin Viewing Banner */}
+          {isAdminViewing && projectData && (
+            <div className="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-center justify-between max-w-7xl mx-auto">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <span className="text-sm text-amber-800 dark:text-amber-200">
+                  <strong>Admin View:</strong> Viewing <strong>{projectData.project_name}</strong> (Read-only)
+                </span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs border-amber-300 hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900/30"
+                onClick={() => {
+                  localStorage.removeItem('selectedProjectId');
+                  setIsAdminViewing(false);
+                  window.location.reload();
+                }}
+              >
+                <X className="h-3 w-3 mr-1" />
+                Exit Admin View
+              </Button>
+            </div>
+          )}
+
           <div className="max-w-7xl mx-auto">
             {/* Page header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
@@ -1782,6 +2198,240 @@ function ProductionPageContent() {
 
               {/* Actual Production Tab Content */}
               <TabsContent value="actual" className="mt-3">
+                {/* Quick Date Filters */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <span className="text-xs text-slate-500 dark:text-slate-400 self-center mr-1">Quick filters:</span>
+                  <Button
+                    variant={!dateRangeStart && !dateRangeEnd ? "default" : "outline"}
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => { setDateRangeStart(""); setDateRangeEnd(""); }}
+                  >
+                    All Time
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      const today = new Date();
+                      const weekAgo = new Date(today);
+                      weekAgo.setDate(weekAgo.getDate() - 7);
+                      setDateRangeStart(weekAgo.toISOString().split('T')[0]);
+                      setDateRangeEnd(today.toISOString().split('T')[0]);
+                    }}
+                  >
+                    Last 7 Days
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      const today = new Date();
+                      const dayOfWeek = today.getDay();
+                      const startOfWeek = new Date(today);
+                      startOfWeek.setDate(today.getDate() - dayOfWeek);
+                      setDateRangeStart(startOfWeek.toISOString().split('T')[0]);
+                      setDateRangeEnd(today.toISOString().split('T')[0]);
+                    }}
+                  >
+                    This Week
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      const today = new Date();
+                      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+                      setDateRangeStart(startOfMonth.toISOString().split('T')[0]);
+                      setDateRangeEnd(today.toISOString().split('T')[0]);
+                    }}
+                  >
+                    This Month
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      const today = new Date();
+                      const monthAgo = new Date(today);
+                      monthAgo.setDate(monthAgo.getDate() - 30);
+                      setDateRangeStart(monthAgo.toISOString().split('T')[0]);
+                      setDateRangeEnd(today.toISOString().split('T')[0]);
+                    }}
+                  >
+                    Last 30 Days
+                  </Button>
+                </div>
+
+                {/* Enhanced Analytics Dashboard */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+                  {/* Project Completion Forecast Card */}
+                  {enhancedAnalytics.totalProjectPiles > 0 && (
+                    <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-4">
+                          <div className="relative h-20 w-20 flex-shrink-0">
+                            <CircularProgressbar
+                              value={enhancedAnalytics.projectProgressPercent}
+                              text={`${Math.round(enhancedAnalytics.projectProgressPercent)}%`}
+                              styles={buildStyles({
+                                textSize: '22px',
+                                pathColor: enhancedAnalytics.projectProgressPercent >= 100 ? '#10b981' : '#6366f1',
+                                textColor: enhancedAnalytics.projectProgressPercent >= 100 ? '#10b981' : '#6366f1',
+                                trailColor: '#e2e8f0',
+                              })}
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Flag className="h-4 w-4 text-indigo-500" />
+                              <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Project Progress</span>
+                            </div>
+                            <div className="text-sm text-slate-600 dark:text-slate-300">
+                              <span className="text-lg font-bold text-slate-900 dark:text-white">{enhancedAnalytics.totalInstalledPiles.toLocaleString()}</span>
+                              <span className="text-slate-500"> / {enhancedAnalytics.totalProjectPiles.toLocaleString()} piles</span>
+                            </div>
+                            <div className="text-xs text-slate-500 mt-1">
+                              {enhancedAnalytics.remainingPiles > 0 ? (
+                                <>
+                                  <span className="font-medium text-indigo-600 dark:text-indigo-400">{enhancedAnalytics.remainingPiles.toLocaleString()}</span> remaining
+                                  {enhancedAnalytics.daysToComplete && (
+                                    <span className="ml-2">
+                                      • Est. <span className="font-medium">{enhancedAnalytics.daysToComplete} days</span> to complete
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="text-green-600 dark:text-green-400 font-medium">Project Complete!</span>
+                              )}
+                            </div>
+                            {enhancedAnalytics.estimatedCompletionDate && enhancedAnalytics.remainingPiles > 0 && (
+                              <div className="text-xs text-slate-500 mt-0.5">
+                                Est. completion: <span className="font-medium">{format(parseISO(enhancedAnalytics.estimatedCompletionDate), 'MMM d, yyyy')}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Daily Goal + Week Comparison Card */}
+                  {dailyGoalProgress.dailyGoal > 0 && (
+                    <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-4">
+                          <div className="relative h-20 w-20 flex-shrink-0">
+                            <CircularProgressbar
+                              value={dailyGoalProgress.progressPercent}
+                              text={`${Math.round(dailyGoalProgress.progressPercent)}%`}
+                              styles={buildStyles({
+                                textSize: '22px',
+                                pathColor: dailyGoalProgress.isOnTrack ? '#10b981' : dailyGoalProgress.progressPercent >= 75 ? '#f59e0b' : '#6366f1',
+                                textColor: dailyGoalProgress.isOnTrack ? '#10b981' : dailyGoalProgress.progressPercent >= 75 ? '#f59e0b' : '#6366f1',
+                                trailColor: '#e2e8f0',
+                              })}
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Target className="h-4 w-4 text-slate-500" />
+                              <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Today's Goal</span>
+                              {dailyGoalProgress.isOnTrack && (
+                                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                                  Goal Met!
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-sm">
+                              <span className="text-lg font-bold text-slate-900 dark:text-white">{dailyGoalProgress.todaysPiles}</span>
+                              <span className="text-slate-500"> / {dailyGoalProgress.dailyGoal} piles</span>
+                            </div>
+                            <div className="flex items-center gap-3 mt-1 text-xs">
+                              {enhancedAnalytics.totalTrackedDays > 0 && (
+                                <div className="flex items-center gap-1">
+                                  <CalendarCheck className="h-3 w-3 text-slate-400" />
+                                  <span className="text-slate-500">
+                                    Goal met <span className="font-medium text-green-600 dark:text-green-400">{enhancedAnalytics.goalMetDays}</span>/{enhancedAnalytics.totalTrackedDays} days
+                                  </span>
+                                </div>
+                              )}
+                              <div className={`flex items-center gap-1 ${enhancedAnalytics.weekOverWeekChange >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                {enhancedAnalytics.weekOverWeekChange >= 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                                <span className="font-medium">{Math.abs(enhancedAnalytics.weekOverWeekChange).toFixed(0)}%</span>
+                                <span className="text-slate-500">vs last week</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+
+                {/* Week-over-Week + Best/Worst Day Cards */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+                  {/* This Week */}
+                  <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                            <Calendar className="h-3 w-3" /> This Week
+                          </div>
+                          <div className="text-xl font-bold text-slate-900 dark:text-white">{enhancedAnalytics.thisWeekPiles.toLocaleString()}</div>
+                          <div className="text-xs text-slate-500">{enhancedAnalytics.thisWeekDays} working days</div>
+                        </div>
+                        <div className={`flex items-center gap-1 text-sm font-medium ${enhancedAnalytics.weekOverWeekChange >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {enhancedAnalytics.weekOverWeekChange >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                          {Math.abs(enhancedAnalytics.weekOverWeekChange).toFixed(0)}%
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Last Week */}
+                  <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+                    <CardContent className="p-3">
+                      <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                        <Calendar className="h-3 w-3" /> Last Week
+                      </div>
+                      <div className="text-xl font-bold text-slate-900 dark:text-white">{enhancedAnalytics.lastWeekPiles.toLocaleString()}</div>
+                      <div className="text-xs text-slate-500">{enhancedAnalytics.lastWeekDays} working days</div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Best Day */}
+                  <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+                    <CardContent className="p-3">
+                      <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                        <Flame className="h-3 w-3 text-orange-500" /> Best Day
+                      </div>
+                      <div className="text-xl font-bold text-green-600 dark:text-green-400">{enhancedAnalytics.bestDay.count.toLocaleString()}</div>
+                      <div className="text-xs text-slate-500">
+                        {enhancedAnalytics.bestDay.date ? format(parseISO(enhancedAnalytics.bestDay.date), 'MMM d, yyyy') : 'N/A'}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Slowest Day */}
+                  <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+                    <CardContent className="p-3">
+                      <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                        <Snowflake className="h-3 w-3 text-blue-500" /> Slowest Day
+                      </div>
+                      <div className="text-xl font-bold text-amber-600 dark:text-amber-400">{enhancedAnalytics.worstDay.count.toLocaleString()}</div>
+                      <div className="text-xs text-slate-500">
+                        {enhancedAnalytics.worstDay.date ? format(parseISO(enhancedAnalytics.worstDay.date), 'MMM d, yyyy') : 'N/A'}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
                 {/* Summary KPI Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-6 gap-2 mb-3">
               <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
@@ -1904,6 +2554,49 @@ function ProductionPageContent() {
               ) : (
                 <>
                   <TabsContent value="overview" className="mt-4">
+                    {/* Cumulative Progress Chart - Full Width */}
+                    {enhancedAnalytics.cumulativeData.length > 0 && enhancedAnalytics.totalProjectPiles > 0 && (
+                      <Card className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 mb-4">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-base font-semibold flex items-center gap-2">
+                            <Flag className="h-4 w-4 text-indigo-600" />
+                            Cumulative Progress vs Target Pace
+                          </CardTitle>
+                          <CardDescription>
+                            Actual cumulative piles installed compared to linear target pace ({enhancedAnalytics.totalProjectPiles.toLocaleString()} total)
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="h-[280px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <AreaChart data={enhancedAnalytics.cumulativeData}>
+                                <defs>
+                                  <linearGradient id="colorActual" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                  </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                                <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#94a3b8" />
+                                <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" domain={[0, enhancedAnalytics.totalProjectPiles]} />
+                                <Tooltip
+                                  contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }}
+                                  labelStyle={{ color: '#f1f5f9' }}
+                                  formatter={(value: number, name: string) => [
+                                    value.toLocaleString(),
+                                    name === 'actual' ? 'Actual Progress' : name === 'target' ? 'Target Pace' : 'Daily'
+                                  ]}
+                                />
+                                <Legend />
+                                <Line type="monotone" dataKey="target" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} name="Target Pace" />
+                                <Area type="monotone" dataKey="actual" stroke="#10b981" strokeWidth={2} fill="url(#colorActual)" name="Actual Progress" />
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
                     {/* Charts Grid */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
                       {/* Production Trend Chart */}
@@ -2402,6 +3095,160 @@ function ProductionPageContent() {
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* Enhanced Analytics Dashboard for Preliminary */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+                  {/* Project Completion Forecast Card */}
+                  {preliminaryEnhancedAnalytics.totalProjectPiles > 0 && (
+                    <Card className="border-amber-200 dark:border-amber-800 dark:bg-slate-800">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-4">
+                          <div className="relative h-20 w-20 flex-shrink-0">
+                            <CircularProgressbar
+                              value={preliminaryEnhancedAnalytics.projectProgressPercent}
+                              text={`${Math.round(preliminaryEnhancedAnalytics.projectProgressPercent)}%`}
+                              styles={buildStyles({
+                                textSize: '22px',
+                                pathColor: preliminaryEnhancedAnalytics.projectProgressPercent >= 100 ? '#10b981' : '#f59e0b',
+                                textColor: preliminaryEnhancedAnalytics.projectProgressPercent >= 100 ? '#10b981' : '#f59e0b',
+                                trailColor: '#fef3c7',
+                              })}
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Flag className="h-4 w-4 text-amber-500" />
+                              <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Project Progress (Preliminary)</span>
+                            </div>
+                            <div className="text-sm text-slate-600 dark:text-slate-300">
+                              <span className="text-lg font-bold text-slate-900 dark:text-white">{preliminaryEnhancedAnalytics.totalInstalledPiles.toLocaleString()}</span>
+                              <span className="text-slate-500"> / {preliminaryEnhancedAnalytics.totalProjectPiles.toLocaleString()} piles</span>
+                            </div>
+                            <div className="text-xs text-slate-500 mt-1">
+                              {preliminaryEnhancedAnalytics.remainingPiles > 0 ? (
+                                <>
+                                  <span className="font-medium text-amber-600 dark:text-amber-400">{preliminaryEnhancedAnalytics.remainingPiles.toLocaleString()}</span> remaining
+                                  {preliminaryEnhancedAnalytics.daysToComplete && (
+                                    <span className="ml-2">
+                                      • Est. <span className="font-medium">{preliminaryEnhancedAnalytics.daysToComplete} days</span> to complete
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="text-green-600 dark:text-green-400 font-medium">Project Complete!</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Daily Goal + Week Comparison Card */}
+                  {preliminaryDailyGoalProgress.dailyGoal > 0 && (
+                    <Card className="border-amber-200 dark:border-amber-800 dark:bg-slate-800">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-4">
+                          <div className="relative h-20 w-20 flex-shrink-0">
+                            <CircularProgressbar
+                              value={preliminaryDailyGoalProgress.progressPercent}
+                              text={`${Math.round(preliminaryDailyGoalProgress.progressPercent)}%`}
+                              styles={buildStyles({
+                                textSize: '22px',
+                                pathColor: preliminaryDailyGoalProgress.isOnTrack ? '#10b981' : '#f59e0b',
+                                textColor: preliminaryDailyGoalProgress.isOnTrack ? '#10b981' : '#f59e0b',
+                                trailColor: '#fef3c7',
+                              })}
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Target className="h-4 w-4 text-amber-500" />
+                              <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Today's Goal (Preliminary)</span>
+                              {preliminaryDailyGoalProgress.isOnTrack && (
+                                <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                                  Goal Met!
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-sm">
+                              <span className="text-lg font-bold text-slate-900 dark:text-white">{preliminaryDailyGoalProgress.todaysPiles}</span>
+                              <span className="text-slate-500"> / {preliminaryDailyGoalProgress.dailyGoal} piles</span>
+                            </div>
+                            <div className="flex items-center gap-3 mt-1 text-xs">
+                              {preliminaryEnhancedAnalytics.totalTrackedDays > 0 && (
+                                <div className="flex items-center gap-1">
+                                  <CalendarCheck className="h-3 w-3 text-slate-400" />
+                                  <span className="text-slate-500">
+                                    Goal met <span className="font-medium text-green-600 dark:text-green-400">{preliminaryEnhancedAnalytics.goalMetDays}</span>/{preliminaryEnhancedAnalytics.totalTrackedDays} days
+                                  </span>
+                                </div>
+                              )}
+                              <div className={`flex items-center gap-1 ${preliminaryEnhancedAnalytics.weekOverWeekChange >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                                {preliminaryEnhancedAnalytics.weekOverWeekChange >= 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                                <span className="font-medium">{Math.abs(preliminaryEnhancedAnalytics.weekOverWeekChange).toFixed(0)}%</span>
+                                <span className="text-slate-500">vs last week</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+
+                {/* Week-over-Week + Best/Worst Day Cards for Preliminary */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+                  <Card className="border-amber-200 dark:border-amber-800 dark:bg-slate-800">
+                    <CardContent className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                            <Calendar className="h-3 w-3" /> This Week
+                          </div>
+                          <div className="text-xl font-bold text-slate-900 dark:text-white">{preliminaryEnhancedAnalytics.thisWeekPiles.toLocaleString()}</div>
+                        </div>
+                        <div className={`flex items-center gap-1 text-sm font-medium ${preliminaryEnhancedAnalytics.weekOverWeekChange >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                          {preliminaryEnhancedAnalytics.weekOverWeekChange >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                          {Math.abs(preliminaryEnhancedAnalytics.weekOverWeekChange).toFixed(0)}%
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-amber-200 dark:border-amber-800 dark:bg-slate-800">
+                    <CardContent className="p-3">
+                      <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                        <Calendar className="h-3 w-3" /> Last Week
+                      </div>
+                      <div className="text-xl font-bold text-slate-900 dark:text-white">{preliminaryEnhancedAnalytics.lastWeekPiles.toLocaleString()}</div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-amber-200 dark:border-amber-800 dark:bg-slate-800">
+                    <CardContent className="p-3">
+                      <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                        <Flame className="h-3 w-3 text-orange-500" /> Best Day
+                      </div>
+                      <div className="text-xl font-bold text-green-600 dark:text-green-400">{preliminaryEnhancedAnalytics.bestDay.count.toLocaleString()}</div>
+                      <div className="text-xs text-slate-500">
+                        {preliminaryEnhancedAnalytics.bestDay.date ? format(parseISO(preliminaryEnhancedAnalytics.bestDay.date), 'MMM d') : 'N/A'}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border-amber-200 dark:border-amber-800 dark:bg-slate-800">
+                    <CardContent className="p-3">
+                      <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                        <Snowflake className="h-3 w-3 text-blue-500" /> Slowest Day
+                      </div>
+                      <div className="text-xl font-bold text-amber-600 dark:text-amber-400">{preliminaryEnhancedAnalytics.worstDay.count.toLocaleString()}</div>
+                      <div className="text-xs text-slate-500">
+                        {preliminaryEnhancedAnalytics.worstDay.date ? format(parseISO(preliminaryEnhancedAnalytics.worstDay.date), 'MMM d') : 'N/A'}
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
 
                 {/* Summary KPI Cards for Preliminary Data - Same as Actual */}

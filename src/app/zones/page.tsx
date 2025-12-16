@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { LogOut, List, BarChart3, Settings, User, Bell, FileText, MapPin, Filter, Search, Clock, AlertTriangle, AlertCircle, Check, ChevronLeft, ChevronRight, Box } from "lucide-react";
+import { LogOut, List, BarChart3, Settings, User, Bell, FileText, MapPin, Filter, Search, Clock, AlertTriangle, AlertCircle, Check, ChevronLeft, ChevronRight, Box, Building2, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useAccountType } from "@/context/AccountTypeContext";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ import 'react-circular-progressbar/dist/styles.css';
 import { CollapsibleSidebar } from "@/components/CollapsibleSidebar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { format } from "date-fns";
+import { adminService } from "@/lib/adminService";
 
 interface ProjectData {
   id: string;
@@ -69,6 +70,7 @@ export default function PileTypesPage() {
   const [filteredPileTypes, setFilteredPileTypes] = useState<ZoneData[]>([]);
   const [sortBy, setSortBy] = useState("name");
   const [sortOrder, setSortOrder] = useState("asc");
+  const [isAdminViewing, setIsAdminViewing] = useState(false);
 
   useEffect(() => {
     // Wait for auth to finish loading before making decisions
@@ -86,48 +88,93 @@ export default function PileTypesPage() {
     const loadData = async () => {
       if (user) {
         try {
-          // Get the user's project
-          const { data: userProjectData } = await supabase
-            .from('user_projects')
-            .select('project_id, role, is_owner')
-            .eq('user_id', user.id)
-            .single();
+          // Check for super admin project override
+          const overrideProjectId = localStorage.getItem('selectedProjectId');
+          let project: any = null;
+          let pileData: any[] = [];
 
-          if (userProjectData) {
-            // Get the project details
-            const { data: project } = await supabase
-              .from('projects')
-              .select('*')
-              .eq('id', userProjectData.project_id)
-              .single();
+          if (overrideProjectId) {
+            // Super admin viewing a different project - use admin API
+            setIsAdminViewing(true);
+            console.log('[Zones] Super admin viewing project:', overrideProjectId);
 
-            if (project) {
+            try {
+              const adminData = await adminService.getProjectData(overrideProjectId);
+              project = adminData.project;
               setProjectData(project);
-              
-              // Load embedment tolerance from project settings if available
+
               if (project.embedment_tolerance !== undefined && project.embedment_tolerance !== null) {
                 setEmbedmentTolerance(project.embedment_tolerance);
               }
 
-              // Load pile data for pile type statistics
-              // Note: We load ALL piles, not just those with pile_type
-              let pileQuery = supabase
-                .from('piles')
+              // Fetch piles via admin API
+              const { count: totalCount } = await adminService.getPileCount(overrideProjectId);
+              const pageSize = 1000;
+              const totalPages = Math.ceil(totalCount / pageSize);
+
+              for (let page = 0; page < totalPages; page++) {
+                const { piles } = await adminService.getPiles(overrideProjectId, page, pageSize);
+                pileData = [...pileData, ...piles];
+              }
+
+              console.log(`[Zones] Admin API - Loaded ${pileData.length} piles`);
+            } catch (adminError) {
+              console.error('[Zones] Admin API error:', adminError);
+              toast.error('Failed to load project data');
+              setIsAdminViewing(false);
+              setIsLoading(false);
+              return;
+            }
+          } else {
+            // Normal user flow
+            setIsAdminViewing(false);
+
+            const { data: userProjectData } = await supabase
+              .from('user_projects')
+              .select('project_id, role, is_owner')
+              .eq('user_id', user.id)
+              .single();
+
+            if (userProjectData) {
+              const { data: projectResult } = await supabase
+                .from('projects')
                 .select('*')
-                .eq('project_id', project.id);
+                .eq('id', userProjectData.project_id)
+                .single();
 
-              // Owner's Reps only see published piles
-              if (!canEdit) {
-                pileQuery = pileQuery.eq('published', true);
+              project = projectResult;
+
+              if (project) {
+                setProjectData(project);
+
+                if (project.embedment_tolerance !== undefined && project.embedment_tolerance !== null) {
+                  setEmbedmentTolerance(project.embedment_tolerance);
+                }
+
+                // Load pile data
+                let pileQuery = supabase
+                  .from('piles')
+                  .select('*')
+                  .eq('project_id', project.id);
+
+                if (!canEdit) {
+                  pileQuery = pileQuery.eq('published', true);
+                }
+
+                const { data: pileResult, error: pileError } = await pileQuery;
+
+                if (pileError) {
+                  throw pileError;
+                }
+
+                pileData = pileResult || [];
               }
+            }
+          }
 
-              const { data: pileData, error: pileError } = await pileQuery;
-
-              if (pileError) {
-                throw pileError;
-              }
-
-              console.log(`Total piles loaded: ${pileData?.length || 0}`);
+          // Continue with common processing if we have a project
+          if (project && pileData) {
+            console.log(`Total piles loaded: ${pileData.length}`);
 
               // Load pile lookup data to get ALL pile types from the pile plot plan
               const { data: pileLookupData, error: lookupError } = await supabase
@@ -333,9 +380,8 @@ export default function PileTypesPage() {
                 console.error("Error processing pileTypes:", error);
                 setIsLoading(false);
               });
-            }
-          }
-          
+          } // End of if (project && pileData)
+
           // Extract user data for profile display
           const metadata = user.user_metadata;
           const firstName = metadata?.first_name || "";
@@ -637,6 +683,31 @@ export default function PileTypesPage() {
         style={{ paddingLeft: 'var(--sidebar-width, 0px)' }}
       >
         <main className="p-3">
+          {/* Admin Viewing Banner */}
+          {isAdminViewing && projectData && (
+            <div className="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-center justify-between max-w-7xl mx-auto">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <span className="text-sm text-amber-800 dark:text-amber-200">
+                  <strong>Admin View:</strong> Viewing <strong>{projectData.project_name}</strong> (Read-only)
+                </span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs border-amber-300 hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900/30"
+                onClick={() => {
+                  localStorage.removeItem('selectedProjectId');
+                  setIsAdminViewing(false);
+                  window.location.reload();
+                }}
+              >
+                <X className="h-3 w-3 mr-1" />
+                Exit Admin View
+              </Button>
+            </div>
+          )}
+
           <div className="max-w-7xl mx-auto">
             {/* Page header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">

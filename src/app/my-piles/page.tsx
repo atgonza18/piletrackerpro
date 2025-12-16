@@ -46,6 +46,7 @@ import { Switch } from "@/components/ui/switch";
 import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAccountType } from "@/context/AccountTypeContext";
+import { adminService } from "@/lib/adminService";
 
 interface PileData {
   id: string;
@@ -126,6 +127,7 @@ export default function MyPilesPage() {
   const [unpublishedPilesCount, setUnpublishedPilesCount] = useState(0);
   const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [isAdminViewing, setIsAdminViewing] = useState(false);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -348,122 +350,190 @@ export default function MyPilesPage() {
           return;
         }
 
+        // Check for super admin project override
+        const overrideProjectId = localStorage.getItem('selectedProjectId');
+
         // 2. Load user's project data
         try {
-          // Get the user's project
-          const { data: userProjectData } = await supabase
-            .from('user_projects')
-            .select('project_id, role, is_owner')
-            .eq('user_id', user.id)
-            .single();
+          let project: any = null;
+          let allPilesData: PileData[] = [];
+          let totalCount = 0;
 
-          if (userProjectData) {
-            // Get the project details
-            const { data: project } = await supabase
-              .from('projects')
-              .select('*')
-              .eq('id', userProjectData.project_id)
-              .single();
+          // If super admin is viewing a different project, use admin API
+          if (overrideProjectId) {
+            setIsAdminViewing(true);
+            console.log('[My Piles] Super admin viewing project:', overrideProjectId);
 
-            if (project) {
+            try {
+              // Fetch project data via admin API
+              const adminData = await adminService.getProjectData(overrideProjectId);
+              project = adminData.project;
+              console.log('[My Piles] Admin API - Project:', project.project_name);
+
               setProjectData(project);
-              
-              // Load embedment tolerance from project settings if available
+
+              // Load embedment tolerance
               const projectTolerance = (project.embedment_tolerance !== undefined && project.embedment_tolerance !== null)
                 ? project.embedment_tolerance
-                : 1; // Default to 1 if not set
+                : 1;
               setEmbedmentTolerance(projectTolerance);
-              
-              // Get piles data - first get the count
-              // For Owner's Reps, only count published piles
-              let countQuery = supabase
-                .from('piles')
-                .select('*', { count: 'exact', head: true })
-                .eq('project_id', project.id);
 
-              if (!canEdit) {
-                // Owner's Reps only see published piles
-                countQuery = countQuery.eq('published', true);
+              // Fetch piles via admin API
+              const { count: pileCount } = await adminService.getPileCount(overrideProjectId);
+              totalCount = pileCount;
+              console.log('[My Piles] Admin API - Total piles:', totalCount);
+              setTotalPiles(totalCount);
+              setUnpublishedPilesCount(0); // Not tracking for admin view
+
+              // Fetch all piles in pages
+              const pageSize = 1000;
+              const totalPages = Math.ceil(totalCount / pageSize);
+
+              for (let page = 0; page < totalPages; page++) {
+                const { piles } = await adminService.getPiles(overrideProjectId, page, pageSize);
+                allPilesData = [...allPilesData, ...piles];
+                console.log(`[My Piles] Admin API - Page ${page + 1}: Loaded ${piles.length} piles`);
               }
 
-              const { count, error: countError } = await countQuery;
+              console.log(`[My Piles] Admin API - Successfully loaded ${allPilesData.length} piles`);
 
-              if (countError) {
-                throw countError;
-              }
+            } catch (adminError) {
+              console.error('[My Piles] Admin API error:', adminError);
+              toast.error('Failed to load project data. You may not have admin access.');
+              setIsAdminViewing(false);
+              setIsLoading(false);
+              return;
+            }
+          } else {
+            // Normal user flow - use direct Supabase queries
+            setIsAdminViewing(false);
 
-              const totalCount = count || 0;
-              console.log("Total piles in database:", totalCount);
+            // Get the user's project
+            const { data: userProjectData } = await supabase
+              .from('user_projects')
+              .select('project_id, role, is_owner')
+              .eq('user_id', user.id)
+              .single();
 
-              // For EPC users, also count unpublished piles
-              if (canEdit) {
-                const { count: unpublishedCount } = await supabase
+            if (userProjectData) {
+              // Get the project details
+              const { data: projectResult } = await supabase
+                .from('projects')
+                .select('*')
+                .eq('id', userProjectData.project_id)
+                .single();
+
+              project = projectResult;
+
+              if (project) {
+                setProjectData(project);
+
+                // Load embedment tolerance from project settings if available
+                setEmbedmentTolerance(
+                  (project.embedment_tolerance !== undefined && project.embedment_tolerance !== null)
+                    ? project.embedment_tolerance
+                    : 1
+                );
+
+                // Get piles data - first get the count
+                // For Owner's Reps, only count published piles
+                let countQuery = supabase
                   .from('piles')
                   .select('*', { count: 'exact', head: true })
-                  .eq('project_id', project.id)
-                  .eq('published', false);
+                  .eq('project_id', project.id);
 
-                setUnpublishedPilesCount(unpublishedCount || 0);
-              }
-              
-              // Set total count immediately from count query
-              setTotalPiles(totalCount);
-              
-              // OPTIMIZED: Fetch data in parallel for much faster loading
-              let allPilesData: PileData[] = [];
-              const pageSize = 1000;
-              
-              // Calculate how many pages we need
-              const totalPages = Math.ceil(totalCount / pageSize);
-              console.log(`Loading ${totalCount} piles in ${totalPages} parallel requests`);
-              
-              if (totalPages > 0) {
-                // Create array of promises for parallel fetching
-                const fetchPromises = [];
-                
-                for (let page = 0; page < totalPages; page++) {
-                  const from = page * pageSize;
-                  const to = Math.min(from + pageSize - 1, totalCount - 1);
+                if (!canEdit) {
+                  // Owner's Reps only see published piles
+                  countQuery = countQuery.eq('published', true);
+                }
 
-                  // Build query with published filter for Owner's Reps
-                  let fetchQuery = supabase
+                const { count, error: countError } = await countQuery;
+
+                if (countError) {
+                  throw countError;
+                }
+
+                totalCount = count || 0;
+                console.log("Total piles in database:", totalCount);
+
+                // For EPC users, also count unpublished piles
+                if (canEdit) {
+                  const { count: unpublishedCount } = await supabase
                     .from('piles')
-                    .select('*')
-                    .eq('project_id', project.id);
+                    .select('*', { count: 'exact', head: true })
+                    .eq('project_id', project.id)
+                    .eq('published', false);
 
-                  if (!canEdit) {
-                    // Owner's Reps only see published piles
-                    fetchQuery = fetchQuery.eq('published', true);
+                  setUnpublishedPilesCount(unpublishedCount || 0);
+                }
+
+                // Set total count immediately from count query
+                setTotalPiles(totalCount);
+
+                // OPTIMIZED: Fetch data in parallel for much faster loading
+                const pageSize = 1000;
+
+                // Calculate how many pages we need
+                const totalPages = Math.ceil(totalCount / pageSize);
+                console.log(`Loading ${totalCount} piles in ${totalPages} parallel requests`);
+
+                if (totalPages > 0) {
+                  // Create array of promises for parallel fetching
+                  const fetchPromises = [];
+
+                  for (let page = 0; page < totalPages; page++) {
+                    const from = page * pageSize;
+                    const to = Math.min(from + pageSize - 1, totalCount - 1);
+
+                    // Build query with published filter for Owner's Reps
+                    let fetchQuery = supabase
+                      .from('piles')
+                      .select('*')
+                      .eq('project_id', project.id);
+
+                    if (!canEdit) {
+                      // Owner's Reps only see published piles
+                      fetchQuery = fetchQuery.eq('published', true);
+                    }
+
+                    // Add each fetch to the promises array
+                    fetchPromises.push(
+                      fetchQuery
+                        .order('created_at', { ascending: true })
+                        .range(from, to)
+                    );
                   }
 
-                  // Add each fetch to the promises array
-                  fetchPromises.push(
-                    fetchQuery
-                      .order('created_at', { ascending: true })
-                      .range(from, to)
-                  );
-                }
-                
-                // Execute all fetches in parallel
-                console.log(`Fetching ${fetchPromises.length} pages in parallel...`);
-                const results = await Promise.allSettled(fetchPromises);
-                
-                // Process results
-                for (let i = 0; i < results.length; i++) {
-                  const result = results[i];
-                  if (result.status === 'fulfilled' && result.value.data) {
-                    allPilesData = [...allPilesData, ...result.value.data];
-                    console.log(`Page ${i + 1}: Loaded ${result.value.data.length} piles`);
-                  } else if (result.status === 'rejected') {
-                    console.error(`Page ${i + 1} failed:`, result.reason);
+                  // Execute all fetches in parallel
+                  console.log(`Fetching ${fetchPromises.length} pages in parallel...`);
+                  const results = await Promise.allSettled(fetchPromises);
+
+                  // Process results
+                  for (let i = 0; i < results.length; i++) {
+                    const result = results[i];
+                    if (result.status === 'fulfilled' && result.value.data) {
+                      allPilesData = [...allPilesData, ...result.value.data];
+                      console.log(`Page ${i + 1}: Loaded ${result.value.data.length} piles`);
+                    } else if (result.status === 'rejected') {
+                      console.error(`Page ${i + 1} failed:`, result.reason);
+                    }
                   }
+
+                  console.log(`Successfully loaded ${allPilesData.length} of ${totalCount} piles`);
                 }
-                
-                console.log(`Successfully loaded ${allPilesData.length} of ${totalCount} piles`);
               }
-              
-              console.log(`Refreshed a total of ${allPilesData.length} piles out of ${totalCount} total`);
-              
+            }
+          } // End of else (normal user flow)
+
+          console.log(`Refreshed a total of ${allPilesData.length} piles out of ${totalCount} total`);
+
+          // Continue with common processing if we have a project
+          if (project) {
+              // Get tolerance for status calculations
+              const projectTolerance = (project.embedment_tolerance !== undefined && project.embedment_tolerance !== null)
+                ? project.embedment_tolerance
+                : 1;
+
               // Deduplicate piles based on ID to prevent React key warnings
               const uniquePilesMap = new Map();
               let duplicateCount = 0;
@@ -475,18 +545,18 @@ export default function MyPilesPage() {
                   uniquePilesMap.set(pile.id, pile);
                 }
               }
-              
+
               if (duplicateCount > 0) {
                 console.warn(`Removed ${duplicateCount} duplicate piles from the data`);
               }
-              
+
               const uniquePiles = Array.from(uniquePilesMap.values());
-              
+
               if (uniquePiles.length > 0) {
                 setPiles(uniquePiles);
                 // Don't reset filtered piles directly here - let the useEffect do it
                 // to preserve filters like showDuplicatesOnly
-                
+
                 // Extract unique blocks
                 const blocks = Array.from(new Set(
                   uniquePiles
@@ -494,7 +564,7 @@ export default function MyPilesPage() {
                     .filter(block => block !== null && block !== "") as string[]
                 )).sort();
                 setUniqueBlocks(blocks);
-                
+
                 // Calculate status counts based on embedment criteria using the project tolerance
                 const accepted = uniquePiles.filter((pile: PileData) =>
                   getPileStatus(pile, projectTolerance) === 'accepted'
@@ -601,7 +671,6 @@ export default function MyPilesPage() {
                 console.error("Error loading pile lookup data:", error);
               }
             }
-          }
         } catch (error) {
           console.error("Error loading project data:", error);
           toast.error("Failed to load project data");
@@ -1961,6 +2030,31 @@ export default function MyPilesPage() {
 
         {/* My Piles content */}
         <main className="p-3">
+          {/* Admin Viewing Banner */}
+          {isAdminViewing && projectData && (
+            <div className="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <span className="text-sm text-amber-800 dark:text-amber-200">
+                  <strong>Admin View:</strong> Viewing <strong>{projectData.project_name}</strong> (Read-only)
+                </span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs border-amber-300 hover:bg-amber-100 dark:border-amber-700 dark:hover:bg-amber-900/30"
+                onClick={() => {
+                  localStorage.removeItem('selectedProjectId');
+                  setIsAdminViewing(false);
+                  window.location.reload();
+                }}
+              >
+                <X className="h-3 w-3 mr-1" />
+                Exit Admin View
+              </Button>
+            </div>
+          )}
+
           <div className="mb-3">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
@@ -1979,7 +2073,7 @@ export default function MyPilesPage() {
               </div>
               
               <div className="flex gap-2">
-                {selectedPiles.size > 0 && canEdit && (
+                {selectedPiles.size > 0 && canEdit && !isAdminViewing && (
                   <Button 
                     variant="destructive" 
                     size="sm" 

@@ -188,19 +188,30 @@ export default function AuthPage() {
       
       // Successfully logged in
       console.log("Login successful, checking if project setup is needed");
-      
+
+      // First check if user is a super admin
+      const { data: isSuperAdmin } = await supabase.rpc('is_current_user_super_admin');
+
+      if (isSuperAdmin) {
+        // Super admins bypass project onboarding - go directly to admin
+        console.log("Super admin detected, redirecting to admin");
+        localStorage.removeItem('needs_project_setup');
+        router.push("/admin");
+        return;
+      }
+
       // Check if user has completed project setup
       const { data: userProject, error: projectError } = await supabase
         .from('user_projects')
         .select('id')
         .eq('user_id', data.session.user.id)
         .maybeSingle();
-      
+
       if (projectError) {
         console.error("Error checking user project:", projectError);
         return;
       }
-      
+
       if (!userProject) {
         // New user who needs to complete project setup
         console.log("New user, redirecting to project setup");
@@ -402,9 +413,6 @@ export default function AuthPage() {
         <div className="relative z-10">
           <p className="text-sm text-slate-300">
             &copy; {new Date().getFullYear()} PileTrackerPro. All rights reserved.
-          </p>
-          <p className="text-xs text-slate-400 mt-2">
-            A BIRDSEYE Construction Solutions Product
           </p>
         </div>
       </div>
@@ -924,9 +932,6 @@ export default function AuthPage() {
           </p>
           <p className="mt-2">
             &copy; {new Date().getFullYear()} PileTrackerPro. All rights reserved.
-          </p>
-          <p className="text-xs text-slate-400 mt-1.5">
-            A BIRDSEYE Construction Solutions Product
           </p>
         </div>
       </div>
