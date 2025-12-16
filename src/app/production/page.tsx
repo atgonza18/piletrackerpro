@@ -4091,8 +4091,8 @@ function ProductionPageContent() {
                                 ))}
                               </tbody>
                               <tfoot className="bg-slate-100 dark:bg-slate-700 sticky bottom-0">
-                                <tr>
-                                  <td className="py-2 px-3 font-bold text-slate-700 dark:text-slate-200 sticky left-0 bg-slate-100 dark:bg-slate-700 z-20">
+                                <tr className="border-t border-slate-300 dark:border-slate-600">
+                                  <td className="py-1.5 px-3 font-medium text-slate-600 dark:text-slate-300 sticky left-0 bg-slate-100 dark:bg-slate-700 z-20 text-sm">
                                     Column Avg
                                   </td>
                                   {preliminaryMatrixData.periodAverages.map((avg, idx) => (
@@ -4100,11 +4100,33 @@ function ProductionPageContent() {
                                       {avg > 0 ? avg.toFixed(0) : '-'}
                                     </td>
                                   ))}
+                                  <td className="py-1.5 px-3 text-right text-slate-600 dark:text-slate-400 sticky right-0 bg-slate-100 dark:bg-slate-700 z-20">
+                                    -
+                                  </td>
+                                  <td className="py-1.5 px-3 text-right text-slate-600 dark:text-slate-400">
+                                    {preliminaryMatrixData.overallAverage.toFixed(1)}
+                                  </td>
+                                </tr>
+                                <tr className="border-t border-slate-300 dark:border-slate-600">
+                                  <td className="py-2 px-3 font-bold text-slate-700 dark:text-slate-200 sticky left-0 bg-slate-100 dark:bg-slate-700 z-20">
+                                    Column Total
+                                  </td>
+                                  {preliminaryMatrixData.columns.map((_, colIdx) => {
+                                    const colTotal = preliminaryMatrixData.machines.reduce((sum, m) => {
+                                      const val = m.values[colIdx];
+                                      return sum + (val !== null ? val : 0);
+                                    }, 0);
+                                    return (
+                                      <td key={colIdx} className="py-1.5 px-2 text-center text-xs font-semibold text-amber-600 dark:text-amber-400">
+                                        {colTotal > 0 ? colTotal : '-'}
+                                      </td>
+                                    );
+                                  })}
                                   <td className="py-2 px-3 text-right font-bold text-lg text-amber-600 sticky right-0 bg-slate-100 dark:bg-slate-700 z-20">
                                     {preliminaryMatrixData.machines.reduce((sum, m) => sum + m.total, 0)}
                                   </td>
                                   <td className="py-2 px-3 text-right text-slate-600 dark:text-slate-400">
-                                    {preliminaryMatrixData.overallAverage.toFixed(1)}
+                                    -
                                   </td>
                                 </tr>
                               </tfoot>
