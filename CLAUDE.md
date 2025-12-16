@@ -103,31 +103,11 @@ Key database functions:
 - `expire_old_invitations()` - Automatically marks expired invitations
 - `update_updated_at()` - Trigger function for automatic timestamp updates
 
-Database setup files:
-1. `db_setup.sql` - Main schema with RLS policies
-2. `db_migration_pile_columns.sql` - Column migrations
-3. `db_migration_embedment_tolerance.sql` - Tolerance fields
-4. `db_migration_invitations.sql` - Invitation system with token security
-5. `db_email_trigger.sql` - Email trigger system
-6. `db_performance_indexes.sql` - Performance optimization indexes
-7. `db_migration_pile_lookup_table.sql` - Pile lookup table migration
-8. `db_migration_zone_to_pile_type.sql` - Zone to pile type migration
-9. `db_migration_add_pile_location.sql` - Pile location field
-10. `db_migration_remove_pile_unique_constraint.sql` - Allow duplicate pile names
-11. `db_migration_combined_piles.sql` - Combined pile data migrations
-12. `db_migration_add_inspector_name.sql` - Inspector name field for field entry
-13. `db_migration_add_published_field.sql` - Publication workflow for data safeguarding
-14. `db_create_statistics_function.sql` - Statistics calculation function
-15. `db_fix_project_insert_policy.sql` - Project creation RLS fixes
-16. `db_fix_project_insert_policy_epc_only.sql` - Additional project creation fixes
-17. `db_final_project_creation_fix.sql` - Final project creation RLS policies
-18. `db_migration_super_admin_step*.sql` - Super admin system migrations (3 steps + rollback files)
-19. `db_migration_weather_system.sql` - Weather tracking system with location coordinates and caching
-20. `db_migration_weather_system_ROLLBACK.sql` - Rollback script for weather system
-21. `db_migration_preliminary_flag.sql` - Preliminary production data flag for piles (deprecated, use preliminary_production table instead)
-22. `db_migration_manual_entry_flag.sql` - Manual entry tracking flag for piles
-23. `db_migration_preliminary_production.sql` - Isolated preliminary production table for GPS/PD10 data
-24. `db_migration_preliminary_production_ROLLBACK.sql` - Rollback script for preliminary production table
+Database setup files (in root directory):
+- `db_setup.sql` - Main schema with RLS policies (run first)
+- `db_migration_*.sql` - Feature migrations (invitations, weather, super admin, etc.)
+- `db_*_ROLLBACK.sql` - Rollback scripts for safe migration reversal
+- Run migrations in Supabase SQL Editor in order; check file comments for dependencies
 
 **Important**: All tables use Row Level Security (RLS). Users can only access data for projects they're associated with via `user_projects` table.
 
@@ -191,6 +171,7 @@ The project includes Supabase MCP (Model Context Protocol) server configuration 
   1. `AuthProvider` - Manages user authentication state and Supabase session
   2. `AccountTypeProvider` - Tracks user account type/role
   3. `ThemeProvider` - Handles light/dark theme switching
+- Global UI components in layout: `LoadingIndicator` (page loading state), `NavigationEvents` (route change handling), `Toaster` (toast notifications via Sonner)
 - Authentication state is available throughout the app via `useAuth()` hook
 - All authenticated routes check for valid session before rendering
 
