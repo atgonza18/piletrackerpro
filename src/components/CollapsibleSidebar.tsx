@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, BarChart3, List, MapPin, Box, FileText, Settings, User, BookOpen, Activity, Shield, ChevronDown, Building2 } from "lucide-react";
+import { LogOut, BarChart3, List, MapPin, Box, FileText, Settings, User, BookOpen, Activity, Shield, ChevronDown, Building2, Map } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAccountType } from "@/context/AccountTypeContext";
 import { useAuth } from "@/context/AuthContext";
@@ -139,6 +139,7 @@ export function CollapsibleSidebar({ projectName = "PileTrackerPro", currentPage
     { name: 'Production', icon: Activity, href: '/production', active: currentPage === 'production' },
     { name: 'Pile Types', icon: MapPin, href: '/zones', active: currentPage === 'zones' },
     { name: 'Blocks', icon: Box, href: '/blocks', active: currentPage === 'blocks' },
+    { name: 'Heatmap', icon: Map, href: '/heatmap', active: currentPage === 'heatmap' },
     { name: 'Notes', icon: FileText, href: '/notes', active: currentPage === 'notes' },
     { name: 'SOP', icon: BookOpen, href: '/sop', active: currentPage === 'sop' },
   ];

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,7 +12,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { FileText, UploadCloud, X, AlertCircle, CheckCircle2, Info, ArrowRight } from "lucide-react";
+import { FileText, UploadCloud, X, AlertCircle, CheckCircle2, Info, ArrowRight, Download, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
@@ -24,7 +25,17 @@ interface CSVUploadModalProps {
   projectId: string;
 }
 
+// Type for upload report
+interface UploadReport {
+  validRows: number;
+  invalidRows: Array<{ row: string[], rowIndex: number, errors: string[] }>;
+  skippedDuplicates: Array<{ row: string[], rowIndex: number, pileNumber: string, embedment: number }>;
+  totalRows: number;
+  headers: string[];
+}
+
 export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalProps) {
+  const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -32,6 +43,11 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Upload report state
+  const [uploadReport, setUploadReport] = useState<UploadReport | null>(null);
+  const [showInvalidRowsExpanded, setShowInvalidRowsExpanded] = useState(false);
+  const [showDuplicatesExpanded, setShowDuplicatesExpanded] = useState(false);
 
   // Column mapping state
   const [showColumnMapping, setShowColumnMapping] = useState(false);
@@ -55,10 +71,15 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     pileSize: '',
     zone: '',
     notes: '',
+    description: '', // Description field that may contain pile type info
+    // Coordinate fields for heatmap
+    northing: '',
+    easting: '',
     // Fields that can be provided OR calculated
     embedment: '', // Can be calculated from Start Z - End Z
-    designEmbedment: '', // Can be looked up from pile_lookup_data
-    pileType: '', // Can be looked up from pile_lookup_data
+    designEmbedment: '', // Can be looked up from pile_lookup_data or provided directly
+    designZ: '', // Design Z elevation - design embedment = Start Z - Design Z
+    pileType: '', // Can be looked up from pile_lookup_data or parsed from description
     gainPer30: '' // Can be calculated from embedment and duration
   });
 
@@ -140,6 +161,9 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     setShowColumnMapping(false);
     setHeaders([]);
     setFileData([]);
+    setUploadReport(null);
+    setShowInvalidRowsExpanded(false);
+    setShowDuplicatesExpanded(false);
     setColumnMapping({
       pileNumber: '',
       startDate: '',
@@ -156,8 +180,12 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       pileSize: '',
       zone: '',
       notes: '',
+      description: '',
+      northing: '',
+      easting: '',
       embedment: '',
       designEmbedment: '',
+      designZ: '',
       pileType: '',
       gainPer30: ''
     });
@@ -209,15 +237,20 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
         machine: detectedHeaders[suggestColumnMapping(['machine', 'equipment', 'rig', 'machine id', 'machine_id'])] || '',
         // Optional fields
         endDate: detectedHeaders[suggestColumnMapping(['end date', 'end_date', 'enddate', 'finish date', 'completion date'])] || '',
-        block: detectedHeaders[suggestColumnMapping(['block', 'pile block'])] || '',
+        block: detectedHeaders[suggestColumnMapping(['block', 'pile block', 'folder'])] || '',
         pileLocation: detectedHeaders[suggestColumnMapping(['pile location', 'location', 'pile_location'])] || '',
         pileColor: detectedHeaders[suggestColumnMapping(['pile color', 'color', 'pile_color'])] || '',
         pileSize: detectedHeaders[suggestColumnMapping(['pile size', 'size', 'pile_size'])] || '',
         zone: detectedHeaders[suggestColumnMapping(['zone', 'area', 'section'])] || '',
         notes: detectedHeaders[suggestColumnMapping(['notes', 'comments', 'remarks'])] || '',
+        description: detectedHeaders[suggestColumnMapping(['description', 'desc', 'pile description', 'pile desc', 'pile info'])] || '',
+        // Coordinate fields for heatmap
+        northing: detectedHeaders[suggestColumnMapping(['northing', 'north', 'y coord', 'y_coord', 'y coordinate'])] || '',
+        easting: detectedHeaders[suggestColumnMapping(['easting', 'east', 'x coord', 'x_coord', 'x coordinate'])] || '',
         // Fields that can be provided OR calculated
         embedment: detectedHeaders[suggestColumnMapping(['embedment', 'actual embedment', 'final embedment'])] || '',
         designEmbedment: detectedHeaders[suggestColumnMapping(['design embedment', 'design_embedment', 'target embedment'])] || '',
+        designZ: detectedHeaders[suggestColumnMapping(['design z', 'design_z', 'designz', 'design z(feet)', 'design z (feet)', 'design elevation', 'target z', 'target elevation'])] || '',
         pileType: detectedHeaders[suggestColumnMapping(['pile type', 'pile_type', 'type', 'zone type'])] || '',
         gainPer30: detectedHeaders[suggestColumnMapping(['gain per 30', 'gain_per_30', 'gain/30', 'gain per 30 seconds'])] || ''
       };
@@ -291,28 +324,49 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       setUploadProgress(100);
       setUploadStatus('success');
 
-      // Enhanced success message with detailed results
+      // Store the upload report for detailed view
+      if (data) {
+        const report = {
+          validRows: data.validRows,
+          invalidRows: data.errorDetails || [],
+          skippedDuplicates: data.duplicateDetails || [],
+          totalRows: data.totalRows,
+          headers: headers
+        };
+
+        console.log('📊 Upload Report:', report);
+        console.log(`   Valid rows: ${report.validRows}`);
+        console.log(`   Invalid rows: ${report.invalidRows.length}`);
+        console.log(`   Duplicates: ${report.skippedDuplicates.length}`);
+        console.log(`   Total rows: ${report.totalRows}`);
+
+        setUploadReport(report);
+
+        // Auto-expand sections if there are issues to show
+        if (data.errorDetails && data.errorDetails.length > 0) {
+          setShowInvalidRowsExpanded(true);
+          console.log('Auto-expanding invalid rows section');
+        }
+        if (data.duplicateDetails && data.duplicateDetails.length > 0) {
+          setShowDuplicatesExpanded(true);
+          console.log('Auto-expanding duplicates section');
+        }
+      }
+
+      // Show success toast
       const messages: string[] = [];
-
       if (data?.validRows) {
-        messages.push(`✅ Successfully uploaded ${data.validRows} pile(s)`);
+        messages.push(`${data.validRows} pile(s) uploaded`);
       }
-
       if (data?.skippedDuplicates && data.skippedDuplicates > 0) {
-        messages.push(`⏭️ Skipped ${data.skippedDuplicates} duplicate(s)`);
+        messages.push(`${data.skippedDuplicates} duplicate(s) detected`);
       }
-
       if (data?.invalidRows && data.invalidRows > 0) {
-        messages.push(`⚠️ Skipped ${data.invalidRows} invalid row(s)`);
+        messages.push(`${data.invalidRows} invalid row(s) skipped`);
       }
-
       toast.success(messages.join(' • '));
 
-      // Close the modal after a delay to show success state
-      setTimeout(() => {
-        onClose();
-        handleRemoveFile();
-      }, 2000);
+      // Don't auto-close - let user review the report
 
     } catch (error) {
       console.error("Error uploading CSV:", error);
@@ -562,9 +616,14 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       pile_size: isSelected(userMapping.pileSize) ? header.indexOf(userMapping.pileSize) : -1,
       zone: isSelected(userMapping.zone) ? header.indexOf(userMapping.zone) : -1,
       notes: isSelected(userMapping.notes) ? header.indexOf(userMapping.notes) : -1,
+      description: isSelected(userMapping.description) ? header.indexOf(userMapping.description) : -1,
+      // Coordinate fields for heatmap
+      northing: isSelected(userMapping.northing) ? header.indexOf(userMapping.northing) : -1,
+      easting: isSelected(userMapping.easting) ? header.indexOf(userMapping.easting) : -1,
       // Fields that can be provided OR calculated
       embedment: isSelected(userMapping.embedment) ? header.indexOf(userMapping.embedment) : -1,
       design_embedment: isSelected(userMapping.designEmbedment) ? header.indexOf(userMapping.designEmbedment) : -1,
+      design_z: isSelected(userMapping.designZ) ? header.indexOf(userMapping.designZ) : -1,
       pile_type: isSelected(userMapping.pileType) ? header.indexOf(userMapping.pileType) : -1,
       gain_per_30_seconds: isSelected(userMapping.gainPer30) ? header.indexOf(userMapping.gainPer30) : -1
     };
@@ -622,31 +681,30 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       const validation = validateRow(row, index + 2, columnMapping, new Set(), new Set(), pileLookupMaps, pileIdPattern, blockPattern, pileTypeSourcePreference); // +2 because CSV is 1-indexed and we skip header
 
       if (validation.isValid && validation.pileData) {
-        // Check if this pile_number + embedment combination already exists
+        // Track duplicates for info purposes, but still upload them
+        // User can manage duplicates via My Piles page (view, delete, combine)
         const pileNumber = validation.pileData.pile_number;
         const embedment = validation.pileData.embedment;
 
         if (pileNumber && embedment !== null && existingPileMap.has(pileNumber)) {
           const existingEmbedments = existingPileMap.get(pileNumber)!;
-          // Check if any existing embedment matches (with small tolerance for floating point)
           const isDuplicate = existingEmbedments.some(existing =>
             Math.abs(existing - embedment) < 0.001
           );
 
           if (isDuplicate) {
-            // Skip this row - it's a duplicate
+            // Track for reporting, but still upload
             skippedDuplicates.push({
               row,
               rowIndex: index + 2,
               pileNumber,
               embedment
             });
-            console.log(`⏭️ Skipping duplicate: ${pileNumber} with embedment ${embedment}ft`);
-            return; // Skip to next row
+            console.log(`📋 Duplicate detected (will upload): ${pileNumber} with embedment ${embedment}ft`);
           }
         }
 
-        // Not a duplicate, add to valid rows
+        // Add ALL valid rows - duplicates will be uploaded and can be managed in My Piles
         validRows.push(validation.pileData);
         // Track if pile type was successfully looked up
         if (validation.pileData.pile_type) {
@@ -670,15 +728,18 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     console.log(`   Total valid rows: ${validRows.length}`);
     console.log(`   ⏭️ Skipped duplicates: ${skippedDuplicates.length}`);
 
-    // Show duplicate skip results
+    // Show duplicate detection results (duplicates are now uploaded, not skipped)
     if (skippedDuplicates.length > 0) {
-      console.log(`⏭️ Skipped ${skippedDuplicates.length} duplicate rows with matching embedment:`, skippedDuplicates);
-      toast.info(`ℹ️ Skipped ${skippedDuplicates.length} duplicate(s) - same pile number + embedment already exists`);
+      console.log(`📋 Detected ${skippedDuplicates.length} duplicate rows (uploaded for review):`, skippedDuplicates);
+      toast.info(`ℹ️ ${skippedDuplicates.length} duplicate(s) detected - manage them in My Piles`);
     }
 
     // Show validation results
     if (invalidRows.length > 0) {
-      console.warn(`⚠️ Skipping ${invalidRows.length} invalid rows:`, invalidRows);
+      console.warn(`⚠️ Skipping ${invalidRows.length} invalid rows`);
+
+      // Log first 10 invalid rows for debugging
+      console.warn('First 10 invalid rows:', invalidRows.slice(0, 10));
 
       // Group errors by type for better user feedback
       const errorSummary = invalidRows.reduce((acc, invalidRow) => {
@@ -689,11 +750,13 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
         return acc;
       }, {} as Record<string, number>);
 
+      console.warn('Error summary:', errorSummary);
+
       const errorMessages = Object.entries(errorSummary)
         .map(([error, count]) => `${error} (${count} rows)`)
         .join(', ');
 
-      toast.warning(`⚠️ Skipped ${invalidRows.length} invalid rows: ${errorMessages}`);
+      toast.warning(`⚠️ Skipped ${invalidRows.length} invalid rows: ${errorMessages}`, { duration: 10000 });
     }
 
     if (validRows.length === 0) {
@@ -728,7 +791,8 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
         invalidRows: invalidRows.length,
         skippedDuplicates: skippedDuplicates.length,
         totalRows: rows.length,
-        errorDetails: invalidRows
+        errorDetails: invalidRows,
+        duplicateDetails: skippedDuplicates
       },
       error: null
     };
@@ -794,7 +858,22 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
     // Read base numeric fields from GPS CSV
     const startZ = getNumericValue('start_z');
     const endZ = getNumericValue('end_z');
-    const machine = getNumericValue('machine');
+    // Machine can be text (e.g., "PD25R 0218", "Unknown") or numeric
+    const machine = getColumnValue('machine');
+
+    // ========== VALIDATION FOR CORRUPTED DATA ==========
+    // Reject rows with obviously corrupted elevation values
+    // Typical elevations are between -1000 and 10000 feet
+    const MIN_REASONABLE_ELEVATION = -1000;
+    const MAX_REASONABLE_ELEVATION = 10000;
+
+    if (startZ !== null && (startZ < MIN_REASONABLE_ELEVATION || startZ > MAX_REASONABLE_ELEVATION)) {
+      errors.push(`Corrupted Start Z value: ${startZ} (expected between ${MIN_REASONABLE_ELEVATION} and ${MAX_REASONABLE_ELEVATION})`);
+    }
+
+    if (endZ !== null && (endZ < MIN_REASONABLE_ELEVATION || endZ > MAX_REASONABLE_ELEVATION)) {
+      errors.push(`Corrupted End Z value: ${endZ} (expected between ${MIN_REASONABLE_ELEVATION} and ${MAX_REASONABLE_ELEVATION})`);
+    }
 
     // ========== FORMULA CALCULATIONS ==========
 
@@ -827,18 +906,59 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       gainPer30 = embedmentInches / (durationSeconds / 30);
     }
 
-    // 5. Lookup Pile Type and Design Embedment from pile lookup data
-    let pileType: string | null = null;
+    // 5. Calculate Design Embedment from Design Z if available
+    // Design Embedment = Start Z - Design Z (how far the pile should be driven)
     let designEmbedment = getNumericValue('design_embedment'); // Try to get from CSV first
+    const designZ = getNumericValue('design_z');
+
+    if (designEmbedment === null && designZ !== null && startZ !== null) {
+      designEmbedment = startZ - designZ;
+      if (rowIndex <= 5) {
+        console.log(`📐 Calculated design embedment for row ${rowIndex}: Start Z (${startZ}) - Design Z (${designZ}) = ${designEmbedment.toFixed(2)} ft`);
+      }
+    }
+
+    // 6. Lookup Pile Type and Design Embedment from pile lookup data (if not already calculated)
+    let pileType: string | null = null;
+    let pileSize: string | null = getColumnValue('pile_size');
+    let pileColor: string | null = getColumnValue('pile_color');
     let matchedVia = null; // Track how we matched for debugging
+
+    // Parse pile type, size, color from Description field if available
+    // Format examples: "W6x15_PURPLE_17_1", "W6x12_WHITE_13_2", "W6x8.5_PINK_13_2"
+    const descriptionValue = getColumnValue('description');
+    if (descriptionValue) {
+      // Try to parse the description format: SIZE_COLOR_XX_X
+      const descParts = descriptionValue.split('_');
+      if (descParts.length >= 2) {
+        // First part is usually the pile size (e.g., "W6x15", "W6x12", "W6x8.5")
+        if (!pileSize && descParts[0]) {
+          pileSize = descParts[0];
+        }
+        // Second part is usually the color (e.g., "PURPLE", "WHITE", "PINK")
+        if (!pileColor && descParts[1]) {
+          pileColor = descParts[1];
+        }
+        // Use the full description as pile type if we don't have one
+        if (!pileType) {
+          pileType = descriptionValue;
+        }
+      }
+      if (rowIndex <= 5) {
+        console.log(`📝 Parsed description "${descriptionValue}": size=${pileSize}, color=${pileColor}`);
+      }
+    }
 
     // Handle pile type based on user preference
     if (pileTypeSourcePreference === 'csv') {
       // User wants pile type from CSV column
-      pileType = getColumnValue('pile_type');
+      const csvPileType = getColumnValue('pile_type');
+      if (csvPileType) {
+        pileType = csvPileType;
+      }
     } else {
-      // User wants pile type from pile plot plan (lookup)
-      pileType = null; // Start with null, will be filled by lookup
+      // User wants pile type from pile plot plan (lookup) - will be filled below
+      pileType = null;
     }
 
     if (pileIdValue) {
@@ -876,7 +996,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
         if (pileTypeSourcePreference === 'lookup' && !pileType && lookupData.pile_type) {
           pileType = lookupData.pile_type;
         }
-        // Always use lookup for design embedment if not provided in CSV
+        // Use lookup for design embedment if not already calculated from Design Z or provided in CSV
         if (designEmbedment === null && lookupData.design_embedment !== null) {
           designEmbedment = lookupData.design_embedment;
         }
@@ -887,7 +1007,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       }
     }
 
-    // 6. Calculate Embedment w/ Tolerance = Design Embedment - 1
+    // 7. Calculate Embedment w/ Tolerance = Design Embedment - 1
     const embedmentWithTolerance = designEmbedment !== null ? designEmbedment - 1 : null;
 
     // 7. Calculate Embedment Difference = Embedment w/ Tolerance - Embedment (feet)
@@ -1034,24 +1154,27 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
       project_id: projectId,
       pile_number: pileNumber,
       block: extractedBlock || getColumnValue('block'), // Use extracted block or direct column
-      design_embedment: designEmbedment, // From lookup or CSV
+      design_z: designZ, // Raw Design Z elevation from CSV (fixed design value)
+      design_embedment: designEmbedment, // From Design Z calc, lookup, or CSV
       duration: duration, // Original duration string
       embedment: embedment, // Calculated or from CSV
       end_z: endZ,
       gain_per_30_seconds: gainPer30, // Calculated or from CSV
       machine: machine,
-      pile_color: getColumnValue('pile_color'),
+      pile_color: pileColor, // From CSV column or parsed from description
       pile_id: pileIdValue,
       pile_location: getColumnValue('pile_location'),
-      pile_size: getColumnValue('pile_size'),
-      pile_type: pileType, // From lookup or CSV
+      pile_size: pileSize, // From CSV column or parsed from description
+      pile_type: pileType, // From lookup, CSV, or parsed from description
       start_date: startDate,
       start_time: startTime,
       start_z: startZ,
       stop_time: stopTime,
       notes: getColumnValue('notes'),
       pile_status: 'N/A', // Default status for all imported piles
-      published: false // New piles start as unpublished
+      published: false, // New piles start as unpublished
+      northing: getNumericValue('northing'), // State Plane Y coordinate
+      easting: getNumericValue('easting'), // State Plane X coordinate
       // Note: 'zone' column is excluded - it was replaced by 'pile_type' in the schema
     };
 
@@ -1142,8 +1265,31 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md border-none shadow-xl rounded-xl max-h-[90vh] flex flex-col">
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        // Prevent closing by clicking outside when showing report - user must click "Done" button
+        if (!open && uploadStatus === 'success' && uploadReport) {
+          return; // Don't close
+        }
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent
+        className="sm:max-w-lg border-none shadow-xl rounded-xl max-h-[90vh] flex flex-col"
+        onPointerDownOutside={(e) => {
+          // Prevent closing when clicking outside if showing report
+          if (uploadStatus === 'success' && uploadReport) {
+            e.preventDefault();
+          }
+        }}
+        onEscapeKeyDown={(e) => {
+          // Prevent closing with Escape if showing report
+          if (uploadStatus === 'success' && uploadReport) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader className="space-y-3 flex-shrink-0">
           <DialogTitle className="text-xl font-semibold">Upload CSV Data</DialogTitle>
           <DialogDescription className="text-slate-500">
@@ -1417,6 +1563,54 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                     <p className="text-xs text-slate-500">Actual Embedment will be calculated as: Start Z - End Z</p>
                   </div>
 
+                  {/* Coordinate Fields for Heatmap */}
+                  <details className="group" open>
+                    <summary className="cursor-pointer text-sm font-medium text-slate-600 hover:text-slate-800 flex items-center gap-2">
+                      <span className="group-open:rotate-90 transition-transform">▶</span>
+                      Coordinate Fields (for Heatmap)
+                    </summary>
+                    <div className="mt-3 space-y-3 pl-4 border-l-2 border-blue-200">
+                      {/* Northing */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700">Northing (Y Coordinate)</label>
+                        <Select
+                          value={columnMapping.northing}
+                          onValueChange={(value) => setColumnMapping(prev => ({ ...prev, northing: value }))}
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue placeholder="Select column for Northing" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">-- None --</SelectItem>
+                            {headers.map((header, index) => (
+                              <SelectItem key={`northing-${index}`} value={header}>{header}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Easting */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700">Easting (X Coordinate)</label>
+                        <Select
+                          value={columnMapping.easting}
+                          onValueChange={(value) => setColumnMapping(prev => ({ ...prev, easting: value }))}
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue placeholder="Select column for Easting" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">-- None --</SelectItem>
+                            {headers.map((header, index) => (
+                              <SelectItem key={`easting-${index}`} value={header}>{header}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <p className="text-xs text-slate-500">State Plane coordinates in feet. Required for heatmap visualization.</p>
+                    </div>
+                  </details>
+
                   {/* Optional Fields Collapsible */}
                   <details className="group">
                     <summary className="cursor-pointer text-sm font-medium text-slate-600 hover:text-slate-800 flex items-center gap-2">
@@ -1678,7 +1872,53 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                             ))}
                           </SelectContent>
                         </Select>
-                        <p className="text-xs text-slate-500">If not selected, will be looked up from pile_lookup_data table</p>
+                        <p className="text-xs text-slate-500">If not selected, will be calculated from Design Z or looked up from pile_lookup_data</p>
+                      </div>
+
+                      {/* Design Z (for calculating design embedment) */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                          Design Z (Target Tip Elevation)
+                          <span className="text-xs text-green-600 font-normal">(Design Embedment = Start Z - Design Z)</span>
+                        </label>
+                        <Select
+                          value={columnMapping.designZ}
+                          onValueChange={(value) => setColumnMapping(prev => ({ ...prev, designZ: value }))}
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue placeholder="Select Design Z column (optional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">-- None --</SelectItem>
+                            {headers.map((header, index) => (
+                              <SelectItem key={`designz-${index}`} value={header}>{header}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-slate-500">If your CSV has Design Z (target tip elevation), design embedment will be calculated as Start Z - Design Z</p>
+                      </div>
+
+                      {/* Description (for parsing pile type/size/color) */}
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700 flex items-center gap-2">
+                          Description
+                          <span className="text-xs text-blue-600 font-normal">(Parses: Size_Color e.g., "W6x15_PURPLE")</span>
+                        </label>
+                        <Select
+                          value={columnMapping.description}
+                          onValueChange={(value) => setColumnMapping(prev => ({ ...prev, description: value }))}
+                        >
+                          <SelectTrigger className="bg-white">
+                            <SelectValue placeholder="Select Description column (optional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">-- None --</SelectItem>
+                            {headers.map((header, index) => (
+                              <SelectItem key={`description-${index}`} value={header}>{header}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-slate-500">If mapped, pile size and color will be parsed from description (e.g., "W6x15_PURPLE_17_1" → size: W6x15, color: PURPLE)</p>
                       </div>
 
                       {/* Pile Type Source Selection */}
@@ -1777,8 +2017,9 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                       <li>• <strong>Actual Embedment (ft):</strong> Start Z - End Z</li>
                       <li>• <strong>Embedment (inches):</strong> Embedment × 12</li>
                       <li>• <strong>Gain/30 seconds:</strong> Embedment (in) / (Duration (seconds) / 30)</li>
-                      <li>• <strong>Pile Type:</strong> {pileTypeSource === 'csv' ? 'From GPS CSV column' : 'Looked up from pile_lookup_data by Pile ID'}</li>
-                      <li>• <strong>Design Embedment:</strong> Looked up from pile_lookup_data by Pile ID</li>
+                      <li>• <strong>Pile Type:</strong> {pileTypeSource === 'csv' ? 'From GPS CSV column or Description' : 'Looked up from pile_lookup_data by Pile ID'}</li>
+                      <li>• <strong>Design Embedment:</strong> Start Z - Design Z (if Design Z mapped), or looked up from pile_lookup_data</li>
+                      <li>• <strong>Pile Size/Color:</strong> Parsed from Description field (e.g., "W6x15_PURPLE_17_1" → size: W6x15, color: PURPLE)</li>
                       <li>• <strong>Block:</strong> Auto-extracted from Pile Number (e.g., "A1" from "A1.005.03")</li>
                       <li>• <strong>Embedment w/ Tolerance:</strong> Design Embedment - 1</li>
                       <li>• <strong>Embedment Difference:</strong> Embedment w/ Tolerance - Actual Embedment</li>
@@ -1814,16 +2055,252 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                 </div>
               </motion.div>
             ) : uploadStatus === 'success' ? (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="bg-green-50 border border-green-100 rounded-lg p-4 flex items-start gap-3"
+                className="space-y-4"
               >
-                <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-green-700">
-                  <p className="font-medium">Upload Successful</p>
-                  <p>Your CSV data has been successfully uploaded and processed.</p>
+                {/* Success Summary - or Warning if many invalid rows */}
+                {uploadReport && uploadReport.invalidRows.length > (uploadReport.totalRows * 0.1) ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-amber-700 flex-1">
+                      <p className="font-medium">Upload Completed with Issues</p>
+                      <p className="text-amber-600">
+                        {uploadReport?.validRows || 0} of {uploadReport?.totalRows || 0} rows were uploaded.
+                        {uploadReport.invalidRows.length > 0 && ` ${uploadReport.invalidRows.length} rows had errors and were skipped.`}
+                      </p>
+                      <p className="text-amber-600 text-xs mt-1">
+                        Review the details below and download the failed rows CSV to fix the issues.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-green-50 border border-green-100 rounded-lg p-4 flex items-start gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-green-700 flex-1">
+                      <p className="font-medium">Upload Successful</p>
+                      <p className="text-green-600">
+                        {uploadReport?.validRows || 0} of {uploadReport?.totalRows || 0} rows uploaded successfully
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Stats Summary */}
+                {uploadReport && (
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
+                      <p className="text-2xl font-bold text-green-600">{uploadReport.validRows}</p>
+                      <p className="text-xs text-slate-600">Uploaded</p>
+                    </div>
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
+                      <p className="text-2xl font-bold text-amber-600">{uploadReport.skippedDuplicates.length}</p>
+                      <p className="text-xs text-slate-600">Duplicates</p>
+                    </div>
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-center">
+                      <p className="text-2xl font-bold text-red-600">{uploadReport.invalidRows.length}</p>
+                      <p className="text-xs text-slate-600">Invalid</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Invalid Rows Details */}
+                {uploadReport && uploadReport.invalidRows.length > 0 && (
+                  <div className="border border-red-200 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setShowInvalidRowsExpanded(!showInvalidRowsExpanded)}
+                      className="w-full bg-red-50 px-4 py-3 flex items-center justify-between text-left hover:bg-red-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-500" />
+                        <span className="text-sm font-medium text-red-700">
+                          {uploadReport.invalidRows.length} Invalid Row{uploadReport.invalidRows.length !== 1 ? 's' : ''} - Click to view details
+                        </span>
+                      </div>
+                      {showInvalidRowsExpanded ? (
+                        <ChevronUp className="w-4 h-4 text-red-500" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-red-500" />
+                      )}
+                    </button>
+                    {showInvalidRowsExpanded && (
+                      <div className="max-h-64 overflow-y-auto bg-white">
+                        <table className="w-full text-xs">
+                          <thead className="bg-red-50 sticky top-0">
+                            <tr>
+                              <th className="px-3 py-2 text-left text-red-700 font-medium">Row</th>
+                              <th className="px-3 py-2 text-left text-red-700 font-medium">Error(s)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-red-100">
+                            {uploadReport.invalidRows.map((item, idx) => (
+                              <tr key={idx} className="hover:bg-red-50/50">
+                                <td className="px-3 py-2 text-slate-600 font-mono">{item.rowIndex}</td>
+                                <td className="px-3 py-2 text-red-600">
+                                  {item.errors.map((err, errIdx) => (
+                                    <div key={errIdx}>{err}</div>
+                                  ))}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Detected Duplicates Details - these were uploaded for user to manage */}
+                {uploadReport && uploadReport.skippedDuplicates.length > 0 && (
+                  <div className="border border-amber-200 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setShowDuplicatesExpanded(!showDuplicatesExpanded)}
+                      className="w-full bg-amber-50 px-4 py-3 flex items-center justify-between text-left hover:bg-amber-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Info className="w-4 h-4 text-amber-500" />
+                        <span className="text-sm font-medium text-amber-700">
+                          {uploadReport.skippedDuplicates.length} Duplicate{uploadReport.skippedDuplicates.length !== 1 ? 's' : ''} Detected (Uploaded)
+                        </span>
+                      </div>
+                      {showDuplicatesExpanded ? (
+                        <ChevronUp className="w-4 h-4 text-amber-500" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4 text-amber-500" />
+                      )}
+                    </button>
+                    {showDuplicatesExpanded && (
+                      <div className="bg-white">
+                        <div className="px-3 py-2 bg-amber-50/50 border-b border-amber-100 text-xs text-amber-600">
+                          These piles already exist in the database. They were uploaded so you can review and manage them in My Piles (delete or combine).
+                        </div>
+                        <div className="max-h-64 overflow-y-auto">
+                          <table className="w-full text-xs">
+                            <thead className="bg-amber-50 sticky top-0">
+                              <tr>
+                                <th className="px-3 py-2 text-left text-amber-700 font-medium">Row</th>
+                                <th className="px-3 py-2 text-left text-amber-700 font-medium">Pile Number</th>
+                                <th className="px-3 py-2 text-left text-amber-700 font-medium">Embedment</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-amber-100">
+                              {uploadReport.skippedDuplicates.map((item, idx) => (
+                                <tr key={idx} className="hover:bg-amber-50/50">
+                                  <td className="px-3 py-2 text-slate-600 font-mono">{item.rowIndex}</td>
+                                  <td className="px-3 py-2 text-slate-700 font-medium">{item.pileNumber}</td>
+                                  <td className="px-3 py-2 text-slate-600">{item.embedment.toFixed(2)} ft</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex flex-col gap-2 pt-2">
+                  {/* Always show download button for full report */}
+                  {uploadReport && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => {
+                        // Download full upload report as CSV
+                        const lines: string[] = [];
+
+                        // Summary header
+                        lines.push('UPLOAD REPORT SUMMARY');
+                        lines.push(`Total Rows in File,${uploadReport.totalRows}`);
+                        lines.push(`Successfully Uploaded,${uploadReport.validRows}`);
+                        lines.push(`Invalid/Skipped,${uploadReport.invalidRows.length}`);
+                        lines.push(`Duplicates Detected,${uploadReport.skippedDuplicates.length}`);
+                        lines.push('');
+
+                        // Invalid rows section
+                        if (uploadReport.invalidRows.length > 0) {
+                          lines.push('INVALID ROWS (Not Uploaded)');
+                          lines.push(['Row Number', 'Errors', ...uploadReport.headers].join(','));
+                          uploadReport.invalidRows.forEach(item => {
+                            lines.push([
+                              item.rowIndex,
+                              `"${item.errors.join('; ')}"`,
+                              ...item.row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`)
+                            ].join(','));
+                          });
+                          lines.push('');
+                        }
+
+                        // Duplicates section
+                        if (uploadReport.skippedDuplicates.length > 0) {
+                          lines.push('DUPLICATES DETECTED (Were Uploaded - Manage in My Piles)');
+                          lines.push('Row Number,Pile Number,Embedment');
+                          uploadReport.skippedDuplicates.forEach(item => {
+                            lines.push(`${item.rowIndex},"${item.pileNumber}",${item.embedment.toFixed(2)}`);
+                          });
+                        }
+
+                        const csvContent = lines.join('\n');
+                        const blob = new Blob([csvContent], { type: 'text/csv' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `upload-report-${new Date().toISOString().split('T')[0]}.csv`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        toast.success('Full upload report exported to CSV');
+                      }}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download Full Upload Report (CSV)
+                    </Button>
+                  )}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    {uploadReport && uploadReport.invalidRows.length > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          // Download only invalid rows as CSV
+                          const csvContent = [
+                            ['Row Number', 'Errors', ...uploadReport.headers].join(','),
+                            ...uploadReport.invalidRows.map(item =>
+                              [item.rowIndex, `"${item.errors.join('; ')}"`, ...item.row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`)].join(',')
+                            )
+                          ].join('\n');
+                          const blob = new Blob([csvContent], { type: 'text/csv' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `failed-rows-${new Date().toISOString().split('T')[0]}.csv`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                          toast.success('Failed rows exported to CSV');
+                        }}
+                        className="flex-1 text-red-600 border-red-200 hover:bg-red-50"
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Download Failed Rows Only
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        onClose();
+                        handleRemoveFile();
+                        router.push('/my-piles?filter=duplicates');
+                      }}
+                      className="flex-1 text-amber-600 border-amber-200 hover:bg-amber-50"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      View Duplicates in My Piles
+                    </Button>
+                  </div>
                 </div>
               </motion.div>
             ) : (
@@ -1918,18 +2395,20 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
               </motion.div>
             )}
           </AnimatePresence>
-          
-          <div className="mt-4 flex gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-amber-800">
-              <p className="font-medium">Important: Column headers must be in the first row</p>
-              <p className="text-amber-700 text-xs">
-                Remove any title rows or metadata above your column headers before uploading.
-              </p>
-            </div>
-          </div>
 
-          <div className="mt-4 flex gap-3 p-4 bg-slate-100 rounded-lg">
+          {uploadStatus !== 'success' && (
+            <>
+              <div className="mt-4 flex gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-amber-800">
+                  <p className="font-medium">Important: Column headers must be in the first row</p>
+                  <p className="text-amber-700 text-xs">
+                    Remove any title rows or metadata above your column headers before uploading.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 flex gap-3 p-4 bg-slate-100 rounded-lg">
             <Info className="w-5 h-5 text-slate-500 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-slate-700">
               <p className="font-medium mb-1">Format Requirements</p>
@@ -1970,10 +2449,22 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
               </div>
             </div>
           </div>
+            </>
+          )}
         </div>
 
         <DialogFooter className="flex gap-3 sm:gap-3 pt-2 flex-shrink-0">
-          {showColumnMapping ? (
+          {uploadStatus === 'success' ? (
+            <Button
+              onClick={() => {
+                onClose();
+                handleRemoveFile();
+              }}
+              className="flex-1 sm:flex-none"
+            >
+              Done
+            </Button>
+          ) : showColumnMapping ? (
             <>
               <Button
                 variant="outline"
@@ -1997,8 +2488,7 @@ export function CSVUploadModal({ isOpen, onClose, projectId }: CSVUploadModalPro
                   !columnMapping.duration ||
                   !columnMapping.startZ ||
                   !columnMapping.endZ ||
-                  isUploading ||
-                  uploadStatus === 'success'
+                  isUploading
                 }
                 className={cn("flex-1 sm:flex-none", isUploading ? "opacity-80" : "")}
               >

@@ -763,30 +763,6 @@ export default function BlocksPage() {
                   />
                 </div>
 
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="h-10 w-full sm:w-[180px] bg-white dark:bg-slate-800">
-                    <SelectValue placeholder="Sort by" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="name">Block Name</SelectItem>
-                    <SelectItem value="totalPiles">Total Piles</SelectItem>
-                    <SelectItem value="refusalPercent">Refusal %</SelectItem>
-                    <SelectItem value="tolerancePercent">Tolerance %</SelectItem>
-                    <SelectItem value="driveTimePercent">Slow Drive Time %</SelectItem>
-                    <SelectItem value="averageDriveTime">Avg. Drive Time</SelectItem>
-                    <SelectItem value="averageEmbedment">Avg. Embedment</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-                  className="h-10 px-3 bg-white dark:bg-slate-800"
-                >
-                  {sortOrder === "asc" ? "↑" : "↓"}
-                </Button>
-
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="h-10 gap-1.5 bg-white dark:bg-slate-800">
@@ -946,9 +922,6 @@ export default function BlocksPage() {
                           {block.totalPiles} piles
                         </div>
                       </div>
-                      <CardDescription>
-                        Design Embedment: {block.designEmbedment ? `${formatNumber(block.designEmbedment)} ft` : "N/A"}
-                      </CardDescription>
                     </CardHeader>
 
                     <CardContent className="pt-4">

@@ -20,16 +20,15 @@ npm run lint         # Run ESLint checks
 ## Architecture
 
 ### Tech Stack
-- **Next.js 15.3.3** with App Router and experimental typed routes
+- **Next.js 15** with App Router and typed routes
 - **React 19** with TypeScript 5
 - **Supabase** for backend (database, auth, real-time, edge functions)
 - **Tailwind CSS 4** with custom theme
-- **shadcn/ui** components (New York style)
+- **shadcn/ui** components (New York style, Lucide icons)
 - **React Hook Form + Zod** for forms and validation
-- **Framer Motion** for animations
+- **Mapbox GL + deck.gl** for heatmap visualization
 - **Recharts** for data visualization
-- **jsPDF + jsPDF-AutoTable** for PDF export
-- **XLSX** for Excel export
+- **jsPDF + ExcelJS/XLSX** for PDF and Excel export
 
 **TypeScript Configuration**: Path alias `@/*` maps to `./src/*` (e.g., `import { supabase } from '@/lib/supabase'`).
 
@@ -37,46 +36,29 @@ npm run lint         # Run ESLint checks
 ```
 src/
 ├── app/                    # Next.js App Router pages
-│   ├── admin/             # Super admin dashboard (requires super_admin privileges)
+│   ├── admin/             # Super admin dashboard
 │   ├── api/admin/         # Admin API routes (protected, server-side)
-│   ├── auth/              # Authentication pages (login, signup, forgot-password)
+│   ├── auth/              # Authentication pages
 │   ├── blocks/            # Block management
 │   ├── dashboard/         # Main dashboard
-│   ├── field-entry/       # Mobile-optimized field data entry form
+│   ├── field-entry/       # Mobile-optimized field data entry
+│   ├── heatmap/           # Pile heatmap visualization
 │   ├── my-piles/          # Pile management
-│   ├── notes/             # Project notes
-│   ├── production/        # Production tracking and reporting
-│   ├── project-setup/     # New project creation
+│   ├── production/        # Production tracking (actual & preliminary tabs)
 │   ├── settings/          # User/project settings
-│   ├── sop/               # Standard Operating Procedure guide
-│   ├── zones/             # Pile type analysis (formerly zones)
-│   ├── icon.tsx           # App favicon (edge runtime)
-│   ├── layout.tsx         # Root layout with provider wrapping
-│   └── page.tsx           # Landing/home page
+│   ├── zones/             # Pile type analysis
+│   └── layout.tsx         # Root layout with provider wrapping
 ├── components/            # Shared components
 │   ├── ui/               # shadcn/ui components
-│   ├── CollapsibleSidebar.tsx      # Collapsible sidebar with hover expansion
-│   ├── CSVUploadModal.tsx          # Pile data CSV import
-│   ├── DeleteAllPilesButton.tsx    # Bulk delete functionality
-│   ├── EditPileModal.tsx           # Edit existing pile
-│   ├── FieldEntryQRCode.tsx        # QR code for mobile field entry
-│   ├── ManualPileModal.tsx         # Manual pile entry
-│   ├── NavigationProgress.tsx      # Page navigation indicator
-│   ├── PileLookupUploadModal.tsx   # Pile plot plan import
-│   ├── PreliminaryProductionUploadModal.tsx  # Preliminary production data import
-│   ├── ProjectSelector.tsx         # Project switching dropdown
-│   └── WeatherWidget.tsx           # Weather display component
+│   └── ...               # Feature components (CSV upload, modals, etc.)
 ├── context/              # React Context providers
 │   ├── AuthContext.tsx        # User authentication state
-│   ├── ThemeContext.tsx       # Light/dark theme switching
+│   ├── ThemeContext.tsx       # Light/dark theme
 │   └── AccountTypeContext.tsx # User role/permissions
 └── lib/                  # Utility libraries
-    ├── supabase.ts       # Supabase client
-    ├── adminService.ts   # Admin API client
-    ├── emailService.ts   # Email service abstraction
-    ├── pdfExport.ts      # PDF export utilities
-    ├── weatherService.ts # Weather API integration
-    └── utils.ts          # Helper utilities
+    ├── supabase.ts            # Supabase client
+    ├── coordinateService.ts   # Coordinate system transformations
+    └── ...                    # Services (admin, email, weather, PDF export)
 ```
 
 ### Database Schema
@@ -117,7 +99,6 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 ### Authentication & Authorization
 - Supabase Auth with email/password; forgot password at `/auth/forgot-password`
-- Context providers wrap app in `src/app/layout.tsx`: `AuthProvider` → `AccountTypeProvider` → `ThemeProvider`
 - Use `useAuth()` hook for authentication state throughout the app
 - **Roles**: Owner, Admin, Rep (Owner's Rep) - controlled via `user_projects` table
 
@@ -183,10 +164,8 @@ supabase functions logs send-invitation-email
 ```
 Located in `supabase/functions/`, uses Deno runtime.
 
-## Important Development Reminders
+## Important Patterns
 
 - Client components must use `"use client"` directive when using hooks or browser APIs
-- Use `useSearchParams()` within a Suspense boundary to avoid production build issues
-- All authenticated pages should check for valid session (see existing pages for patterns)
-- App icon defined in `src/app/icon.tsx` using edge runtime
-- Collapsible sidebar at `src/components/CollapsibleSidebar.tsx`
+- Use `useSearchParams()` within a Suspense boundary for production builds
+- Context providers wrap app in `layout.tsx`: `AuthProvider` → `AccountTypeProvider` → `ThemeProvider`
