@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { format, parseISO, isWithinInterval, startOfDay, endOfDay, startOfWeek, startOfMonth, getISOWeek, getYear } from "date-fns";
 import * as XLSX from 'xlsx';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, Brush } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, Brush, ComposedChart } from 'recharts';
 import { PreliminaryProductionUploadModal } from "@/components/PreliminaryProductionUploadModal";
 import { adminService } from "@/lib/adminService";
 
@@ -179,6 +179,7 @@ function ProductionPageContent() {
   const [showDataDebug, setShowDataDebug] = useState(false);
   const [chartViewMode, setChartViewMode] = useState<'30days' | '90days' | 'all' | 'weekly' | 'monthly'>('all');
   const [matrixViewMode, setMatrixViewMode] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [actualMatrixViewMode, setActualMatrixViewMode] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [isAdminViewing, setIsAdminViewing] = useState(false);
 
   useEffect(() => {
@@ -1136,18 +1137,26 @@ function ProductionPageContent() {
     let cumulative = 0;
     const cumulativeData = sortedDates.map((date, index) => {
       cumulative += allDatesMap[date];
-      // Calculate target pace (linear from start to total project piles)
-      const targetPace = totalProjectPiles > 0 && totalWorkingDays > 0
-        ? Math.round((totalProjectPiles / totalWorkingDays) * (index + 1))
-        : 0;
+      // Calculate target pace based on daily goal setting
+      // If daily goal is set, use it; otherwise use total project / working days
+      const targetPace = dailyGoal > 0
+        ? dailyGoal * (index + 1)
+        : (totalProjectPiles > 0 && totalWorkingDays > 0
+          ? Math.round((totalProjectPiles / totalWorkingDays) * (index + 1))
+          : 0);
       return {
         date: format(parseISO(date), 'MMM d'),
         fullDate: date,
         actual: cumulative,
-        target: Math.min(targetPace, totalProjectPiles),
+        target: totalProjectPiles > 0 ? Math.min(targetPace, totalProjectPiles) : targetPace,
         daily: allDatesMap[date]
       };
     });
+
+    // Calculate max value for chart Y-axis (better scaling)
+    const maxCumulativeActual = cumulativeData.length > 0 ? cumulativeData[cumulativeData.length - 1].actual : 0;
+    const maxCumulativeTarget = cumulativeData.length > 0 ? cumulativeData[cumulativeData.length - 1].target : 0;
+    const chartMaxValue = Math.max(maxCumulativeActual, maxCumulativeTarget) * 1.1; // 10% padding
 
     return {
       // Project Progress
@@ -1173,9 +1182,163 @@ function ProductionPageContent() {
       totalTrackedDays,
       goalMetPercent: totalTrackedDays > 0 ? (goalMetDays / totalTrackedDays) * 100 : 0,
       // Cumulative Chart Data
-      cumulativeData
+      cumulativeData,
+      chartMaxValue,
+      dailyGoal
     };
   }, [machines, projectData?.total_project_piles, projectData?.daily_pile_goal]);
+
+  // Actual Machine Matrix Data - transforms daily data into matrix format for comparison view
+  const actualMatrixData = useMemo(() => {
+    if (machines.length === 0) {
+      return { columns: [], columnDates: [], machines: [], periodAverages: [], overallAverage: 0 };
+    }
+
+    // Get all dates from all machines
+    const allDatesSet = new Set<string>();
+    machines.forEach(m => {
+      Object.keys(m.pilesPerDate).forEach(date => allDatesSet.add(date));
+    });
+    const allDates = Array.from(allDatesSet).sort();
+
+    if (allDates.length === 0) {
+      return { columns: [], columnDates: [], machines: [], periodAverages: [], overallAverage: 0 };
+    }
+
+    // Group dates based on view mode
+    let columns: string[] = [];
+    let columnDates: string[] = [];
+    const dateToColumn: { [date: string]: number } = {};
+
+    if (actualMatrixViewMode === 'daily') {
+      columns = allDates.map(d => format(parseISO(d), 'MMM d'));
+      columnDates = allDates;
+      allDates.forEach((d, i) => { dateToColumn[d] = i; });
+    } else if (actualMatrixViewMode === 'weekly') {
+      const weekMap: { [weekKey: string]: { dates: string[]; startDate: string } } = {};
+      allDates.forEach(d => {
+        const date = parseISO(d);
+        const weekStart = format(startOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+        const weekKey = `${getYear(date)}-W${String(getISOWeek(date)).padStart(2, '0')}`;
+        if (!weekMap[weekKey]) {
+          weekMap[weekKey] = { dates: [], startDate: weekStart };
+        }
+        weekMap[weekKey].dates.push(d);
+      });
+
+      const sortedWeeks = Object.entries(weekMap).sort((a, b) => a[0].localeCompare(b[0]));
+      columns = sortedWeeks.map(([key, data]) => {
+        const startDate = parseISO(data.startDate);
+        return `W${getISOWeek(startDate)} (${format(startDate, 'MMM d')})`;
+      });
+      columnDates = sortedWeeks.map(([key]) => key);
+      sortedWeeks.forEach(([weekKey, data], i) => {
+        data.dates.forEach(d => { dateToColumn[d] = i; });
+      });
+    } else {
+      // Monthly view
+      const monthMap: { [monthKey: string]: string[] } = {};
+      allDates.forEach(d => {
+        const date = parseISO(d);
+        const monthKey = format(startOfMonth(date), 'yyyy-MM');
+        if (!monthMap[monthKey]) {
+          monthMap[monthKey] = [];
+        }
+        monthMap[monthKey].push(d);
+      });
+
+      const sortedMonths = Object.entries(monthMap).sort((a, b) => a[0].localeCompare(b[0]));
+      columns = sortedMonths.map(([key]) => format(parseISO(`${key}-01`), 'MMM yyyy'));
+      columnDates = sortedMonths.map(([key]) => key);
+      sortedMonths.forEach(([monthKey, dates], i) => {
+        dates.forEach(d => { dateToColumn[d] = i; });
+      });
+    }
+
+    // Build machine rows with values for each column
+    const machineRows = machines.map(m => {
+      const values: (number | null)[] = new Array(columns.length).fill(null);
+      let total = 0;
+      let activeDays = 0;
+      let firstActiveColumn = columns.length;
+
+      Object.entries(m.pilesPerDate).forEach(([date, count]) => {
+        const colIdx = dateToColumn[date];
+        if (colIdx !== undefined) {
+          if (values[colIdx] === null) {
+            values[colIdx] = count;
+          } else {
+            values[colIdx] = (values[colIdx] as number) + count;
+          }
+          total += count;
+          if (actualMatrixViewMode === 'daily') {
+            activeDays++;
+          }
+        }
+      });
+
+      if (actualMatrixViewMode !== 'daily') {
+        activeDays = values.filter(v => v !== null && v > 0).length;
+      }
+
+      if (m.firstDate) {
+        const firstColIdx = dateToColumn[m.firstDate];
+        if (firstColIdx !== undefined) {
+          firstActiveColumn = firstColIdx;
+        } else {
+          for (let i = 0; i < columns.length; i++) {
+            if (values[i] !== null) {
+              firstActiveColumn = i;
+              break;
+            }
+          }
+        }
+      }
+
+      for (let i = 0; i < columns.length; i++) {
+        if (i < firstActiveColumn) {
+          values[i] = null;
+        } else if (values[i] === null) {
+          values[i] = 0;
+        }
+      }
+
+      return {
+        machineId: m.machineId,
+        firstActiveColumn,
+        firstDate: m.firstDate,
+        values,
+        total,
+        average: activeDays > 0 ? total / activeDays : 0,
+      };
+    });
+
+    machineRows.sort((a, b) => b.total - a.total);
+
+    const periodAverages = columns.map((_, colIdx) => {
+      const activeValues = machineRows
+        .filter(m => m.values[colIdx] !== null && colIdx >= m.firstActiveColumn)
+        .map(m => m.values[colIdx] as number);
+      return activeValues.length > 0
+        ? activeValues.reduce((sum, v) => sum + v, 0) / activeValues.length
+        : 0;
+    });
+
+    const allActiveValues = machineRows.flatMap(m =>
+      m.values.filter((v, i) => v !== null && i >= m.firstActiveColumn) as number[]
+    );
+    const overallAverage = allActiveValues.length > 0
+      ? allActiveValues.reduce((sum, v) => sum + v, 0) / allActiveValues.length
+      : 0;
+
+    return {
+      columns,
+      columnDates,
+      machines: machineRows,
+      periodAverages,
+      overallAverage,
+    };
+  }, [machines, actualMatrixViewMode]);
 
   // Preliminary chart data calculations
   const preliminaryChartData = useMemo(() => {
@@ -2722,13 +2885,13 @@ function ProductionPageContent() {
                             Cumulative Progress vs Target Pace
                           </CardTitle>
                           <CardDescription>
-                            Actual cumulative piles installed compared to linear target pace ({enhancedAnalytics.totalProjectPiles.toLocaleString()} total)
+                            Actual cumulative piles vs target pace{enhancedAnalytics.dailyGoal > 0 ? ` (${enhancedAnalytics.dailyGoal.toLocaleString()}/day goal)` : ''} • {enhancedAnalytics.totalProjectPiles.toLocaleString()} total project piles
                           </CardDescription>
                         </CardHeader>
                         <CardContent>
                           <div className="h-[280px]">
                             <ResponsiveContainer width="100%" height="100%">
-                              <AreaChart data={enhancedAnalytics.cumulativeData}>
+                              <ComposedChart data={enhancedAnalytics.cumulativeData}>
                                 <defs>
                                   <linearGradient id="colorActual" x1="0" y1="0" x2="0" y2="1">
                                     <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
@@ -2737,7 +2900,7 @@ function ProductionPageContent() {
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                                 <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#94a3b8" />
-                                <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" domain={[0, enhancedAnalytics.totalProjectPiles]} />
+                                <YAxis tick={{ fontSize: 11 }} stroke="#94a3b8" domain={[0, Math.ceil(enhancedAnalytics.chartMaxValue)]} tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value.toString()} />
                                 <Tooltip
                                   contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px' }}
                                   labelStyle={{ color: '#f1f5f9' }}
@@ -2747,9 +2910,9 @@ function ProductionPageContent() {
                                   ]}
                                 />
                                 <Legend />
-                                <Line type="monotone" dataKey="target" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" dot={false} name="Target Pace" />
                                 <Area type="monotone" dataKey="actual" stroke="#10b981" strokeWidth={2} fill="url(#colorActual)" name="Actual Progress" />
-                              </AreaChart>
+                                <Line type="monotone" dataKey="target" stroke="#f59e0b" strokeWidth={3} strokeDasharray="8 4" dot={false} name="Target Pace" />
+                              </ComposedChart>
                             </ResponsiveContainer>
                           </div>
                         </CardContent>
@@ -2921,6 +3084,138 @@ function ProductionPageContent() {
                         </CardContent>
                       </Card>
                     </div>
+
+                    {/* MACHINE MATRIX - Production comparison by date/period */}
+                    {actualMatrixData.columns.length > 0 && (
+                      <Card className="bg-white dark:bg-slate-800 border-indigo-200 dark:border-indigo-700 mb-4">
+                        <CardHeader className="pb-2">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                                <BarChart2 className="h-4 w-4 text-indigo-600" />
+                                Machine Matrix
+                                <span className="text-xs font-normal bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 px-2 py-0.5 rounded-full">
+                                  {actualMatrixViewMode === 'daily' ? 'Daily' : actualMatrixViewMode === 'weekly' ? 'Weekly' : 'Monthly'}
+                                </span>
+                              </CardTitle>
+                              <CardDescription>
+                                Compare machine production across {actualMatrixViewMode === 'daily' ? 'days' : actualMatrixViewMode === 'weekly' ? 'weeks' : 'months'}
+                              </CardDescription>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Select value={actualMatrixViewMode} onValueChange={(v) => setActualMatrixViewMode(v as 'daily' | 'weekly' | 'monthly')}>
+                                <SelectTrigger className="h-8 w-[110px] text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="daily">Daily</SelectItem>
+                                  <SelectItem value="weekly">Weekly</SelectItem>
+                                  <SelectItem value="monthly">Monthly</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="pt-2">
+                          <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                            <table className="w-full text-xs">
+                              <thead className="bg-slate-100 dark:bg-slate-700 sticky top-0 z-10">
+                                <tr>
+                                  <th className="py-2 px-2 text-left font-semibold text-slate-700 dark:text-slate-200 sticky left-0 bg-slate-100 dark:bg-slate-700 z-20 min-w-[80px]">
+                                    Machine
+                                  </th>
+                                  {actualMatrixData.columns.map((col, i) => (
+                                    <th key={i} className="py-2 px-2 text-center font-medium text-slate-600 dark:text-slate-300 min-w-[60px] whitespace-nowrap">
+                                      {col}
+                                    </th>
+                                  ))}
+                                  <th className="py-2 px-2 text-center font-semibold text-indigo-700 dark:text-indigo-300 min-w-[60px] bg-indigo-50 dark:bg-indigo-900/30">
+                                    Total
+                                  </th>
+                                  <th className="py-2 px-2 text-center font-semibold text-slate-600 dark:text-slate-300 min-w-[60px]">
+                                    Avg
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                {actualMatrixData.machines.map((machine, mIdx) => (
+                                  <tr key={machine.machineId} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                                    <td className="py-1.5 px-2 font-semibold text-slate-900 dark:text-white sticky left-0 bg-white dark:bg-slate-800 z-10">
+                                      #{machine.machineId}
+                                    </td>
+                                    {machine.values.map((val, vIdx) => {
+                                      const isNull = val === null;
+                                      const isZero = val === 0;
+                                      const avg = actualMatrixData.periodAverages[vIdx];
+                                      const isAboveAvg = val !== null && avg > 0 && val > avg;
+                                      const isBelowAvg = val !== null && val > 0 && avg > 0 && val < avg * 0.7;
+
+                                      return (
+                                        <td
+                                          key={vIdx}
+                                          className={`py-1.5 px-2 text-center ${
+                                            isNull
+                                              ? 'bg-slate-50 dark:bg-slate-800/50 text-slate-300 dark:text-slate-600'
+                                              : isZero
+                                              ? 'bg-red-50 dark:bg-red-900/20 text-red-400 dark:text-red-500'
+                                              : isAboveAvg
+                                              ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 font-medium'
+                                              : isBelowAvg
+                                              ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
+                                              : 'text-slate-700 dark:text-slate-300'
+                                          }`}
+                                        >
+                                          {isNull ? '—' : val}
+                                        </td>
+                                      );
+                                    })}
+                                    <td className="py-1.5 px-2 text-center font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30">
+                                      {machine.total}
+                                    </td>
+                                    <td className="py-1.5 px-2 text-center text-slate-600 dark:text-slate-400">
+                                      {machine.average.toFixed(1)}
+                                    </td>
+                                  </tr>
+                                ))}
+                                {/* Column totals row */}
+                                <tr className="bg-slate-100 dark:bg-slate-700 font-semibold">
+                                  <td className="py-1.5 px-2 text-slate-700 dark:text-slate-200 sticky left-0 bg-slate-100 dark:bg-slate-700 z-10">
+                                    Total
+                                  </td>
+                                  {actualMatrixData.columns.map((_, colIdx) => {
+                                    const colTotal = actualMatrixData.machines.reduce((sum, m) => {
+                                      const val = m.values[colIdx];
+                                      return sum + (val !== null ? val : 0);
+                                    }, 0);
+                                    return (
+                                      <td key={colIdx} className="py-1.5 px-2 text-center text-slate-700 dark:text-slate-200">
+                                        {colTotal}
+                                      </td>
+                                    );
+                                  })}
+                                  <td className="py-1.5 px-2 text-center text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30">
+                                    {actualMatrixData.machines.reduce((sum, m) => sum + m.total, 0)}
+                                  </td>
+                                  <td className="py-1.5 px-2 text-center text-slate-600 dark:text-slate-400">
+                                    —
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Summary info */}
+                          <div className="mt-2 text-xs text-slate-500 flex items-center justify-between">
+                            <span>
+                              {actualMatrixData.machines.length} machines × {actualMatrixData.columns.length} {actualMatrixViewMode === 'daily' ? 'days' : actualMatrixViewMode === 'weekly' ? 'weeks' : 'months'}
+                            </span>
+                            <span>
+                              Overall avg: <span className="font-medium text-indigo-600">{actualMatrixData.overallAverage.toFixed(1)}</span> piles/{actualMatrixViewMode === 'daily' ? 'day' : actualMatrixViewMode === 'weekly' ? 'week' : 'month'}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
                   </TabsContent>
 
                   <TabsContent value="machines" className="mt-4">

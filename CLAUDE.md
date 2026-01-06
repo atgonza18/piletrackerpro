@@ -99,8 +99,11 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 ### Authentication & Authorization
 - Supabase Auth with email/password; forgot password at `/auth/forgot-password`
-- Use `useAuth()` hook for authentication state throughout the app
+- **Hooks**:
+  - `useAuth()` - authentication state, sign in/out, user info, current project
+  - `useAccountType()` - role/permissions (`canEdit`, `isEPC`, `isOwner`, `currentProjectId`)
 - **Roles**: Owner, Admin, Rep (Owner's Rep) - controlled via `user_projects` table
+- **Public routes**: `/auth`, `/auth/forgot-password`, `/auth/reset-password`, `/`, `/field-entry`
 
 ### Publication Workflow (Data Safeguarding)
 - **Purpose**: EPC users review pile data before making visible to Owner's Rep accounts
@@ -144,6 +147,17 @@ Used across Blocks, Zones, and Production pages:
 - Mobile-optimized at `/field-entry?project={projectId}`
 - QR code generation via `FieldEntryQRCode.tsx`
 
+### Heatmap & Coordinate Systems
+- Converts State Plane coordinates (Northing/Easting in US Survey Feet) to WGS84 (lat/lng) for Mapbox display
+- Uses `proj4` library for transformations via `coordinateService.ts`
+- Supports multiple US State Plane zones (Oklahoma, Texas, California, Florida, Arizona, Colorado, Georgia, NC, Virginia, Nevada)
+- Project coordinate system stored in `projects.coordinate_system` (EPSG code like `EPSG:2267`)
+- Auto-detection available based on geographic location
+
+### Notifications
+- Uses `sonner` toast library via `toast()` function from `sonner`
+- Toaster component configured in root layout with `position="top-right" richColors`
+
 ## Development Guidelines
 
 ### Adding shadcn/ui Components
@@ -169,3 +183,4 @@ Located in `supabase/functions/`, uses Deno runtime.
 - Client components must use `"use client"` directive when using hooks or browser APIs
 - Use `useSearchParams()` within a Suspense boundary for production builds
 - Context providers wrap app in `layout.tsx`: `AuthProvider` → `AccountTypeProvider` → `ThemeProvider`
+- Large data loading uses parallel pagination (fetch pages of 1000 records concurrently, process in-memory)
